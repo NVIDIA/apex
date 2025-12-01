@@ -5,23 +5,23 @@
 
 #define GN_ONE_PASS_RUN_FUNCTION_NAME(Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK, PASS_NAME) \
   void group_norm_nhwc_##PASS_NAME##_one_pass_##CHANNELS_PER_GROUP##_##ACTS_PER_BLOCK##_##Traits##_run(         \
-      const Group_norm_nhwc_##PASS_NAME##_params &params, const dim3 &grid, cudaStream_t stream)
+      const Group_norm_nhwc_##PASS_NAME##_params& params, const dim3& grid, cudaStream_t stream)
 
-#define GN_ONE_PASS_RUN_FUNCTION(Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK, PASS_NAME)             \
-  GN_ONE_PASS_RUN_FUNCTION_NAME(Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK, PASS_NAME) {            \
-    auto kernel =                                                                                                      \
-        group_norm_nhwc_##PASS_NAME##_one_pass_kernel<Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK>;  \
-                                                                                                                       \
-    const Group_norm_nhwc_##PASS_NAME##_params *params_ = &params;                                                     \
-    if (grid.x > 1) {                                                                                                  \
-      CHECK_CUDA(cudaLaunchCooperativeKernel((const void *)kernel, grid, dim3(THREADS_PER_BLOCK), (void **)&params_,   \
-                                             0, stream));                                                              \
-                                                                                                                       \
-    } else {                                                                                                           \
-      CHECK_CUDA(cudaLaunchKernel((const void *)kernel, grid, dim3(THREADS_PER_BLOCK), (void **)&params_, 0, stream)); \
-    }                                                                                                                  \
-                                                                                                                       \
-    CHECK_CUDA(cudaGetLastError());                                                                                    \
+#define GN_ONE_PASS_RUN_FUNCTION(Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK, PASS_NAME)            \
+  GN_ONE_PASS_RUN_FUNCTION_NAME(Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK, PASS_NAME) {           \
+    auto kernel =                                                                                                     \
+        group_norm_nhwc_##PASS_NAME##_one_pass_kernel<Traits, ACTS_PER_BLOCK, CHANNELS_PER_GROUP, THREADS_PER_BLOCK>; \
+                                                                                                                      \
+    const Group_norm_nhwc_##PASS_NAME##_params* params_ = &params;                                                    \
+    if (grid.x > 1) {                                                                                                 \
+      CHECK_CUDA(cudaLaunchCooperativeKernel((const void*)kernel, grid, dim3(THREADS_PER_BLOCK), (void**)&params_, 0, \
+                                             stream));                                                                \
+                                                                                                                      \
+    } else {                                                                                                          \
+      CHECK_CUDA(cudaLaunchKernel((const void*)kernel, grid, dim3(THREADS_PER_BLOCK), (void**)&params_, 0, stream));  \
+    }                                                                                                                 \
+                                                                                                                      \
+    CHECK_CUDA(cudaGetLastError());                                                                                   \
   }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

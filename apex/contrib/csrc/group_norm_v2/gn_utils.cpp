@@ -5,7 +5,7 @@
 
 namespace group_norm_v2 {
 
-cudaDeviceProp const &get_device_prop(int device_id) {
+cudaDeviceProp const& get_device_prop(int device_id) {
   static std::vector<cudaDeviceProp> device_props;
   static std::once_flag flag;
   std::call_once(flag, [&] {

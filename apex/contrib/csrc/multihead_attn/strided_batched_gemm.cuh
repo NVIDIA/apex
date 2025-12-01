@@ -32,8 +32,8 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
   }
 }
 
-void CublasStridedBatchedGemm(char transa, char transb, long m, long n, long k, float alpha, const half *a, long lda,
-                              long strideA, const half *b, long ldb, long strideB, float beta, half *c, long ldc,
+void CublasStridedBatchedGemm(char transa, char transb, long m, long n, long k, float alpha, const half* a, long lda,
+                              long strideA, const half* b, long ldb, long strideB, float beta, half* c, long ldc,
                               long strideC, long batchCount, cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT_TENSOR_OP) {
   cublasOperation_t opa = convertTransToCublasOperation(transa);
   cublasOperation_t opb = convertTransToCublasOperation(transb);
@@ -44,17 +44,17 @@ void CublasStridedBatchedGemm(char transa, char transb, long m, long n, long k, 
   float fAlpha = alpha;
   float fBeta = beta;
   TORCH_CUDABLAS_CHECK(cublasGemmStridedBatchedEx(
-      handle, opa, opb, (int)m, (int)n, (int)k, (void *)&fAlpha, a, CUDA_R_16F, (int)lda, strideA, b, CUDA_R_16F,
-      (int)ldb, strideB, (void *)&fBeta, c, CUDA_R_16F, (int)ldc, strideC, (int)batchCount, CUDA_R_32F, algo));
+      handle, opa, opb, (int)m, (int)n, (int)k, (void*)&fAlpha, a, CUDA_R_16F, (int)lda, strideA, b, CUDA_R_16F,
+      (int)ldb, strideB, (void*)&fBeta, c, CUDA_R_16F, (int)ldc, strideC, (int)batchCount, CUDA_R_32F, algo));
 }
 
 }  // namespace
 
 // TODO(mkozuki): Make use of the int template parameters or discard them.
 template <typename LayoutA, typename LayoutB, int SRC_A, int SRC_B, int DST_C>
-void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k, float alpha, const half *a, long lda,
-                           long long int batch_stride_A, const half *b, long ldb, long long int batch_stride_B,
-                           float beta, half *c, long ldc, long long int batch_stride_C, long batch_count) {
+void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k, float alpha, const half* a, long lda,
+                           long long int batch_stride_A, const half* b, long ldb, long long int batch_stride_B,
+                           float beta, half* c, long ldc, long long int batch_stride_C, long batch_count) {
   using Gemm = cutlass::gemm::device::GemmBatched<
       /* Element type of A matrix */ half, /* Layout of A matrix */ LayoutA,
       /* Element type of B matrix */ half, /* Layout of B matrix */ LayoutB,
@@ -77,8 +77,8 @@ void CutlassGemm_FP32Accum(cudaStream_t stream, long m, long n, long k, float al
 }
 
 namespace {
-void gemm_switch_fp32accum(char transa, char transb, long m, long n, long k, float alpha, const half *a, long lda,
-                           long strideA, const half *b, long ldb, long strideB, float beta, half *c, long ldc,
+void gemm_switch_fp32accum(char transa, char transb, long m, long n, long k, float alpha, const half* a, long lda,
+                           long strideA, const half* b, long ldb, long strideB, float beta, half* c, long ldc,
                            long strideC, long batchCount) {
   auto stream = c10::cuda::getCurrentCUDAStream();
   // printf("GEMM   -> %c%c M: %i N: %i K: %i Alpha: %f Beta: %f\n", (transa ==
@@ -343,8 +343,8 @@ void gemm_switch_fp32accum(char transa, char transb, long m, long n, long k, flo
   }
 }
 
-void adjustLdLevel3(char transa, char transb, int64_t m, int64_t n, int64_t k, int64_t *lda, int64_t *ldb,
-                    int64_t *ldc) {
+void adjustLdLevel3(char transa, char transb, int64_t m, int64_t n, int64_t k, int64_t* lda, int64_t* ldb,
+                    int64_t* ldc) {
   int transa_ = ((transa == 't') || (transa == 'T'));
   int transb_ = ((transb == 't') || (transb == 'T'));
 
@@ -365,8 +365,8 @@ void adjustLdLevel3(char transa, char transb, int64_t m, int64_t n, int64_t k, i
   }
 }
 
-void HgemmStridedBatched(char transa, char transb, long m, long n, long k, float alpha, const half *a, long lda,
-                         long strideA, const half *b, long ldb, long strideB, float beta, half *c, long ldc,
+void HgemmStridedBatched(char transa, char transb, long m, long n, long k, float alpha, const half* a, long lda,
+                         long strideA, const half* b, long ldb, long strideB, float beta, half* c, long ldc,
                          long strideC, long batchCount) {
   if ((m >= INT_MAX) || (n >= INT_MAX) || (k >= INT_MAX) || (lda >= INT_MAX) || (ldb >= INT_MAX) || (ldc >= INT_MAX) ||
       (batchCount >= INT_MAX))

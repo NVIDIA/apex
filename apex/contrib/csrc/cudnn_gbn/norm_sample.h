@@ -38,10 +38,10 @@
 
 /* some helpers
  */
-void generateStrides(const int64_t *dimA, int64_t *strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat);
+void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat);
 
-int64_t checkCudaError(cudaError_t code, const char *expr, const char *file, int line);
-int64_t checkCudnnError(cudnnStatus_t code, const char *expr, const char *file, int line);
+int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line);
+int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line);
 
 #define checkCudaErr(...)                                                        \
   do {                                                                           \
@@ -67,8 +67,8 @@ int64_t checkCudnnError(cudnnStatus_t code, const char *expr, const char *file, 
 
  *
  */
-cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
-                                                     int64_t *peerDims, cudnnDataType_t in_out_data_type);
+cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
+                                                     int64_t* peerDims, cudnnDataType_t in_out_data_type);
 /**
  * @param xDevPtr input tensor device pointer
  * @param yDevPtr output tensor device pointer
@@ -86,10 +86,10 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_
  * @param exponential_decay_factor exponential_decay_factor as a value
  *
  **/
-void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *yDevPtr, void *scaledevPtr,
-                                void *biasdevPtr, void *in_meandevPtr, void *in_vardevPtr, void *out_meandevPtr,
-                                void *out_vardevPtr, void *saved_meandevPtr, void *saved_inv_vardevPtr,
-                                const std::vector<void *> &peer_devPtrs, double epsilon_val,
+void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void* xDevPtr, void* yDevPtr, void* scaledevPtr,
+                                void* biasdevPtr, void* in_meandevPtr, void* in_vardevPtr, void* out_meandevPtr,
+                                void* out_vardevPtr, void* saved_meandevPtr, void* saved_inv_vardevPtr,
+                                const std::vector<void*>& peer_devPtrs, double epsilon_val,
                                 double exponential_decay_factor, size_t peer_size, int rank_id);
 
 /**
@@ -103,8 +103,8 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPt
  * GBN
  *
  */
-cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
-                                                      int64_t *peerDims, cudnnDataType_t data_type);
+cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
+                                                      int64_t* peerDims, cudnnDataType_t data_type);
 
 /**
  * @brief Run a Group BN backward sample with 2 peer stat tensors.
@@ -124,7 +124,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64
  * @param epsilon_val episilon value as a double
  *
  */
-void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *dyDevPtr, void *scaledevPtr,
-                                 void *saved_meandevPtr, void *saved_inv_vardevPtr,
-                                 const std::vector<void *> &peer_devPtrs, void *dxDevPtr, void *dscaledevPtr,
-                                 void *dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id);
+void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void* xDevPtr, void* dyDevPtr, void* scaledevPtr,
+                                 void* saved_meandevPtr, void* saved_inv_vardevPtr,
+                                 const std::vector<void*>& peer_devPtrs, void* dxDevPtr, void* dscaledevPtr,
+                                 void* dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id);

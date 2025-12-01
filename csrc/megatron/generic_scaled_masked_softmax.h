@@ -57,17 +57,17 @@ __device__ __forceinline__ acc_t warp_reduce_new(acc_t val) {
 }
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements>
-__global__ void scaled_masked_softmax_warp_backward_new(output_t *gradInput,  //[batches, attn_heads, q_len, k_len]
-                                                        input_t *grad,
-                                                        const input_t *output,  //[batches, attn_heads, q_len, k_len]
+__global__ void scaled_masked_softmax_warp_backward_new(output_t* gradInput,  //[batches, attn_heads, q_len, k_len]
+                                                        input_t* grad,
+                                                        const input_t* output,  //[batches, attn_heads, q_len, k_len]
                                                         acc_t scale, int element_count) {
   int threads_per_block = blockDim.x;
   // the first element_count*2 elements are used for cache, the last 128 is used for reduction
   extern __shared__ acc_t shared_data[];
-  input_t *local_data = (input_t *)shared_data;
-  input_t *output_data = &local_data[element_count];
+  input_t* local_data = (input_t*)shared_data;
+  input_t* output_data = &local_data[element_count];
   // maximum shared cached 128, enough for 4096 elements reduction into 4096/32= 128 elements
-  acc_t *shared = (acc_t *)(&(local_data[element_count * 2]));
+  acc_t* shared = (acc_t*)(&(local_data[element_count * 2]));
 
   int num_reductions = (element_count - 1) / threads_per_block + 1;
 
@@ -142,7 +142,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(output_t *gradInput,  //
 }  // end of anonymous namespace
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_masked_softmax_backward_new(output_t *grad_input, input_t *grad, const input_t *output,
+void dispatch_scaled_masked_softmax_backward_new(output_t* grad_input, input_t* grad, const input_t* output,
                                                  const acc_t scale, int query_seq_len, int key_seq_len, int batches,
                                                  int attn_heads) {
   if (key_seq_len == 0) {
@@ -167,7 +167,7 @@ void dispatch_scaled_masked_softmax_backward_new(output_t *grad_input, input_t *
  * 2) Explicit masking
  */
 template <typename input_t, typename output_t, typename acc_t>
-__global__ void scaled_masked_softmax_warp_forward_new(output_t *dst, const input_t *src, const uint8_t *mask,
+__global__ void scaled_masked_softmax_warp_forward_new(output_t* dst, const input_t* src, const uint8_t* mask,
                                                        const acc_t scale,
                                                        int query_len,  // query_len
                                                        int attn_heads,
@@ -179,7 +179,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(output_t *dst, const inpu
   //  the first element_count is used for cache, the last 128 is used for reduction
   extern __shared__ acc_t local_data[];
   // maximum shared cached 128, enough for 4096 elements reduction into 4096/32= 128 elements
-  acc_t *shared = &(local_data[element_count]);
+  acc_t* shared = &(local_data[element_count]);
   // number of 1024 threads reductions
   int num_reductions = (element_count - 1) / threads_per_block + 1;
 
@@ -321,7 +321,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(output_t *dst, const inpu
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_masked_softmax_forward_new(output_t *dst, const input_t *src, const uint8_t *mask,
+void dispatch_scaled_masked_softmax_forward_new(output_t* dst, const input_t* src, const uint8_t* mask,
                                                 const input_t scale, int query_seq_len, int key_seq_len, int batches,
                                                 int attn_heads, int pad_batches) {
   if (key_seq_len == 0) {

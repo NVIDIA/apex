@@ -16,7 +16,7 @@ struct LaunchParams {
   size_t workspace_bytes;
   size_t barrier_size;
 
-  cudaDeviceProp *props;
+  cudaDeviceProp* props;
 
   cudaStream_t stream;
 
@@ -48,18 +48,18 @@ struct FwdParams {
   int cols;
 
   // Common data pointers.
-  void *x;
-  void *z;
-  void *mu;
-  void *rs;
-  void *gamma;
-  void *beta;
+  void* x;
+  void* z;
+  void* mu;
+  void* rs;
+  void* gamma;
+  void* beta;
 
   // Multi-CTA workspace in gmem.
-  void *workspace;
+  void* workspace;
 
   // Multi-CTA sync barriers in gmem.
-  int *barrier;
+  int* barrier;
 
   // Output of LN FWD.
   float epsilon;
@@ -77,23 +77,23 @@ struct BwdParams : public FwdParams {
         dbeta(nullptr),
         dgamma(nullptr) {}
   // Input: gradient wrt. LN FWD output.
-  void *dz;
+  void* dz;
 
   // Workspace for Wgrad pre-reduction.
-  void *dbeta_part;
-  void *dgamma_part;
+  void* dbeta_part;
+  void* dgamma_part;
 
   // Output: Dgrad.
-  void *dx;
+  void* dx;
   // Output: Wgrad.
-  void *dbeta;
-  void *dgamma;
+  void* dbeta;
+  void* dgamma;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-using FwdFunction = std::function<void(LaunchParams<FwdParams> &, const bool)>;
-using BwdFunction = std::function<void(LaunchParams<BwdParams> &, const bool)>;
+using FwdFunction = std::function<void(LaunchParams<FwdParams>&, const bool)>;
+using BwdFunction = std::function<void(LaunchParams<BwdParams>&, const bool)>;
 using FunctionKey = uint64_t;
 using FwdRegistry = std::unordered_map<FunctionKey, FwdFunction>;
 using BwdRegistry = std::unordered_map<FunctionKey, BwdFunction>;

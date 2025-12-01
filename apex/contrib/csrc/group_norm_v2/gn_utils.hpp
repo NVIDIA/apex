@@ -39,12 +39,12 @@
 
 namespace group_norm_v2 {
 
-cudaDeviceProp const &get_device_prop(int device_id);
+cudaDeviceProp const& get_device_prop(int device_id);
 
 #ifdef __CUDA_ARCH__
 
 template <class... Ts>
-__host__ __device__ inline int print_rank_0(char const *fmt, Ts &&...args) {
+__host__ __device__ inline int print_rank_0(char const* fmt, Ts&&... args) {
   if (threadIdx.x + threadIdx.y + threadIdx.z == 0 && blockIdx.x + blockIdx.y + blockIdx.z == 0) {
     return printf(fmt, std::forward<Ts>(args)...);
   }

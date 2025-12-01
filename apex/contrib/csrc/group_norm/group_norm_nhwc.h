@@ -33,7 +33,7 @@ static inline __device__ __host__ float sigmoid(float x) { return 1.f / (1.f + e
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ void spin_wait_(int *barrier, int step, int expected) {
+static inline __device__ void spin_wait_(int* barrier, int step, int expected) {
   // THE FOLLOWING CODE MUST BE EXECUTED BY A SINGLE THREAD IN THE CTA.
 
   // Update the global counter. Make sure prior writes are visible.
@@ -74,7 +74,7 @@ struct Group_sums {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Group_sums_op {
-  inline __device__ Group_sums operator()(const Group_sums &a, const Group_sums &b) {
+  inline __device__ Group_sums operator()(const Group_sums& a, const Group_sums& b) {
     Group_sums dst;
     dst.sum = b.flag ? b.sum : (a.sum + b.sum);
     dst.sum_sq = b.flag ? b.sum_sq : (a.sum_sq + b.sum_sq);
@@ -87,19 +87,19 @@ struct Group_sums_op {
 
 struct Group_norm_nhwc_fwd_params {
   // The output buffer. Layout NHWC.
-  void *y;
+  void* y;
   // The sums for the bwd pass. Not written if it is a nullptr.
-  float2 *sums;
+  float2* sums;
   // The input buffer. Layout NHWC.
-  const void *x;
+  const void* x;
   // The gamma scaling factor.
-  const void *gamma;
+  const void* gamma;
   // The beta term to add in GN.
-  const void *beta;
+  const void* beta;
   // The constant epsilon for sqrt(var + epsilon).
   float epsilon;
   // The barriers for the persistent kernel.
-  int *barriers;
+  int* barriers;
   // The extra storage for multi-CTA reductions as well as to pass data to the bwd.
   float *red_buffer, *zeroed_red_buffer;
 
@@ -132,39 +132,39 @@ struct Group_norm_nhwc_fwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &, size_t &red_buffer_elts);
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params&, size_t& red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &, cudaStream_t);
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params&, cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &, cudaStream_t);
+void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params&, cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Group_norm_nhwc_bwd_params {
   // The output buffer. Layout NHWC.
-  void *dx;
+  void* dx;
   // The output buffer. Layout NHWC.
-  void *dgamma;
+  void* dgamma;
   // The output buffer. Layout NHWC.
-  void *dbeta;
+  void* dbeta;
   // The input buffer. Layout NHWC.
-  const void *dy;
+  const void* dy;
   // The input buffer. Layout NHWC.
-  const void *x;
+  const void* x;
   // The gamma scaling factor.
-  const void *gamma;
+  const void* gamma;
   // The beta term to add in GN.
-  const void *beta;
+  const void* beta;
   // The sums from the fwd pass.
-  const float2 *sums;
+  const float2* sums;
   // The constant epsilon for sqrt(var + epsilon).
   float epsilon;
   // The barriers for the persistent kernel.
-  int *barriers;
+  int* barriers;
   // The extra storage for multi-CTA reductions as well as to pass data to the bwd.
   float *red_buffer, *zeroed_red_buffer;
 
@@ -197,14 +197,14 @@ struct Group_norm_nhwc_bwd_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &, size_t &red_buffer_elts);
+void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params&, size_t& red_buffer_elts);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params &, cudaStream_t);
+void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params&, cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params &, cudaStream_t);
+void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params&, cudaStream_t);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

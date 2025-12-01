@@ -15,7 +15,7 @@ constexpr int UNROLL = 4;
 }  // namespace
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-__global__ void apex_fused_dropout_kernel(scalar_t const *inputs, scalar_t *outputs, uint8_t *mask,
+__global__ void apex_fused_dropout_kernel(scalar_t const* inputs, scalar_t* outputs, uint8_t* mask,
                                           IndexType totalElements, accscalar_t p, std::pair<uint64_t, uint64_t> seeds) {
   accscalar_t pinv = accscalar_t(1) / p;
   IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -51,8 +51,8 @@ __global__ void apex_fused_dropout_kernel(scalar_t const *inputs, scalar_t *outp
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-__global__ void apex_dropout_add_kernel(scalar_t const *inputs, scalar_t const *add_inputs, scalar_t *outputs,
-                                        uint8_t *mask, IndexType totalElements, accscalar_t p,
+__global__ void apex_dropout_add_kernel(scalar_t const* inputs, scalar_t const* add_inputs, scalar_t* outputs,
+                                        uint8_t* mask, IndexType totalElements, accscalar_t p,
                                         std::pair<uint64_t, uint64_t> seeds) {
   accscalar_t pinv = accscalar_t(1) / p;
   IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -90,7 +90,7 @@ __global__ void apex_dropout_add_kernel(scalar_t const *inputs, scalar_t const *
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-__global__ void apex_add_kernel(scalar_t const *inputs, scalar_t const *add_inputs, scalar_t *outputs,
+__global__ void apex_add_kernel(scalar_t const* inputs, scalar_t const* add_inputs, scalar_t* outputs,
                                 IndexType totalElements) {
   IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
   IndexType rounded_size =
@@ -116,7 +116,7 @@ __global__ void apex_add_kernel(scalar_t const *inputs, scalar_t const *add_inpu
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-__global__ void apex_masked_scale_kernel(scalar_t const *inputs, scalar_t *outputs, uint8_t const *mask,
+__global__ void apex_masked_scale_kernel(scalar_t const* inputs, scalar_t* outputs, uint8_t const* mask,
                                          IndexType totalElements, accscalar_t scale) {
   IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
   IndexType rounded_size =
@@ -141,7 +141,7 @@ __global__ void apex_masked_scale_kernel(scalar_t const *inputs, scalar_t *outpu
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-void apex_fused_dropout_cuda(scalar_t const *inputs, scalar_t *outputs, uint8_t *mask, IndexType totalElements,
+void apex_fused_dropout_cuda(scalar_t const* inputs, scalar_t* outputs, uint8_t* mask, IndexType totalElements,
                              accscalar_t p) {
   auto gen = at::cuda::detail::getDefaultCUDAGenerator();
 
@@ -167,7 +167,7 @@ void apex_fused_dropout_cuda(scalar_t const *inputs, scalar_t *outputs, uint8_t 
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-void apex_dropout_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs, scalar_t *outputs, uint8_t *mask,
+void apex_dropout_add_cuda(scalar_t const* inputs, scalar_t const* add_inputs, scalar_t* outputs, uint8_t* mask,
                            IndexType totalElements, accscalar_t p) {
   auto gen = at::cuda::detail::getDefaultCUDAGenerator();
 
@@ -193,7 +193,7 @@ void apex_dropout_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs, s
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-void apex_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs, scalar_t *outputs, IndexType totalElements) {
+void apex_add_cuda(scalar_t const* inputs, scalar_t const* add_inputs, scalar_t* outputs, IndexType totalElements) {
   int block_size = 256;
   dim3 dim_block(block_size);
   dim3 grid((totalElements + block_size - 1) / block_size);
@@ -206,7 +206,7 @@ void apex_add_cuda(scalar_t const *inputs, scalar_t const *add_inputs, scalar_t 
 }
 
 template <typename scalar_t, typename accscalar_t, typename IndexType>
-void apex_masked_scale_cuda(scalar_t const *inputs, scalar_t *outputs, uint8_t const *mask, IndexType totalElements,
+void apex_masked_scale_cuda(scalar_t const* inputs, scalar_t* outputs, uint8_t const* mask, IndexType totalElements,
                             accscalar_t scale) {
   int block_size = 256;
   dim3 dim_block(block_size);

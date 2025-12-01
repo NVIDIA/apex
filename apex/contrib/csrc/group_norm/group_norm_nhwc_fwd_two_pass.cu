@@ -57,7 +57,7 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
     // Fetch two channels per thread.
     IOType2 v2 = IOTraits::zero();
     if (ci < params.c) {
-      v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
+      v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x)[offset]);
     }
 
     // Extract the two values.
@@ -106,7 +106,7 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params, size_t &zeroed_red_buffer_elts) {
+void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params& params, size_t& zeroed_red_buffer_elts) {
   // The pre-computed dimensions.
   params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
@@ -177,7 +177,7 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params &params, si
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params &params, cudaStream_t stream) {
+void group_norm_nhwc_fwd_two_passes_sum(const Group_norm_nhwc_fwd_params& params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 
@@ -251,8 +251,8 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
   // Load gamma/beta.
   float2 gamma_f2, beta_f2;
   if (ci < params.c) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
-    beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.gamma)[ci]));
+    beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.beta)[ci]));
   }
 
   // Compute the mean.
@@ -275,7 +275,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
     // Fetch two channels per thread.
     IOType2 v2 = IOTraits::zero();
     if (ci < params.c) {
-      v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
+      v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x)[offset]);
     }
 
     // Extract the two values.
@@ -297,7 +297,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
 
     // Store the scaled values.
     if (ci < params.c) {
-      *reinterpret_cast<IOType2 *>(&reinterpret_cast<IOType *>(params.y)[offset]) = IOTraits::pack(f2);
+      *reinterpret_cast<IOType2*>(&reinterpret_cast<IOType*>(params.y)[offset]) = IOTraits::pack(f2);
     }
   }
 
@@ -312,7 +312,7 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params &params, cudaStream_t stream) {
+void group_norm_nhwc_fwd_two_passes_scale(const Group_norm_nhwc_fwd_params& params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 

@@ -100,29 +100,29 @@ DEVICE_FUNCTION void to_float(float (&dst)[N], float (&src)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void ldg(int (&dst)[1], const uint16_t *gmem) { dst[0] = __ldg((const int *)gmem); }
+DEVICE_FUNCTION void ldg(int (&dst)[1], const uint16_t* gmem) { dst[0] = __ldg((const int*)gmem); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void ldg_stream(int (&dst)[1], const uint16_t *gmem) {
+DEVICE_FUNCTION void ldg_stream(int (&dst)[1], const uint16_t* gmem) {
   unsigned int tmp;
-  asm volatile("ld.global.cs.nc.s32 %0, [%1];" : "=r"(tmp) : "l"((const uint *)gmem));
+  asm volatile("ld.global.cs.nc.s32 %0, [%1];" : "=r"(tmp) : "l"((const uint*)gmem));
   dst[0] = tmp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void ldg(int (&dst)[2], const uint16_t *gmem) {
-  int2 tmp = __ldg((const int2 *)gmem);
+DEVICE_FUNCTION void ldg(int (&dst)[2], const uint16_t* gmem) {
+  int2 tmp = __ldg((const int2*)gmem);
   dst[0] = tmp.x;
   dst[1] = tmp.y;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void ldg_stream(int (&dst)[2], const uint16_t *gmem) {
+DEVICE_FUNCTION void ldg_stream(int (&dst)[2], const uint16_t* gmem) {
   int2 tmp;
-  asm volatile("ld.global.cs.nc.v2.s32 {%0,%1}, [%2];" : "=r"(tmp.x), "=r"(tmp.y) : "l"((const int2 *)gmem));
+  asm volatile("ld.global.cs.nc.v2.s32 {%0,%1}, [%2];" : "=r"(tmp.x), "=r"(tmp.y) : "l"((const int2*)gmem));
   dst[0] = tmp.x;
   dst[1] = tmp.y;
 }
@@ -130,7 +130,7 @@ DEVICE_FUNCTION void ldg_stream(int (&dst)[2], const uint16_t *gmem) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N>
-DEVICE_FUNCTION void ldg(float (&dst)[N], const uint16_t *gmem) {
+DEVICE_FUNCTION void ldg(float (&dst)[N], const uint16_t* gmem) {
   int tmp[N / 2];
   ldg(tmp, gmem);
   to_float(dst, tmp);
@@ -139,7 +139,7 @@ DEVICE_FUNCTION void ldg(float (&dst)[N], const uint16_t *gmem) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N>
-DEVICE_FUNCTION void ldg_stream(float (&dst)[N], const uint16_t *gmem) {
+DEVICE_FUNCTION void ldg_stream(float (&dst)[N], const uint16_t* gmem) {
   int tmp[N / 2];
   ldg_stream(tmp, gmem);
   to_float(dst, tmp);
@@ -147,31 +147,31 @@ DEVICE_FUNCTION void ldg_stream(float (&dst)[N], const uint16_t *gmem) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void stg(uint16_t *gmem, int (&src)[1]) { reinterpret_cast<int *>(gmem)[0] = src[0]; }
+DEVICE_FUNCTION void stg(uint16_t* gmem, int (&src)[1]) { reinterpret_cast<int*>(gmem)[0] = src[0]; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void stg_stream(uint16_t *gmem, int (&src)[1]) {
+DEVICE_FUNCTION void stg_stream(uint16_t* gmem, int (&src)[1]) {
   unsigned int tmp = src[0];
-  asm volatile("st.global.cs.s32 [%0], %1;" ::"l"((uint *)gmem), "r"(tmp));
+  asm volatile("st.global.cs.s32 [%0], %1;" ::"l"((uint*)gmem), "r"(tmp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void stg(uint16_t *gmem, int (&src)[2]) {
-  reinterpret_cast<int2 *>(gmem)[0] = make_int2(src[0], src[1]);
+DEVICE_FUNCTION void stg(uint16_t* gmem, int (&src)[2]) {
+  reinterpret_cast<int2*>(gmem)[0] = make_int2(src[0], src[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void stg_stream(uint16_t *gmem, int (&src)[2]) {
-  asm volatile("st.global.cs.v2.s32 [%0], {%1,%2};" ::"l"((uint *)gmem), "r"(src[0]), "r"(src[1]));
+DEVICE_FUNCTION void stg_stream(uint16_t* gmem, int (&src)[2]) {
+  asm volatile("st.global.cs.v2.s32 [%0], {%1,%2};" ::"l"((uint*)gmem), "r"(src[0]), "r"(src[1]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N>
-DEVICE_FUNCTION void stg(uint16_t *gmem, float (&src)[N]) {
+DEVICE_FUNCTION void stg(uint16_t* gmem, float (&src)[N]) {
   int tmp[N / 2];
   from_float(tmp, src);
   stg(gmem, tmp);
@@ -180,7 +180,7 @@ DEVICE_FUNCTION void stg(uint16_t *gmem, float (&src)[N]) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int N>
-DEVICE_FUNCTION void stg_stream(uint16_t *gmem, float (&src)[N]) {
+DEVICE_FUNCTION void stg_stream(uint16_t* gmem, float (&src)[N]) {
   int tmp[N / 2];
   from_float(tmp, src);
   stg_stream(gmem, tmp);
@@ -188,16 +188,16 @@ DEVICE_FUNCTION void stg_stream(uint16_t *gmem, float (&src)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_gmem(float (&dst)[2], const float *gmem, int idx) {
-  float2 tmp = __ldg(reinterpret_cast<const float2 *>(&gmem[2 * idx]));
+DEVICE_FUNCTION void read_from_gmem(float (&dst)[2], const float* gmem, int idx) {
+  float2 tmp = __ldg(reinterpret_cast<const float2*>(&gmem[2 * idx]));
   dst[0] = tmp.x;
   dst[1] = tmp.y;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_gmem(float (&dst)[4], const float *gmem, int idx) {
-  float4 tmp = __ldg(reinterpret_cast<const float4 *>(&gmem[4 * idx]));
+DEVICE_FUNCTION void read_from_gmem(float (&dst)[4], const float* gmem, int idx) {
+  float4 tmp = __ldg(reinterpret_cast<const float4*>(&gmem[4 * idx]));
   dst[0] = tmp.x;
   dst[1] = tmp.y;
   dst[2] = tmp.z;
@@ -206,20 +206,20 @@ DEVICE_FUNCTION void read_from_gmem(float (&dst)[4], const float *gmem, int idx)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_smem(float (&x)[2], const float *smem, int idx) {
-  float2 tmp = *(const float2 *)&smem[2 * idx];
+DEVICE_FUNCTION void read_from_smem(float (&x)[2], const float* smem, int idx) {
+  float2 tmp = *(const float2*)&smem[2 * idx];
   x[0] = tmp.x;
   x[1] = tmp.y;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_smem(int (&x)[1], const int *smem, int idx) { x[0] = smem[idx]; }
+DEVICE_FUNCTION void read_from_smem(int (&x)[1], const int* smem, int idx) { x[0] = smem[idx]; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_smem(float (&x)[4], const float *smem, int idx) {
-  float4 tmp = *(const float4 *)&smem[4 * idx];
+DEVICE_FUNCTION void read_from_smem(float (&x)[4], const float* smem, int idx) {
+  float4 tmp = *(const float4*)&smem[4 * idx];
   x[0] = tmp.x;
   x[1] = tmp.y;
   x[2] = tmp.z;
@@ -228,51 +228,51 @@ DEVICE_FUNCTION void read_from_smem(float (&x)[4], const float *smem, int idx) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void read_from_smem(int (&x)[2], const int *smem, int idx) {
-  int2 tmp = *(const int2 *)&smem[2 * idx];
+DEVICE_FUNCTION void read_from_smem(int (&x)[2], const int* smem, int idx) {
+  int2 tmp = *(const int2*)&smem[2 * idx];
   x[0] = tmp.x;
   x[1] = tmp.y;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_gmem(float *gmem, int idx, const float (&src)[2]) {
-  reinterpret_cast<float2 *>(&gmem[2 * idx])[0] = make_float2(src[0], src[1]);
+DEVICE_FUNCTION void write_to_gmem(float* gmem, int idx, const float (&src)[2]) {
+  reinterpret_cast<float2*>(&gmem[2 * idx])[0] = make_float2(src[0], src[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_gmem(float *gmem, int idx, const float (&src)[4]) {
-  reinterpret_cast<float4 *>(&gmem[4 * idx])[0] = make_float4(src[0], src[1], src[2], src[3]);
+DEVICE_FUNCTION void write_to_gmem(float* gmem, int idx, const float (&src)[4]) {
+  reinterpret_cast<float4*>(&gmem[4 * idx])[0] = make_float4(src[0], src[1], src[2], src[3]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void scaled_write_to_gmem(float *gmem, int idx, const float (&src)[4], const float coeff) {
-  reinterpret_cast<float4 *>(&gmem[4 * idx])[0] =
+DEVICE_FUNCTION void scaled_write_to_gmem(float* gmem, int idx, const float (&src)[4], const float coeff) {
+  reinterpret_cast<float4*>(&gmem[4 * idx])[0] =
       make_float4(src[0] * coeff, src[1] * coeff, src[2] * coeff, src[3] * coeff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_smem(float *smem, int idx, const float (&x)[2]) {
-  reinterpret_cast<float2 *>(&smem[2 * idx])[0] = make_float2(x[0], x[1]);
+DEVICE_FUNCTION void write_to_smem(float* smem, int idx, const float (&x)[2]) {
+  reinterpret_cast<float2*>(&smem[2 * idx])[0] = make_float2(x[0], x[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_smem(int *smem, int idx, const int (&x)[1]) { smem[idx] = x[0]; }
+DEVICE_FUNCTION void write_to_smem(int* smem, int idx, const int (&x)[1]) { smem[idx] = x[0]; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_smem(float *smem, int idx, const float (&x)[4]) {
-  reinterpret_cast<float4 *>(&smem[4 * idx])[0] = make_float4(x[0], x[1], x[2], x[3]);
+DEVICE_FUNCTION void write_to_smem(float* smem, int idx, const float (&x)[4]) {
+  reinterpret_cast<float4*>(&smem[4 * idx])[0] = make_float4(x[0], x[1], x[2], x[3]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DEVICE_FUNCTION void write_to_smem(int *smem, int idx, const int (&x)[2]) {
-  reinterpret_cast<int2 *>(&smem[2 * idx])[0] = make_int2(x[0], x[1]);
+DEVICE_FUNCTION void write_to_smem(int* smem, int idx, const int (&x)[2]) {
+  reinterpret_cast<int2*>(&smem[2 * idx])[0] = make_int2(x[0], x[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -355,8 +355,8 @@ DEVICE_FUNCTION void relu_activation(float (&x)[N]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 template <int THREADS_PER_CTA>
-DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, void *params_my_data,
-                                        void **params_pair_datas, int off, const int magic, const int sync_iters) {
+DEVICE_FUNCTION void parallel_sums_16x2(float* smem, float (&x)[4], int nhw, void* params_my_data,
+                                        void** params_pair_datas, int off, const int magic, const int sync_iters) {
   // The size of a warp.
   const int THREADS_PER_WARP = 32;
   // The number of warps in a CTA.
@@ -416,7 +416,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
 
       for (int sync_iter = 0; sync_iter < sync_iters; ++sync_iter) {
         // float* params_pair_data = (reinterpret_cast<float**>(params_pair_datas))[sync_iter];
-        void *params_pair_data = params_pair_datas[sync_iter];
+        void* params_pair_data = params_pair_datas[sync_iter];
 
         // skip the space consumed by previous sync iterations
         const int xbuf_offset = sync_iter * data_total;
@@ -426,7 +426,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
 
         // after sums for this GPU were computed, let CTA0 broadcast the sum to over GPU
         if (blockIdx.x == 0) {
-          volatile float *write_data = &((reinterpret_cast<float *>(params_pair_data))[data_offset]);
+          volatile float* write_data = &((reinterpret_cast<float*>(params_pair_data))[data_offset]);
 
           // write the data to memory region to be reflected to other GPU
           asm volatile("st.global.wt.v4.b32 [%0], {%1,%2,%3,%4};" ::"l"(write_data), "f"(x[0]), "r"(magic), "f"(x[2]),
@@ -437,7 +437,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
         }
 
         // now each CTA (on each GPU) reads the data written by CTA 0 of the other GPU
-        volatile float *read_data = &((reinterpret_cast<float *>(params_my_data))[data_offset]);
+        volatile float* read_data = &((reinterpret_cast<float*>(params_my_data))[data_offset]);
 
         float other[4];
         uint32_t other_flag_a, other_flag_b;
@@ -466,7 +466,7 @@ DEVICE_FUNCTION void parallel_sums_16x2(float *smem, float (&x)[4], int nhw, voi
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int THREADS_PER_CTA>
-DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
+DEVICE_FUNCTION void parallel_sums_8x4(float* smem, float (&x)[4], int nhw) {
   // The size of a warp.
   const int THREADS_PER_WARP = 32;
   // The number of warps in a CTA.
@@ -525,7 +525,7 @@ DEVICE_FUNCTION void parallel_sums_8x4(float *smem, float (&x)[4], int nhw) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <int THREADS_PER_CTA, int THREADS_PER_PIXEL, int ELEMENTS_PER_LDG>
-DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
+DEVICE_FUNCTION void parallel_sums(float* smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
   // The size of a warp.
   const int THREADS_PER_WARP = 32;
   // The number of warps in a CTA.
@@ -610,7 +610,7 @@ DEVICE_FUNCTION void parallel_sums(float *smem, float (&x)[ELEMENTS_PER_LDG], in
 template <int THREADS_PER_PIXEL, int ELEMENTS_PER_LDG>
 struct ParallelSums {
   template <int THREADS_PER_CTA>
-  DEVICE_FUNCTION void dispatch(float *smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
+  DEVICE_FUNCTION void dispatch(float* smem, float (&x)[ELEMENTS_PER_LDG], int nhw) {
     parallel_sums<THREADS_PER_CTA, THREADS_PER_PIXEL, ELEMENTS_PER_LDG>(smem, x, nhw);
   }
 };
@@ -620,13 +620,13 @@ struct ParallelSums {
 template <>
 struct ParallelSums<16, 4> {
   template <int THREADS_PER_CTA>
-  DEVICE_FUNCTION void dispatch(float *smem, float (&x)[4], int nhw) {
+  DEVICE_FUNCTION void dispatch(float* smem, float (&x)[4], int nhw) {
     parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, 0, 0, 0, 0, 0);
   }
 
   template <int THREADS_PER_CTA>
-  DEVICE_FUNCTION void dispatchX(float *smem, float (&x)[4], int nhw, void *params_my_data, void **params_pair_datas,
-                                 int off, const int magic, const unsigned int &sync_iters) {
+  DEVICE_FUNCTION void dispatchX(float* smem, float (&x)[4], int nhw, void* params_my_data, void** params_pair_datas,
+                                 int off, const int magic, const unsigned int& sync_iters) {
     parallel_sums_16x2<THREADS_PER_CTA>(smem, x, nhw, params_my_data, params_pair_datas, off, magic, sync_iters);
   }
 };
@@ -634,7 +634,7 @@ struct ParallelSums<16, 4> {
 template <>
 struct ParallelSums<8, 4> {
   template <int THREADS_PER_CTA>
-  DEVICE_FUNCTION void dispatch(float *smem, float (&x)[4], int nhw) {
+  DEVICE_FUNCTION void dispatch(float* smem, float (&x)[4], int nhw) {
     parallel_sums_8x4<THREADS_PER_CTA>(smem, x, nhw);
   }
 };
@@ -648,7 +648,7 @@ static inline int div_up(int m, int n) { return (m + n - 1) / n; }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // It is expected that all threads in the CTA enter this function!
-DEVICE_FUNCTION void inter_block_sync(int *gmem_retired_ctas, int expected_count, bool master) {
+DEVICE_FUNCTION void inter_block_sync(int* gmem_retired_ctas, int expected_count, bool master) {
   // Register the CTA.
   if (threadIdx.x == 0) {
     // Issue the membar.
@@ -736,9 +736,9 @@ __global__ __launch_bounds__(THREADS_PER_CTA) void nhwc_batch_norm_fwd_inference
   }
 
   // The base pointers for reading/writing
-  uint16_t *const gmem_src = &params.gmem_src[thread_c];
-  uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
-  const uint16_t *gmem_src1 = nullptr;
+  uint16_t* const gmem_src = &params.gmem_src[thread_c];
+  uint16_t* const gmem_dst = &params.gmem_dst[thread_c];
+  const uint16_t* gmem_src1 = nullptr;
   if (USE_ADD_RELU) {
     gmem_src1 = &params.gmem_src1[thread_c];
   }
@@ -780,7 +780,7 @@ struct NhwcBatchNormFwdParams {
   // saved mean/var (refer BN API from cudnn doc)
   float *gmem_saved_mean, *gmem_saved_var;
   // ReLU bitmask
-  unsigned int *gmem_relu_bitmask;
+  unsigned int* gmem_relu_bitmask;
   // The dimensions.
   int nhw, c;
   // factor to scale sum of squared errors to get saved variance.  Must be 1/nhw.
@@ -788,11 +788,11 @@ struct NhwcBatchNormFwdParams {
   // factor to scale sum of squared errors to get running variance. Should be 1/nhw or 1/(nhw-1).
   float rvar_inv_count;
   // The buffer to do the reduction for mean, stddev and count.
-  float *gmem_sums;
+  float* gmem_sums;
   // The buffer to count items in the different CTAs.
-  int *gmem_counts;
+  int* gmem_counts;
   // The counters of retired CTAs.
-  int *gmem_retired_ctas;
+  int* gmem_retired_ctas;
   // The epsilon to apply to the computation of the variance.
   float var_eps;
   // outer loop count
@@ -802,8 +802,8 @@ struct NhwcBatchNormFwdParams {
   // number of CTAs along .x dimension
   int c_blks;
 
-  void *my_data;
-  void *pair_datas[4];
+  void* my_data;
+  void* pair_datas[4];
   int magic;
   int sync_iters;
 };
@@ -889,7 +889,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The number of elements loaded by this CTA.
     int cta_count = 0;
     // The base pointer to load from.
-    const uint16_t *gmem_src = &params.gmem_src[thread_c];
+    const uint16_t* gmem_src = &params.gmem_src[thread_c];
 
     // outer loops
     int OUTER_LOOPS = OUTER_LOOPS_ == 1 ? 1 : params.outer_loops;
@@ -1071,7 +1071,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     int gmem_sums_offset = c_blk_index * gridDim.x * C_ELEMENTS_PER_CTA * 2;
 
     // Write the data for the CTA to global memory.
-    float *gmem_sums = &params.gmem_sums[gmem_sums_offset];
+    float* gmem_sums = &params.gmem_sums[gmem_sums_offset];
     if (threadIdx.x < THREADS_PER_PIXEL) {
       const int idx = blockIdx.x * THREADS_PER_PIXEL + threadIdx.x;
       write_to_gmem(&gmem_sums[0], idx, m1);
@@ -1079,7 +1079,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     }
 
     // The memory location to store the number of pixels per CTA.
-    int *gmem_counts = &params.gmem_counts[c_blk_index * gridDim.x];
+    int* gmem_counts = &params.gmem_counts[c_blk_index * gridDim.x];
     if (threadIdx.x == 0) {
       gmem_counts[blockIdx.x] = cta_count;
     }
@@ -1093,7 +1093,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
 
     // The counters to count how many CTAs have retired at this point.
     // A given cta uses the same counter every other time through the outer loop.
-    int *gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
+    int* gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
     inter_block_sync(gmem_retired_ctas, gridDim.x, blockIdx.x == 0);
 
 // Reset the mean to compute the global mean.
@@ -1136,7 +1136,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     }
 
     // for add+relu fusion
-    const uint16_t *gmem_src1 = nullptr;
+    const uint16_t* gmem_src1 = nullptr;
     if (USE_ADD_RELU) {
       gmem_src1 = &params.gmem_src1[thread_c];
     }
@@ -1215,9 +1215,9 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     multiply(scale, svarinv);
 
     // The base pointer to write to.
-    uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
+    uint16_t* const gmem_dst = &params.gmem_dst[thread_c];
 
-    unsigned int *const gmem_relu_bitmask = params.gmem_relu_bitmask + ((params.nhw + 31) & ~31) * 2 * c_blk_index;
+    unsigned int* const gmem_relu_bitmask = params.gmem_relu_bitmask + ((params.nhw + 31) & ~31) * 2 * c_blk_index;
 
 // Store the elements in registers.
 #pragma unroll 1
@@ -1346,22 +1346,22 @@ struct NhwcBatchNormBwdParams {
   // The mean/inv-var saved from fwd pass
   float *gmem_saved_mean, *gmem_saved_var;
   // ReLU bitmask
-  unsigned int *gmem_relu_bitmask;
+  unsigned int* gmem_relu_bitmask;
   // The dimensions.
   int nhw, c;
   // factor to scale sum of squared errors to get saved variance.  Must be 1/nhw.
   float svar_inv_count;
   // The buffer to do the reduction for dscale and dbias
-  float *gmem_sums;
+  float* gmem_sums;
   // The counters of retired CTAs.
-  int *gmem_retired_ctas;
+  int* gmem_retired_ctas;
   // outer loop count
   int outer_loops;
   // number of CTAs along .x dimension
   int c_blks;
 
-  void *my_data;
-  void *pair_datas[4];
+  void* my_data;
+  void* pair_datas[4];
   int magic;
   int sync_iters;
   float wgrad_coeff;
@@ -1523,8 +1523,8 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The number of elements loaded by this CTA.
     int cta_count = 0;
     // The base pointers to load from.
-    const uint16_t *gmem_src = &params.gmem_src[thread_c];
-    const uint16_t *gmem_dy = &params.gmem_dy[thread_c];
+    const uint16_t* gmem_src = &params.gmem_src[thread_c];
+    const uint16_t* gmem_dy = &params.gmem_dy[thread_c];
 
     // outer loops
     int OUTER_LOOPS = OUTER_LOOPS_ == 1 ? 1 : params.outer_loops;
@@ -1643,7 +1643,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The workspace in global memory is distributed across the different CTA.
     int gmem_sums_offset = c_blk_index * gridDim.x * C_ELEMENTS_PER_CTA * 2;
     // Write the data for the CTA to global memory.
-    float *gmem_sums = &params.gmem_sums[gmem_sums_offset];
+    float* gmem_sums = &params.gmem_sums[gmem_sums_offset];
     if (threadIdx.x < THREADS_PER_PIXEL) {
       const int idx = blockIdx.x * THREADS_PER_PIXEL + threadIdx.x;
       write_to_gmem(&gmem_sums[0], idx, dscale);
@@ -1652,7 +1652,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
 
     // The counters to count how many CTAs have retired at this point.
     // A given cta uses the same counter every other time through the outer loop.
-    int *gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
+    int* gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
     inter_block_sync(gmem_retired_ctas, gridDim.x, blockIdx.x == 0);
 
     // Reset the accumulators for global summation
@@ -1738,7 +1738,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     float inv_count = params.svar_inv_count;
 
     // The base pointer to write to.
-    uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
+    uint16_t* const gmem_dst = &params.gmem_dst[thread_c];
 
 // Store the elements in registers.
 #pragma unroll 1
@@ -1895,8 +1895,8 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The number of elements loaded by this CTA.
     int cta_count = 0;
     // The base pointers to load from.
-    const uint16_t *gmem_src = &params.gmem_src[thread_c];
-    const uint16_t *gmem_dy = &params.gmem_dy[thread_c];
+    const uint16_t* gmem_src = &params.gmem_src[thread_c];
+    const uint16_t* gmem_dy = &params.gmem_dy[thread_c];
 
     // outer loops
     int OUTER_LOOPS = OUTER_LOOPS_ == 1 ? 1 : params.outer_loops;
@@ -2017,7 +2017,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The workspace in global memory is distributed across the different CTA.
     int gmem_sums_offset = c_blk_index * gridDim.x * C_ELEMENTS_PER_CTA * 2;
     // Write the data for the CTA to global memory.
-    float *gmem_sums = &params.gmem_sums[gmem_sums_offset];
+    float* gmem_sums = &params.gmem_sums[gmem_sums_offset];
     if (threadIdx.x < THREADS_PER_PIXEL) {
       const int idx = blockIdx.x * THREADS_PER_PIXEL + threadIdx.x;
       write_to_gmem(&gmem_sums[0], idx, dscale);
@@ -2026,7 +2026,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
 
     // The counters to count how many CTAs have retired at this point.
     // A given cta uses the same counter every other time through the outer loop.
-    int *gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
+    int* gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
     inter_block_sync(gmem_retired_ctas, gridDim.x, blockIdx.x == 0);
 
     // Reset the accumulators for global summation
@@ -2108,7 +2108,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     float inv_count = params.svar_inv_count;
 
     // The base pointer to write to.
-    uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
+    uint16_t* const gmem_dst = &params.gmem_dst[thread_c];
 
 // Store the elements in registers.
 #pragma unroll 1
@@ -2243,9 +2243,9 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The number of elements loaded by this CTA.
     int cta_count = 0;
     // The base pointers to load from.
-    const uint16_t *gmem_src = &params.gmem_src[thread_c];
-    const uint16_t *gmem_dy = &params.gmem_dy[thread_c];
-    uint16_t *gmem_dst1 = &params.gmem_dst1[thread_c];
+    const uint16_t* gmem_src = &params.gmem_src[thread_c];
+    const uint16_t* gmem_dy = &params.gmem_dy[thread_c];
+    uint16_t* gmem_dst1 = &params.gmem_dst1[thread_c];
 
     // outer loops
     int OUTER_LOOPS = OUTER_LOOPS_ == 1 ? 1 : params.outer_loops;
@@ -2260,7 +2260,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
       cta_nhw_smem -= offset;
     }
 
-    const unsigned int *const gmem_relu_bitmask =
+    const unsigned int* const gmem_relu_bitmask =
         params.gmem_relu_bitmask + ((params.nhw + 31) & ~31) * 2 * c_blk_index;
 
 #pragma unroll 1
@@ -2417,7 +2417,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     // The workspace in global memory is distributed across the different CTA.
     int gmem_sums_offset = c_blk_index * gridDim.x * C_ELEMENTS_PER_CTA * 2;
     // Write the data for the CTA to global memory.
-    float *gmem_sums = &params.gmem_sums[gmem_sums_offset];
+    float* gmem_sums = &params.gmem_sums[gmem_sums_offset];
     if (threadIdx.x < THREADS_PER_PIXEL) {
       const int idx = blockIdx.x * THREADS_PER_PIXEL + threadIdx.x;
       write_to_gmem(&gmem_sums[0], idx, dscale);
@@ -2426,7 +2426,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
 
     // The counters to count how many CTAs have retired at this point.
     // A given cta uses the same counter every other time through the outer loop.
-    int *gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
+    int* gmem_retired_ctas = &params.gmem_retired_ctas[c_blk_index % (2 * gridDim.y)];
     inter_block_sync(gmem_retired_ctas, gridDim.x, blockIdx.x == 0);
 
     // Reset the accumulators for global summation
@@ -2508,7 +2508,7 @@ __global__ __launch_bounds__(THREADS_PER_CTA,
     float inv_count = params.svar_inv_count;
 
     // The base pointer to write to.
-    uint16_t *const gmem_dst = &params.gmem_dst[thread_c];
+    uint16_t* const gmem_dst = &params.gmem_dst[thread_c];
 
 // Store the elements in registers.
 #pragma unroll 1

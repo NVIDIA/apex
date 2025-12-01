@@ -65,9 +65,9 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
   float2 gamma_f2 = make_float2(0.f, 0.f);
   float2 beta_f2 = make_float2(0.f, 0.f);
   if (ci < params.c) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.gamma)[ci]));
     if (params.with_swish) {
-      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
+      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.beta)[ci]));
     }
   }
 
@@ -94,8 +94,8 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
     IOType2 x_v2 = IOTraits::zero();
     IOType2 dy_v2 = IOTraits::zero();
     if (ci < params.c) {
-      x_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
-      dy_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.dy)[offset]);
+      x_v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x)[offset]);
+      dy_v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.dy)[offset]);
     }
 
     // Extract the two half values.
@@ -168,7 +168,7 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
   }
 
   // The base pointer for the gradients for gamma and beta.
-  float *dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
+  float* dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
 
   // The 1st channel in the output tensor. NOTE: Two channels per thread store interleaved.
   int ck = blockIdx.x * params.channels_per_block + threadIdx.x;
@@ -184,7 +184,7 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params, size_t &zeroed_red_buffer_elts) {
+void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params& params, size_t& zeroed_red_buffer_elts) {
   // The pre-computed dimensions.
   params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
@@ -256,7 +256,7 @@ void group_norm_nhwc_bwd_two_passes_setup(Group_norm_nhwc_bwd_params &params, si
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
+void group_norm_nhwc_bwd_two_passes_sum(const Group_norm_nhwc_bwd_params& params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 
@@ -345,9 +345,9 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
   float2 gamma_f2 = make_float2(0.f, 0.f);
   float2 beta_f2 = make_float2(0.f, 0.f);
   if (ci < params.c) {
-    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.gamma)[ci]));
+    gamma_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.gamma)[ci]));
     if (params.with_swish) {
-      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2 *>(&reinterpret_cast<const WType *>(params.beta)[ci]));
+      beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.beta)[ci]));
     }
   }
 
@@ -365,8 +365,8 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
     IOType2 x_v2 = IOTraits::zero();
     IOType2 dy_v2 = IOTraits::zero();
     if (ci < params.c) {
-      x_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.x)[offset]);
-      dy_v2 = *reinterpret_cast<const IOType2 *>(&reinterpret_cast<const IOType *>(params.dy)[offset]);
+      x_v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.x)[offset]);
+      dy_v2 = *reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(params.dy)[offset]);
     }
 
     // Extract the two half values.
@@ -404,7 +404,7 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
 
     // Store the scaled values.
     if (ci < params.c) {
-      *reinterpret_cast<IOType2 *>(&reinterpret_cast<IOType *>(params.dx)[offset]) = IOTraits::pack(dx);
+      *reinterpret_cast<IOType2*>(&reinterpret_cast<IOType*>(params.dx)[offset]) = IOTraits::pack(dx);
     }
   }
 
@@ -414,7 +414,7 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
   }
 
   // The base pointer for the gradients for gamma and beta.
-  float *dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
+  float* dgamma_beta_ptr = &params.zeroed_red_buffer[params.n * params.groups * 2];
 
   // The 1st channel in the output tensor. NOTE: Two channels per thread store interleaved.
   int ck = blockIdx.x * params.channels_per_block + threadIdx.x;
@@ -428,14 +428,14 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
     dbeta.y = dgamma_beta_ptr[1 * params.c + 1 * blockDim.x + ck];
 
     // Convert to half2 and store to memory.
-    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dgamma)[ci]) = WTraits::pack(dgamma);
-    *reinterpret_cast<WType2 *>(&reinterpret_cast<WType *>(params.dbeta)[ci]) = WTraits::pack(dbeta);
+    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dgamma)[ci]) = WTraits::pack(dgamma);
+    *reinterpret_cast<WType2*>(&reinterpret_cast<WType*>(params.dbeta)[ci]) = WTraits::pack(dbeta);
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params &params, cudaStream_t stream) {
+void group_norm_nhwc_bwd_two_passes_scale(const Group_norm_nhwc_bwd_params& params, cudaStream_t stream) {
   // The dimension of the grid.
   dim3 grid;
 

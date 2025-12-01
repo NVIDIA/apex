@@ -37,7 +37,7 @@ namespace fmha {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Kernel_traits, typename Params>
-inline __device__ void compute_dv_1xN(const Params &params) {
+inline __device__ void compute_dv_1xN(const Params& params) {
   // The description of the CTA tile for the 1st batched GEMM.
   using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
   // The description of the CTA tile for the 2nd batched GEMM.
@@ -202,7 +202,7 @@ inline __device__ void compute_dv_1xN(const Params &params) {
     for (int mi = 0; mi < M; mi++) {
 #pragma unroll
       for (int ni = 0; ni < N; ni++) {
-        uint4 &dst = s_regs[mi][ni];
+        uint4& dst = s_regs[mi][ni];
         fmha::half2_to_float2(s_mat[2 * mi + 0][4 * ni + 0], s_mat[2 * mi + 0][4 * ni + 1], dst.x);
         fmha::half2_to_float2(s_mat[2 * mi + 0][4 * ni + 2], s_mat[2 * mi + 0][4 * ni + 3], dst.y);
         fmha::half2_to_float2(s_mat[2 * mi + 1][4 * ni + 0], s_mat[2 * mi + 1][4 * ni + 1], dst.z);
@@ -218,8 +218,8 @@ inline __device__ void compute_dv_1xN(const Params &params) {
         for (int ni = 0; ni < N; ni++) {
 #pragma unroll
           for (int jj = 0; jj < 4; jj++) {
-            float &s_dmask = s_mat[2 * mi + ii][4 * ni + jj];
-            const bool drop = reinterpret_cast<const uint32_t &>(s_dmask) & 0x80000000;
+            float& s_dmask = s_mat[2 * mi + ii][4 * ni + jj];
+            const bool drop = reinterpret_cast<const uint32_t&>(s_dmask) & 0x80000000;
             const float d_s = drop ? 0.f : softmax.elt_[2 * mi + ii][4 * ni + jj] * params.rp_dropout;
             s_dmask = fabsf(s_dmask);
             softmax.elt_[2 * mi + ii][4 * ni + jj] = d_s * fabsf(s_dmask);
@@ -231,7 +231,7 @@ inline __device__ void compute_dv_1xN(const Params &params) {
     float p_sum[2 * M];
     softmax.reduce_sum(p_sum);
 
-    const float scalef = reinterpret_cast<const float &>(params.scale_softmax);
+    const float scalef = reinterpret_cast<const float&>(params.scale_softmax);
 #pragma unroll
     for (int mi = 0; mi < M; mi++) {
 #pragma unroll
@@ -308,7 +308,7 @@ inline __device__ void compute_dv_1xN(const Params &params) {
 }
 
 template <typename Kernel_traits, typename Params>
-inline __device__ void compute_dq_dk_1xN(const Params &params) {
+inline __device__ void compute_dq_dk_1xN(const Params& params) {
   // The description of the CTA tile for the 1st batched GEMM.
   using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
   using Cta_tile_o = typename Kernel_traits::Cta_tile_o;
@@ -440,7 +440,7 @@ inline __device__ void compute_dq_dk_1xN(const Params &params) {
     for (int mi = 0; mi < M; mi++) {
 #pragma unroll
       for (int ni = 0; ni < N; ni++) {
-        uint4 &dst = s_regs[mi][ni];
+        uint4& dst = s_regs[mi][ni];
         frag_p[ni][mi].reg(0) = dst.x;  // row 0, cols 0,1
         frag_p[ni][mi].reg(1) = dst.z;  // row 8, cols 0,1
         frag_p[ni][mi].reg(2) = dst.y;  // row 0, cols 8,9

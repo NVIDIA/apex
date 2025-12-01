@@ -85,8 +85,8 @@ GN_FWD_ONE_PASS_DECLARATION(/* CHANNELS_PER_GROUP */ 160)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &params, size_t &barriers_elts,
-                                               size_t &red_buffer_elts, dim3 &grid, const cudaDeviceProp &props) {
+inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params& params, size_t& barriers_elts,
+                                               size_t& red_buffer_elts, dim3& grid, const cudaDeviceProp& props) {
   // The pre-computed dimensions.
   params.hw = params.h * params.w;
   params.hwc = params.c * params.hw;
@@ -147,9 +147,9 @@ inline void group_norm_nhwc_fwd_one_pass_setup(Group_norm_nhwc_fwd_params &param
   }
 }
 
-inline void group_norm_nhwc_fwd_one_pass_run(const Group_norm_nhwc_fwd_params &params, const dim3 &grid,
+inline void group_norm_nhwc_fwd_one_pass_run(const Group_norm_nhwc_fwd_params& params, const dim3& grid,
                                              cudaStream_t stream) {
-  using Function_t = void (*)(const Group_norm_nhwc_fwd_params &, const dim3 &, cudaStream_t);
+  using Function_t = void (*)(const Group_norm_nhwc_fwd_params&, const dim3&, cudaStream_t);
 
   Function_t runner;
   GN_FWD_RUNNER_SELECT(runner);

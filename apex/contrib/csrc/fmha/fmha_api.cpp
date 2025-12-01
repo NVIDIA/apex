@@ -30,12 +30,12 @@
 
 #include "fmha.h"
 
-extern at::Tensor &mha_fill(at::Tensor &self, const at::Tensor &start_index);
-void set_params(Fused_multihead_attention_fprop_params &params,
+extern at::Tensor& mha_fill(at::Tensor& self, const at::Tensor& start_index);
+void set_params(Fused_multihead_attention_fprop_params& params,
                 // sizes
                 const size_t b, const size_t s, const size_t h, const size_t d,
                 // device pointers
-                void *qkv_packed_d, void *cu_seqlens_d, void *o_packed_d, void *s_d, float p_dropout) {
+                void* qkv_packed_d, void* cu_seqlens_d, void* o_packed_d, void* s_d, float p_dropout) {
   Data_type acc_type = DATA_TYPE_FP32;
   Data_type data_type = DATA_TYPE_FP16;
 
@@ -48,7 +48,7 @@ void set_params(Fused_multihead_attention_fprop_params &params,
   params.o_ptr = o_packed_d;
   params.o_stride_in_bytes = get_size_in_bytes(h * d, data_type);
 
-  params.cu_seqlens = static_cast<int *>(cu_seqlens_d);
+  params.cu_seqlens = static_cast<int*>(cu_seqlens_d);
 
   // S = softmax(P)
   params.s_ptr = s_d;
@@ -77,8 +77,8 @@ void set_params(Fused_multihead_attention_fprop_params &params,
 }
 
 std::vector<at::Tensor> mha_fwd(
-    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    const at::Tensor &cu_seqlens,  // b+1
+    const at::Tensor& qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    const at::Tensor& cu_seqlens,  // b+1
     const float p_dropout, const int max_seq_len, const bool is_training, const bool is_nl, const bool zero_tensors,
     c10::optional<at::Generator> gen_) {
   using namespace torch::indexing;
@@ -158,10 +158,10 @@ std::vector<at::Tensor> mha_fwd(
 }
 
 std::vector<at::Tensor> mha_bwd(
-    const at::Tensor &dout,        // total x num_heads, x head_size
-    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
-    const at::Tensor &cu_seqlens,  // b+1
+    const at::Tensor& dout,        // total x num_heads, x head_size
+    const at::Tensor& qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    at::Tensor& softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
+    const at::Tensor& cu_seqlens,  // b+1
     const float p_dropout,         // probability to drop
     const int max_seq_len,         // max sequence length to choose the kernel
     const bool zero_tensors) {
@@ -238,10 +238,10 @@ std::vector<at::Tensor> mha_bwd(
 }
 
 std::vector<at::Tensor> mha_bwd_nl(
-    const at::Tensor &dout,        // total x num_heads, x head_size
-    const at::Tensor &qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
-    at::Tensor &softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
-    const at::Tensor &cu_seqlens,  // b+1
+    const at::Tensor& dout,        // total x num_heads, x head_size
+    const at::Tensor& qkv,         // total x num_heads x 3 x head_size, total := \sum_{i=0}^{b} s_i
+    at::Tensor& softmax,           // b x h x s x s softmax and dmask - will be overwritten with dP
+    const at::Tensor& cu_seqlens,  // b+1
     const float p_dropout,         // probability to drop
     const int max_seq_len,         // max sequence length to choose the kernel
     const bool zero_tensors) {

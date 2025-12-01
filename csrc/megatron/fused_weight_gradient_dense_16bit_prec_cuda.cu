@@ -15,22 +15,22 @@
 
 // BF16 inputs and BF16 accumulation
 void gemmex_wrapper_fp16(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, int k,
-                         const float *alpha, at::BFloat16 *A, int lda, at::BFloat16 *B, int ldb, const float *beta,
-                         at::BFloat16 *C, int ldc) {
+                         const float* alpha, at::BFloat16* A, int lda, at::BFloat16* B, int ldb, const float* beta,
+                         at::BFloat16* C, int ldc) {
   TORCH_CUDABLAS_CHECK(cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_16BF, lda, B, CUDA_R_16BF, ldb,
                                     beta, C, CUDA_R_16BF, ldc, CUDA_R_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
 }
 
 // FP16 inputs and FP16 accumulation
 void gemmex_wrapper_fp16(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, int k,
-                         const float *alpha, at::Half *A, int lda, at::Half *B, int ldb, const float *beta, at::Half *C,
+                         const float* alpha, at::Half* A, int lda, at::Half* B, int ldb, const float* beta, at::Half* C,
                          int ldc) {
   TORCH_CUDABLAS_CHECK(cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_16F, lda, B, CUDA_R_16F, ldb,
                                     beta, C, CUDA_R_16F, ldc, CUDA_R_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
 }
 
 template <typename T>
-void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight, int in_dim, int hidden_dim, int out_dim) {
+void wgrad_gemm_accum_fp16_cuda(T* input, T* d_output, T* d_weight, int in_dim, int hidden_dim, int out_dim) {
   cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
   cudaStream_t stream;
   cublasGetStream(handle, &stream);
@@ -41,12 +41,12 @@ void wgrad_gemm_accum_fp16_cuda(T *input, T *d_output, T *d_weight, int in_dim, 
                       out_dim, &beta, d_weight, in_dim);
 }
 
-template void wgrad_gemm_accum_fp16_cuda<at::Half>(at::Half *input, at::Half *d_output, at::Half *d_weight, int in_dim,
+template void wgrad_gemm_accum_fp16_cuda<at::Half>(at::Half* input, at::Half* d_output, at::Half* d_weight, int in_dim,
                                                    int hidden_dim, int out_dim);
-template void wgrad_gemm_accum_fp16_cuda<at::BFloat16>(at::BFloat16 *input, at::BFloat16 *d_output,
-                                                       at::BFloat16 *d_weight, int in_dim, int hidden_dim, int out_dim);
+template void wgrad_gemm_accum_fp16_cuda<at::BFloat16>(at::BFloat16* input, at::BFloat16* d_output,
+                                                       at::BFloat16* d_weight, int in_dim, int hidden_dim, int out_dim);
 
-void wgrad_gemm_accum_fp16_cuda_stub(at::Tensor &input, at::Tensor &d_output, at::Tensor &d_weight) {
+void wgrad_gemm_accum_fp16_cuda_stub(at::Tensor& input, at::Tensor& d_output, at::Tensor& d_weight) {
   at::Tensor input_2d, d_output_2d;
   // input tensor: collapse to the first dim
   auto in_sizes = input.sizes();

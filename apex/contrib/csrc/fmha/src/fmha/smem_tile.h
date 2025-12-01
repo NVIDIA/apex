@@ -112,7 +112,7 @@ struct Smem_tile_without_skews {
   using Store_type = typename Uint_from_size_in_bytes<BYTES_PER_STS>::Type;
 
   // Ctor.
-  inline __device__ Smem_tile_without_skews(void *smem, int tidx) : smem_(__nvvm_get_smem_pointer(smem)) {
+  inline __device__ Smem_tile_without_skews(void* smem, int tidx) : smem_(__nvvm_get_smem_pointer(smem)) {
     // The row written by a thread. See doc/mma_smem_layout.xlsx.
     int smem_write_row = tidx / THREADS_PER_ROW;
 
@@ -251,7 +251,7 @@ struct Smem_tile_without_skews {
 
   // Store to the tile in shared memory.
   template <int N>
-  inline __device__ void store(const void *(&gmem_ptrs)[N], uint32_t preds, uint64_t = 0) {
+  inline __device__ void store(const void* (&gmem_ptrs)[N], uint32_t preds, uint64_t = 0) {
     uint32_t tmp[1] = {preds};
     this->store(gmem_ptrs, tmp);
   }
@@ -354,7 +354,7 @@ struct Smem_tile_row_a : public Smem_tile_without_skews<Cta_tile, Cta_tile::M, C
   enum { BYTES_PER_LDS = 16 };
 
   // Ctor.
-  inline __device__ Smem_tile_row_a(void *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_row_a(void* smem, int tidx) : Base(smem, tidx) {
     // For documentation on the layout, see doc/mma_smem_layout.xlsx.
 
     // The number of warps.
@@ -447,7 +447,7 @@ struct Smem_tile_a<Cta_tile, Row, BYTES_PER_STS, BUFFERS_PER_TILE>
   using Base = Smem_tile_row_a<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE>;
 
   // Ctor.
-  inline __device__ Smem_tile_a(void *smem, int tidx) : Base(smem, tidx) {}
+  inline __device__ Smem_tile_a(void* smem, int tidx) : Base(smem, tidx) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -515,7 +515,7 @@ struct Smem_tile_col_b : public Smem_tile_without_skews<Cta_tile, Cta_tile::N, C
   enum { STS_PER_THREAD = Max<1, STS_PER_THREAD_>::VALUE };
 
   // Ctor.
-  inline __device__ Smem_tile_col_b(void *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_col_b(void* smem, int tidx) : Base(smem, tidx) {
     // For documentation on the layout, see doc/mma_smem_layout.xlsx.
 
     // The number of warps.
@@ -612,7 +612,7 @@ struct Smem_tile_b<Cta_tile, Col, BYTES_PER_STS, BUFFERS_PER_TILE>
   using Base = Smem_tile_col_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE>;
 
   // Ctor.
-  inline __device__ Smem_tile_b(void *smem, int tidx) : Base(smem, tidx) {}
+  inline __device__ Smem_tile_b(void* smem, int tidx) : Base(smem, tidx) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -657,7 +657,7 @@ struct Smem_tile_row_b
   enum { STS_PER_THREAD = Max<1, STS_PER_THREAD_>::VALUE };
 
   // Ctor.
-  inline __device__ Smem_tile_row_b(void *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_row_b(void* smem, int tidx) : Base(smem, tidx) {
     // The number of warps.
     const int WARPS_M = Cta_tile::WARPS_M;
     const int WARPS_N = Cta_tile::WARPS_N;
@@ -793,7 +793,7 @@ struct Smem_tile_b<Cta_tile, Row, BYTES_PER_STS, BUFFERS_PER_TILE>
   using Base = Smem_tile_row_b<Cta_tile, BYTES_PER_STS, BUFFERS_PER_TILE>;
 
   // Ctor.
-  inline __device__ Smem_tile_b(void *smem, int tidx) : Base(smem, tidx) {}
+  inline __device__ Smem_tile_b(void* smem, int tidx) : Base(smem, tidx) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -811,7 +811,7 @@ struct Smem_tile_v : public fmha::Smem_tile_without_skews<Cta_tile, Cta_tile::K,
   enum { BYTES_PER_LDS = 16 };
 
   // Ctor.
-  inline __device__ Smem_tile_v(void *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_v(void* smem, int tidx) : Base(smem, tidx) {
     // The row/col read by the thread.
     int read_row, read_col;
 
@@ -901,7 +901,7 @@ struct Smem_tile_o {
   static_assert(LOOPS == 1 || LOOPS == (int)Mma_tile::MMAS_M, "");
 
   // Ctor.
-  inline __device__ Smem_tile_o(void *smem, int tidx) {
+  inline __device__ Smem_tile_o(void* smem, int tidx) {
     // Get a 32-bit value for the shared memory address.
     uint32_t smem_ = __nvvm_get_smem_pointer(smem);
 
@@ -1024,7 +1024,7 @@ struct Smem_tile_mma {
   enum { WARPS_K = Cta_tile::WARPS_K };
 
   static_assert(WARPS_K == 1);
-  inline __device__ Smem_tile_mma(char *smem, int tidx) {
+  inline __device__ Smem_tile_mma(char* smem, int tidx) {
     smem_ = __nvvm_get_smem_pointer(smem);
 
     int write_col, write_row;
@@ -1072,7 +1072,7 @@ struct Smem_tile_mma_transposed : public Base {
   enum { WARPS_N = Base::WARPS_N };
   static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8));
   using Fragment = typename Base::Fragment;
-  inline __device__ Smem_tile_mma_transposed(char *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_mma_transposed(char* smem, int tidx) : Base(smem, tidx) {
     static_assert(WARPS_M == 1 && (WARPS_N == 4 || WARPS_N == 8));
     int read_row, read_col;
     read_row = (tidx & 0x0f);
@@ -1117,7 +1117,7 @@ struct Smem_tile_mma_epilogue : public Base {
 
   using Acc = fmha::Fragment_accumulator;
 
-  inline __device__ Smem_tile_mma_epilogue(char *smem, int tidx) : Base(smem, tidx) {
+  inline __device__ Smem_tile_mma_epilogue(char* smem, int tidx) : Base(smem, tidx) {
     const int read_row = tidx / THREADS_PER_ROW;
     int read_col = tidx % THREADS_PER_ROW;
     read_col ^= (read_row & 0x07);

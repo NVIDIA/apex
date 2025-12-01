@@ -56,7 +56,7 @@ uint64_t get_key(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype, tor
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-layer_norm::FwdFunction &get_fwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
+layer_norm::FwdFunction& get_fwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
                                           torch::Dtype ctype, uint32_t hidden_size) {
   auto iter = layer_norm::FWD_FUNCS.find(layer_norm::get_key(wtype, itype, otype, ctype, hidden_size));
   if (iter != layer_norm::FWD_FUNCS.end()) {
@@ -68,7 +68,7 @@ layer_norm::FwdFunction &get_fwd_launcher(torch::Dtype wtype, torch::Dtype itype
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-layer_norm::BwdFunction &get_bwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
+layer_norm::BwdFunction& get_bwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
                                           torch::Dtype ctype, uint32_t hidden_size) {
   auto iter = layer_norm::BWD_FUNCS.find(layer_norm::get_key(wtype, itype, otype, ctype, hidden_size));
   if (iter != layer_norm::BWD_FUNCS.end()) {
@@ -80,9 +80,9 @@ layer_norm::BwdFunction &get_bwd_launcher(torch::Dtype wtype, torch::Dtype itype
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
-                               const at::Tensor &gamma,  // hidden_size
-                               const at::Tensor &beta,   // hidden_size
+std::vector<at::Tensor> ln_fwd(const at::Tensor& x,      // BxSxhidden_size
+                               const at::Tensor& gamma,  // hidden_size
+                               const at::Tensor& beta,   // hidden_size
                                const float epsilon) {
   auto itype = x.scalar_type();
   auto wtype = gamma.scalar_type();
@@ -129,7 +129,7 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
   at::Tensor workspace, barrier;
 
   // Set the kernel runtime parameters.
-  layer_norm::FwdParams &params = launch_params.params;
+  layer_norm::FwdParams& params = launch_params.params;
   params.rows = rows;
   params.cols = cols;
   params.z = z.data_ptr();
@@ -155,12 +155,12 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor &x,      // BxSxhidden_size
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,                    // BxSxhidden_size
-                               const at::Tensor &x_or_z,                // BxSxhidden_size
-                               c10::optional<const at::Tensor> &mu_,    // BxS, FP32!
-                               const at::Tensor &rsigma,                // BxS, FP32!
-                               const at::Tensor &gamma,                 // hidden_size
-                               c10::optional<const at::Tensor> &beta_,  // hidden_size
+std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxhidden_size
+                               const at::Tensor& x_or_z,                // BxSxhidden_size
+                               c10::optional<const at::Tensor>& mu_,    // BxS, FP32!
+                               const at::Tensor& rsigma,                // BxS, FP32!
+                               const at::Tensor& gamma,                 // hidden_size
+                               c10::optional<const at::Tensor>& beta_,  // hidden_size
                                bool memory_efficient) {
   auto itype = x_or_z.scalar_type();
   auto wtype = gamma.scalar_type();
@@ -216,7 +216,7 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor &dz,                    // BxSxh
   auto dbeta_part = torch::empty({launch_params.params.ctas_per_col, hidden_size}, options.dtype(ctype));
   at::Tensor workspace, barrier;
 
-  layer_norm::BwdParams &params = launch_params.params;
+  layer_norm::BwdParams& params = launch_params.params;
   params.rows = rows;
   params.cols = cols;
   if (memory_efficient) {

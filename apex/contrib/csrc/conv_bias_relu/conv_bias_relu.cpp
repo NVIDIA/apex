@@ -52,8 +52,10 @@ int checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int 
 }
 
 void checkError(cudaError_t code, char const* func, const char* file, const int line, bool abort = true);
-#define checkCUDAError(val) \
-  { checkError((val), #val, __FILE__, __LINE__); }  // in-line regular function
+#define checkCUDAError(val)                      \
+  {                                              \
+    checkError((val), #val, __FILE__, __LINE__); \
+  }  // in-line regular function
 
 void checkError(cudaError_t code, char const* func, const char* file, const int line, bool abort) {
   if (code != cudaSuccess) {

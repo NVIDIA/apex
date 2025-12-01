@@ -14,13 +14,13 @@
     }                                                                                                       \
   } while (0)
 
-void *nccl_alloc_plug(size_t size, int device, void *stream) {
-  void *ptr;
+void* nccl_alloc_plug(size_t size, int device, void* stream) {
+  void* ptr;
   NCCL_CHECK(ncclMemAlloc(&ptr, size));
   return ptr;
 }
 
-void nccl_free_plug(void *ptr, std::size_t size, int device, void *stream) { NCCL_CHECK(ncclMemFree(ptr)); }
+void nccl_free_plug(void* ptr, std::size_t size, int device, void* stream) { NCCL_CHECK(ncclMemFree(ptr)); }
 
 std::shared_ptr<c10::cuda::CUDACachingAllocator::CUDAAllocator> nccl_allocator;
 

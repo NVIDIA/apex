@@ -4,7 +4,7 @@
 
 #include <ATen/cuda/Atomic.cuh>
 
-__global__ void index_mul_2d_float_dim64(float *out, const float *in1, const float *in2, const int64_t *idx1,
+__global__ void index_mul_2d_float_dim64(float* out, const float* in1, const float* in2, const int64_t* idx1,
                                          const int64_t size) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
@@ -17,17 +17,17 @@ __global__ void index_mul_2d_float_dim64(float *out, const float *in1, const flo
     int64_t vec_idx2 = (start_idx * fea_dim) / 4 + tidx;
 
     float4 res, src1, src2;
-    src1 = reinterpret_cast<const float4 *>(in1)[vec_idx1];
-    src2 = reinterpret_cast<const float4 *>(in2)[vec_idx2];
+    src1 = reinterpret_cast<const float4*>(in1)[vec_idx1];
+    src2 = reinterpret_cast<const float4*>(in2)[vec_idx2];
     res.x = src1.x * src2.x;
     res.y = src1.y * src2.y;
     res.z = src1.z * src2.z;
     res.w = src1.w * src2.w;
-    reinterpret_cast<float4 *>(out)[vec_idx2] = res;
+    reinterpret_cast<float4*>(out)[vec_idx2] = res;
   }
 }
 
-__global__ void index_mul_2d_float(float *out, const float *in1, const float *in2, const int64_t *idx1,
+__global__ void index_mul_2d_float(float* out, const float* in1, const float* in2, const int64_t* idx1,
                                    const int64_t size, const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
@@ -45,7 +45,7 @@ __global__ void index_mul_2d_float(float *out, const float *in1, const float *in
   }
 }
 
-__global__ void index_mul_2d_half(at::Half *out, const at::Half *in1, const at::Half *in2, const int64_t *idx1,
+__global__ void index_mul_2d_half(at::Half* out, const at::Half* in1, const at::Half* in2, const int64_t* idx1,
                                   const int64_t size, const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
@@ -63,8 +63,8 @@ __global__ void index_mul_2d_half(at::Half *out, const at::Half *in1, const at::
   }
 }
 
-__global__ void index_mul_2d_grad_float_dim64(float *grad_in1, float *grad_in2, const float *grad_out, const float *in1,
-                                              const float *in2, const int64_t *idx1, const int64_t size) {
+__global__ void index_mul_2d_grad_float_dim64(float* grad_in1, float* grad_in2, const float* grad_out, const float* in1,
+                                              const float* in2, const int64_t* idx1, const int64_t size) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
   const int bidx = blockIdx.x;
@@ -76,9 +76,9 @@ __global__ void index_mul_2d_grad_float_dim64(float *grad_in1, float *grad_in2, 
     int64_t vec_idx2 = (start_idx * fea_dim) / 4 + tidx;
 
     float4 src_in1, src_in2, src_grad_out, dst_grad_in2;
-    src_grad_out = reinterpret_cast<const float4 *>(grad_out)[vec_idx2];
-    src_in1 = reinterpret_cast<const float4 *>(in1)[vec_idx1];
-    src_in2 = reinterpret_cast<const float4 *>(in2)[vec_idx2];
+    src_grad_out = reinterpret_cast<const float4*>(grad_out)[vec_idx2];
+    src_in1 = reinterpret_cast<const float4*>(in1)[vec_idx1];
+    src_in2 = reinterpret_cast<const float4*>(in2)[vec_idx2];
     int64_t grad_in1_base_idx = idx1[start_idx] * fea_dim + tidx * 4;
     gpuAtomicAdd(grad_in1 + grad_in1_base_idx + 0, src_grad_out.x * src_in2.x);
     gpuAtomicAdd(grad_in1 + grad_in1_base_idx + 1, src_grad_out.y * src_in2.y);
@@ -88,12 +88,12 @@ __global__ void index_mul_2d_grad_float_dim64(float *grad_in1, float *grad_in2, 
     dst_grad_in2.y = src_grad_out.y * src_in1.y;
     dst_grad_in2.z = src_grad_out.z * src_in1.z;
     dst_grad_in2.w = src_grad_out.w * src_in1.w;
-    reinterpret_cast<float4 *>(grad_in2)[vec_idx2] = dst_grad_in2;
+    reinterpret_cast<float4*>(grad_in2)[vec_idx2] = dst_grad_in2;
   }
 }
 
-__global__ void index_mul_2d_grad_float(float *grad_in1, float *grad_in2, const float *grad_out, const float *in1,
-                                        const float *in2, const int64_t *idx1, const int64_t size,
+__global__ void index_mul_2d_grad_float(float* grad_in1, float* grad_in2, const float* grad_out, const float* in1,
+                                        const float* in2, const int64_t* idx1, const int64_t size,
                                         const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
@@ -115,8 +115,8 @@ __global__ void index_mul_2d_grad_float(float *grad_in1, float *grad_in2, const 
   }
 }
 
-__global__ void index_mul_2d_grad_half(at::Half *grad_in1, at::Half *grad_in2, const at::Half *grad_out,
-                                       const at::Half *in1, const at::Half *in2, const int64_t *idx1,
+__global__ void index_mul_2d_grad_half(at::Half* grad_in1, at::Half* grad_in2, const at::Half* grad_out,
+                                       const at::Half* in1, const at::Half* in2, const int64_t* idx1,
                                        const int64_t size, const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
@@ -138,10 +138,10 @@ __global__ void index_mul_2d_grad_half(at::Half *grad_in1, at::Half *grad_in2, c
   }
 }
 
-__global__ void index_mul_2d_grad_grad_float_dim64(float *grad_grad_out, float *grad_in1, float *grad_in2,
-                                                   const float *grad_out, const float *grad_grad_in1,
-                                                   const float *grad_grad_in2, const float *in1, const float *in2,
-                                                   const int64_t *idx1, const int64_t size) {
+__global__ void index_mul_2d_grad_grad_float_dim64(float* grad_grad_out, float* grad_in1, float* grad_in2,
+                                                   const float* grad_out, const float* grad_grad_in1,
+                                                   const float* grad_grad_in2, const float* in1, const float* in2,
+                                                   const int64_t* idx1, const int64_t size) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
   const int bidx = blockIdx.x;
@@ -154,16 +154,16 @@ __global__ void index_mul_2d_grad_grad_float_dim64(float *grad_grad_out, float *
 
     float4 src_grad_grad_in1, src_in1, src_grad_grad_in2, src_in2, src_grad_out;
     float4 dst_grad_grad_out, dst_grad_in2;
-    src_grad_grad_in1 = reinterpret_cast<const float4 *>(grad_grad_in1)[vec_idx1];
-    src_in1 = reinterpret_cast<const float4 *>(in1)[vec_idx1];
-    src_grad_grad_in2 = reinterpret_cast<const float4 *>(grad_grad_in2)[vec_idx2];
-    src_in2 = reinterpret_cast<const float4 *>(in2)[vec_idx2];
+    src_grad_grad_in1 = reinterpret_cast<const float4*>(grad_grad_in1)[vec_idx1];
+    src_in1 = reinterpret_cast<const float4*>(in1)[vec_idx1];
+    src_grad_grad_in2 = reinterpret_cast<const float4*>(grad_grad_in2)[vec_idx2];
+    src_in2 = reinterpret_cast<const float4*>(in2)[vec_idx2];
     dst_grad_grad_out.x = src_grad_grad_in1.x * src_in2.x + src_grad_grad_in2.x * src_in1.x;
     dst_grad_grad_out.y = src_grad_grad_in1.y * src_in2.y + src_grad_grad_in2.y * src_in1.y;
     dst_grad_grad_out.z = src_grad_grad_in1.z * src_in2.z + src_grad_grad_in2.z * src_in1.z;
     dst_grad_grad_out.w = src_grad_grad_in1.w * src_in2.w + src_grad_grad_in2.w * src_in1.w;
-    reinterpret_cast<float4 *>(grad_grad_out)[vec_idx2] = dst_grad_grad_out;
-    src_grad_out = reinterpret_cast<const float4 *>(grad_out)[vec_idx2];
+    reinterpret_cast<float4*>(grad_grad_out)[vec_idx2] = dst_grad_grad_out;
+    src_grad_out = reinterpret_cast<const float4*>(grad_out)[vec_idx2];
     int64_t grad_in1_base_idx = idx1[start_idx] * fea_dim + tidx * 4;
     gpuAtomicAdd(grad_in1 + grad_in1_base_idx + 0, src_grad_grad_in2.x * src_grad_out.x);
     gpuAtomicAdd(grad_in1 + grad_in1_base_idx + 1, src_grad_grad_in2.y * src_grad_out.y);
@@ -173,14 +173,14 @@ __global__ void index_mul_2d_grad_grad_float_dim64(float *grad_grad_out, float *
     dst_grad_in2.y = src_grad_grad_in1.y * src_grad_out.y;
     dst_grad_in2.z = src_grad_grad_in1.z * src_grad_out.z;
     dst_grad_in2.w = src_grad_grad_in1.w * src_grad_out.w;
-    reinterpret_cast<float4 *>(grad_in2)[vec_idx2] = dst_grad_in2;
+    reinterpret_cast<float4*>(grad_in2)[vec_idx2] = dst_grad_in2;
   }
 }
 
-__global__ void index_mul_2d_grad_grad_float(float *grad_grad_out, float *grad_in1, float *grad_in2,
-                                             const float *grad_out, const float *grad_grad_in1,
-                                             const float *grad_grad_in2, const float *in1, const float *in2,
-                                             const int64_t *idx1, const int64_t size, const int64_t fea_dim) {
+__global__ void index_mul_2d_grad_grad_float(float* grad_grad_out, float* grad_in1, float* grad_in2,
+                                             const float* grad_out, const float* grad_grad_in1,
+                                             const float* grad_grad_in2, const float* in1, const float* in2,
+                                             const int64_t* idx1, const int64_t size, const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
   const int bidx = blockIdx.x;
@@ -204,10 +204,10 @@ __global__ void index_mul_2d_grad_grad_float(float *grad_grad_out, float *grad_i
   }
 }
 
-__global__ void index_mul_2d_grad_grad_half(at::Half *grad_grad_out, at::Half *grad_in1, at::Half *grad_in2,
-                                            const at::Half *grad_out, const at::Half *grad_grad_in1,
-                                            const at::Half *grad_grad_in2, const at::Half *in1, const at::Half *in2,
-                                            const int64_t *idx1, const int64_t size, const int64_t fea_dim) {
+__global__ void index_mul_2d_grad_grad_half(at::Half* grad_grad_out, at::Half* grad_in1, at::Half* grad_in2,
+                                            const at::Half* grad_out, const at::Half* grad_grad_in1,
+                                            const at::Half* grad_grad_in2, const at::Half* in1, const at::Half* in2,
+                                            const int64_t* idx1, const int64_t size, const int64_t fea_dim) {
   const int tidx = threadIdx.x;
   const int tidy = threadIdx.y;
   const int bidx = blockIdx.x;
@@ -231,8 +231,8 @@ __global__ void index_mul_2d_grad_grad_half(at::Half *grad_grad_out, at::Half *g
   }
 }
 
-void index_mul_2d_float_foward_cuda(at::Tensor &out, const at::Tensor &in1, const at::Tensor &in2,
-                                    const at::Tensor &idx1) {
+void index_mul_2d_float_foward_cuda(at::Tensor& out, const at::Tensor& in1, const at::Tensor& in2,
+                                    const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {
@@ -260,8 +260,8 @@ void index_mul_2d_float_foward_cuda(at::Tensor &out, const at::Tensor &in1, cons
   AT_CUDA_CHECK(cudaGetLastError());
 }
 
-void index_mul_2d_float_backward_cuda(at::Tensor &grad_in1, at::Tensor &grad_in2, const at::Tensor &grad_out,
-                                      const at::Tensor &in1, const at::Tensor &in2, const at::Tensor &idx1) {
+void index_mul_2d_float_backward_cuda(at::Tensor& grad_in1, at::Tensor& grad_in2, const at::Tensor& grad_out,
+                                      const at::Tensor& in1, const at::Tensor& in2, const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {
@@ -291,10 +291,10 @@ void index_mul_2d_float_backward_cuda(at::Tensor &grad_in1, at::Tensor &grad_in2
   }
 }
 
-void index_mul_2d_float_backward_backward_cuda(at::Tensor &grad_grad_out, at::Tensor &grad_in1, at::Tensor &grad_in2,
-                                               const at::Tensor &grad_out, const at::Tensor &grad_grad_in1,
-                                               const at::Tensor &grad_grad_in2, const at::Tensor &in1,
-                                               const at::Tensor &in2, const at::Tensor &idx1) {
+void index_mul_2d_float_backward_backward_cuda(at::Tensor& grad_grad_out, at::Tensor& grad_in1, at::Tensor& grad_in2,
+                                               const at::Tensor& grad_out, const at::Tensor& grad_grad_in1,
+                                               const at::Tensor& grad_grad_in2, const at::Tensor& in1,
+                                               const at::Tensor& in2, const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {
@@ -326,8 +326,8 @@ void index_mul_2d_float_backward_backward_cuda(at::Tensor &grad_grad_out, at::Te
   AT_CUDA_CHECK(cudaGetLastError());
 }
 
-void index_mul_2d_half_foward_cuda(at::Tensor &out, const at::Tensor &in1, const at::Tensor &in2,
-                                   const at::Tensor &idx1) {
+void index_mul_2d_half_foward_cuda(at::Tensor& out, const at::Tensor& in1, const at::Tensor& in2,
+                                   const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {
@@ -347,8 +347,8 @@ void index_mul_2d_half_foward_cuda(at::Tensor &out, const at::Tensor &in1, const
   AT_CUDA_CHECK(cudaGetLastError());
 }
 
-void index_mul_2d_half_backward_cuda(at::Tensor &grad_in1, at::Tensor &grad_in2, const at::Tensor &grad_out,
-                                     const at::Tensor &in1, const at::Tensor &in2, const at::Tensor &idx1) {
+void index_mul_2d_half_backward_cuda(at::Tensor& grad_in1, at::Tensor& grad_in2, const at::Tensor& grad_out,
+                                     const at::Tensor& in1, const at::Tensor& in2, const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {
@@ -366,10 +366,10 @@ void index_mul_2d_half_backward_cuda(at::Tensor &grad_in1, at::Tensor &grad_in2,
       in1.data_ptr<at::Half>(), in2.data_ptr<at::Half>(), idx1.data_ptr<int64_t>(), size, fea_dim);
 }
 
-void index_mul_2d_half_backward_backward_cuda(at::Tensor &grad_grad_out, at::Tensor &grad_in1, at::Tensor &grad_in2,
-                                              const at::Tensor &grad_out, const at::Tensor &grad_grad_in1,
-                                              const at::Tensor &grad_grad_in2, const at::Tensor &in1,
-                                              const at::Tensor &in2, const at::Tensor &idx1) {
+void index_mul_2d_half_backward_backward_cuda(at::Tensor& grad_grad_out, at::Tensor& grad_in1, at::Tensor& grad_in2,
+                                              const at::Tensor& grad_out, const at::Tensor& grad_grad_in1,
+                                              const at::Tensor& grad_grad_in2, const at::Tensor& in1,
+                                              const at::Tensor& in2, const at::Tensor& idx1) {
   const int64_t size = in2.size(0);
   const int64_t fea_dim = in2.size(1);
   if (size < 0) {

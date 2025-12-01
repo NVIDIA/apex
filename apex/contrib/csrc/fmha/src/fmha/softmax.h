@@ -91,7 +91,7 @@ struct Smem_tile_reduce {
 
   using read_t = typename ReadType<COLS>::T;
 
-  __device__ inline Smem_tile_reduce(float *smem_, const int tidx) {
+  __device__ inline Smem_tile_reduce(float* smem_, const int tidx) {
     int lane = tidx % 32;
     int warp = tidx / 32;
 
@@ -105,7 +105,7 @@ struct Smem_tile_reduce {
     // This won't affect reading as we assume commutative reduction ops.
     const int col = warp_n ^ (qp / ROWS_PER_XOR_PATTERN);
     smem_write_ = &smem_[warp_m * 16 * MMAS_M * WARPS_N + qp * WARPS_N + col];
-    smem_read_ = &reinterpret_cast<read_t *>(smem_)[warp_m * 16 * MMAS_M * 4 + qp * 4 + qid_];
+    smem_read_ = &reinterpret_cast<read_t*>(smem_)[warp_m * 16 * MMAS_M * 4 + qp * 4 + qid_];
   }
 
   __device__ inline void store(float (&frag)[2 * MMAS_M]) {
@@ -129,8 +129,8 @@ struct Smem_tile_reduce {
   }
 
   int qid_;
-  float *smem_write_;
-  read_t *smem_read_;
+  float* smem_write_;
+  read_t* smem_read_;
 };
 
 template <typename Cta_tile, typename Kernel_traits>
@@ -153,9 +153,9 @@ struct Softmax_base {
 
   // Ctor.
   template <typename Params>
-  inline __device__ Softmax_base(const Params &params, void *smem, int bidb, int tidx)
+  inline __device__ Softmax_base(const Params& params, void* smem, int bidb, int tidx)
       :  // packed_mask_ptr_(reinterpret_cast<const char*>(params.packed_mask_ptr)),
-        smem_(reinterpret_cast<float *>(smem)),
+        smem_(reinterpret_cast<float*>(smem)),
         tidx_(tidx) {
     // Move to the 1st mask loaded by the thread+ tidx;
     // packed_mask_ptr_ += bidb * params.packed_mask_stride_in_bytes + tidx * sizeof(uint32_t);
@@ -184,7 +184,7 @@ struct Softmax_base {
   }
 
   template <typename Mask>
-  inline __device__ void apply_mask(const Mask &mask) {
+  inline __device__ void apply_mask(const Mask& mask) {
 #pragma unroll
     for (int mi = 0; mi < MMAS_M; ++mi) {
 #pragma unroll
@@ -233,7 +233,7 @@ struct Softmax_base {
   }
 
   // The pointer to the mask.
-  const char *packed_mask_ptr_;
+  const char* packed_mask_ptr_;
   // Shared memory for the CTA-wide reduction.
   float *smem_, *smem_write_, *smem_read_;
   // The current thread index.
@@ -270,11 +270,11 @@ struct Softmax : public Softmax_base<Cta_tile, Kernel_traits> {
   static_assert(Smem_tile_red::ELTS_PER_TILE == Cta_tile::M * WARPS_N);
   // Ctor.
   template <typename Params>
-  inline __device__ Softmax(const Params &params, void *smem, int bidb, int tidx)
+  inline __device__ Softmax(const Params& params, void* smem, int bidb, int tidx)
       : Base(params, smem, bidb, tidx),
         params_scale_bmm1_(params.scale_bmm1),
-        smem_sum_(static_cast<float *>(smem), tidx),
-        smem_max_(static_cast<float *>(smem) + Smem_tile_red::ELTS_PER_TILE, tidx) {}
+        smem_sum_(static_cast<float*>(smem), tidx),
+        smem_max_(static_cast<float*>(smem) + Smem_tile_red::ELTS_PER_TILE, tidx) {}
 
   // Pack the data to a fragment for the next GEMM.
   template <int K, int M>
@@ -306,7 +306,7 @@ struct Softmax : public Softmax_base<Cta_tile, Kernel_traits> {
 
   // Scale FP32 fragments
   inline __device__ void unpack(const Accumulator (&acc)[MMAS_M][MMAS_N]) {
-    const float scalef = reinterpret_cast<const float &>(this->params_scale_bmm1_);
+    const float scalef = reinterpret_cast<const float&>(this->params_scale_bmm1_);
 
 #pragma unroll
     for (int mi = 0; mi < MMAS_M; ++mi) {
@@ -346,7 +346,7 @@ struct Softmax : public Softmax_base<Cta_tile, Kernel_traits> {
   }
 
   template <typename Operator>
-  __device__ inline void reduce_(float (&frag)[2 * MMAS_M], Operator &op, Smem_tile_red &smem_red) {
+  __device__ inline void reduce_(float (&frag)[2 * MMAS_M], Operator& op, Smem_tile_red& smem_red) {
     for (int mi = 0; mi < 2 * MMAS_M; mi++) {
       frag[mi] = this->elt_[mi][0];
       for (int ni = 1; ni < 4 * MMAS_N; ni++) {

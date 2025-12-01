@@ -82,7 +82,7 @@ struct Kernel_traits : public Base {
   enum { BYTES_PER_ROW = COLS * sizeof(input_t) };
   enum { BYTES_PER_ROW_PER_CTA = THREADS_PER_ROW * BYTES_PER_LDG };
   // Multi-row per CTA not supported for multi-CTA => no smem for WGRAD needed
-  enum { SMEM_BYTES_WGRAD = CTAS_PER_ROW > 1 ? 0 : ROWS_PER_CTA* COLS * sizeof(compute_t) };
+  enum { SMEM_BYTES_WGRAD = CTAS_PER_ROW > 1 ? 0 : ROWS_PER_CTA * COLS * sizeof(compute_t) };
   static_assert(WARPS_M == 1 || CTAS_PER_ROW == 1);
 
   using reduce_t = typename layer_norm::TypeToVec2<compute_t>::Type;

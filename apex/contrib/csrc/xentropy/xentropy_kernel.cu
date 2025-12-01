@@ -153,7 +153,7 @@ struct SumExpFloat {
 };
 
 template <template <typename> class Reduction, typename AccumT>
-__device__ __forceinline__ AccumT blockReduce(AccumT *smem, AccumT val, const Reduction<AccumT> &r, AccumT defaultVal) {
+__device__ __forceinline__ AccumT blockReduce(AccumT* smem, AccumT val, const Reduction<AccumT>& r, AccumT defaultVal) {
   // To avoid RaW races from chaining blockReduce calls together, we need a sync here
   __syncthreads();
 
@@ -195,9 +195,9 @@ __device__ __forceinline__ AccumT blockReduce(AccumT *smem, AccumT val, const Re
 }
 
 template <template <typename> class Reduction1, template <typename> class Reduction2, typename AccumT>
-__device__ __forceinline__ void blockReduce(AccumT *smem, AccumT *reducVal1, AccumT val1, const Reduction1<AccumT> &r1,
-                                            AccumT defaultVal1, AccumT *reducVal2, AccumT val2,
-                                            const Reduction2<AccumT> &r2, AccumT defaultVal2) {
+__device__ __forceinline__ void blockReduce(AccumT* smem, AccumT* reducVal1, AccumT val1, const Reduction1<AccumT>& r1,
+                                            AccumT defaultVal1, AccumT* reducVal2, AccumT val2,
+                                            const Reduction2<AccumT>& r2, AccumT defaultVal2) {
   // To avoid RaW races from chaining blockReduce calls together, we need a sync here
   __syncthreads();
 
@@ -248,7 +248,7 @@ __device__ __forceinline__ void blockReduce(AccumT *smem, AccumT *reducVal1, Acc
 }
 
 template <template <typename, typename> class Reduction, int ILP, typename T, typename AccumT>
-__device__ __forceinline__ AccumT ilpReduce(int shift, T *data, int size, const Reduction<T, AccumT> &r,
+__device__ __forceinline__ AccumT ilpReduce(int shift, T* data, int size, const Reduction<T, AccumT>& r,
                                             AccumT defaultVal) {
   typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LoadT;
   AccumT threadVal = defaultVal;
@@ -267,10 +267,10 @@ __device__ __forceinline__ AccumT ilpReduce(int shift, T *data, int size, const 
   int last = size % (ILP * blockDim.x);
 
   T v[ILP];
-  LoadT *value = reinterpret_cast<LoadT *>(&v);
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
 
   for (; offset * ILP < (size - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT *>(data)[offset];
+    *value = reinterpret_cast<LoadT*>(data)[offset];
 
     for (int j = 0; j < ILP; ++j) {
       threadVal = r(threadVal, v[j]);
@@ -286,9 +286,9 @@ __device__ __forceinline__ AccumT ilpReduce(int shift, T *data, int size, const 
 
 template <template <typename, typename> class Reduction1, template <typename, typename> class Reduction2, int ILP,
           typename T, typename AccumT>
-__device__ __forceinline__ void ilpReduce(int shift, T *data, int size, AccumT *reducVal1,
-                                          const Reduction1<T, AccumT> &r1, AccumT defaultVal1, AccumT *reducVal2,
-                                          const Reduction2<T, AccumT> &r2, AccumT defaultVal2) {
+__device__ __forceinline__ void ilpReduce(int shift, T* data, int size, AccumT* reducVal1,
+                                          const Reduction1<T, AccumT>& r1, AccumT defaultVal1, AccumT* reducVal2,
+                                          const Reduction2<T, AccumT>& r2, AccumT defaultVal2) {
   typedef typename std::aligned_storage<ILP * sizeof(T), ILP * alignof(T)>::type LoadT;
 
   AccumT threadVal1 = defaultVal1;
@@ -309,10 +309,10 @@ __device__ __forceinline__ void ilpReduce(int shift, T *data, int size, AccumT *
   int last = size % (ILP * blockDim.x);
 
   T v[ILP];
-  LoadT *value = reinterpret_cast<LoadT *>(&v);
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
 
   for (; offset * ILP < (size - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT *>(data)[offset];
+    *value = reinterpret_cast<LoadT*>(data)[offset];
 
     for (int j = 0; j < ILP; ++j) {
       threadVal1 = r1(threadVal1, v[j]);
@@ -333,10 +333,10 @@ __device__ __forceinline__ void ilpReduce(int shift, T *data, int size, AccumT *
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t,
           template <typename, typename, typename> class Epilogue>
-__global__ void cunn_SoftMaxXEntropyForward(accscalar_t *losses, outscalar_t *max_log_sum_exp, scalar_t *input,
-                                            int64_t *labels, int64_t classes, const float smoothing) {
+__global__ void cunn_SoftMaxXEntropyForward(accscalar_t* losses, outscalar_t* max_log_sum_exp, scalar_t* input,
+                                            int64_t* labels, int64_t classes, const float smoothing) {
   extern __shared__ unsigned char smem[];
-  auto sdata = reinterpret_cast<accscalar_t *>(smem);
+  auto sdata = reinterpret_cast<accscalar_t*>(smem);
   // forward pointers to batch[blockIdx.x]
   // each block handles a sample in the mini-batch
   input += blockIdx.x * classes;
@@ -371,8 +371,8 @@ __global__ void cunn_SoftMaxXEntropyForward(accscalar_t *losses, outscalar_t *ma
 }
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
-__device__ __forceinline__ void apply(scalar_t *gradInput, scalar_t *logits, outscalar_t *max_log_sum_exp,
-                                      outscalar_t *gradOutput, int64_t *labels, const float smoothing, int classes) {
+__device__ __forceinline__ void apply(scalar_t* gradInput, scalar_t* logits, outscalar_t* max_log_sum_exp,
+                                      outscalar_t* gradOutput, int64_t* labels, const float smoothing, int classes) {
   accscalar_t smooth_positives = 1.0 - smoothing;
   accscalar_t smooth_negatives = smoothing / classes;
   accscalar_t tmpGradOutput = gradOutput[blockIdx.x];
@@ -405,8 +405,8 @@ __device__ __forceinline__ void apply(scalar_t *gradInput, scalar_t *logits, out
 }
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
-__device__ __forceinline__ void aligned_apply(int shift, scalar_t *gradInput, scalar_t *logits,
-                                              outscalar_t *max_log_sum_exp, outscalar_t *gradOutput, int64_t *labels,
+__device__ __forceinline__ void aligned_apply(int shift, scalar_t* gradInput, scalar_t* logits,
+                                              outscalar_t* max_log_sum_exp, outscalar_t* gradOutput, int64_t* labels,
                                               const float smoothing, int classes) {
   accscalar_t smooth_positives = 1.0 - smoothing;
   accscalar_t smooth_negatives = smoothing / classes;
@@ -438,13 +438,13 @@ __device__ __forceinline__ void aligned_apply(int shift, scalar_t *gradInput, sc
   typedef typename std::aligned_storage<ILP * sizeof(scalar_t), ILP * alignof(scalar_t)>::type LoadT;
   // input
   scalar_t v[ILP];
-  LoadT *value = reinterpret_cast<LoadT *>(&v);
+  LoadT* value = reinterpret_cast<LoadT*>(&v);
   // output
   scalar_t r[ILP];
-  LoadT *result = reinterpret_cast<LoadT *>(&r);
+  LoadT* result = reinterpret_cast<LoadT*>(&r);
 
   for (; offset * ILP < (classes - last); offset += blockDim.x) {
-    *value = reinterpret_cast<LoadT *>(logits)[offset];
+    *value = reinterpret_cast<LoadT*>(logits)[offset];
 
 #pragma unroll
     for (int j = 0; j < ILP; ++j) {
@@ -453,7 +453,7 @@ __device__ __forceinline__ void aligned_apply(int shift, scalar_t *gradInput, sc
                            static_cast<accscalar_t>(((ILP * offset + j - shift) == label) ? 1 : 0) * smooth_positives -
                            smooth_negatives);
     }
-    reinterpret_cast<LoadT *>(gradInput)[offset] = *result;
+    reinterpret_cast<LoadT*>(gradInput)[offset] = *result;
   }
 
   offset = classes - last + threadIdx.x;
@@ -466,8 +466,8 @@ __device__ __forceinline__ void aligned_apply(int shift, scalar_t *gradInput, sc
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t,
           template <typename, typename, typename> class Epilogue>
-__global__ void cunn_SoftMaxXEntropyBackward(scalar_t *gradInput, scalar_t *logits, outscalar_t *max_log_sum_exp,
-                                             outscalar_t *gradOutput, int64_t *labels, const float smoothing,
+__global__ void cunn_SoftMaxXEntropyBackward(scalar_t* gradInput, scalar_t* logits, outscalar_t* max_log_sum_exp,
+                                             outscalar_t* gradOutput, int64_t* labels, const float smoothing,
                                              int classes) {
   gradInput += blockIdx.x * classes;
   logits += blockIdx.x * classes;
@@ -485,7 +485,7 @@ __global__ void cunn_SoftMaxXEntropyBackward(scalar_t *gradInput, scalar_t *logi
 }
 
 template <template <typename, typename, typename> class Epilogue>
-std::vector<Tensor> host_softmax_xentropy(const Tensor &input_, const Tensor &labels_, const float smoothing,
+std::vector<Tensor> host_softmax_xentropy(const Tensor& input_, const Tensor& labels_, const float smoothing,
                                           const bool half_to_float) {
   if (half_to_float)
     TORCH_CHECK(input_.scalar_type() == ScalarType::Half, "conversion is supported for Half type only");
@@ -540,8 +540,8 @@ std::vector<Tensor> host_softmax_xentropy(const Tensor &input_, const Tensor &la
 }
 
 template <template <typename, typename, typename> class Epilogue>
-Tensor host_softmax_xentropy_backward(const at::Tensor &grad_loss, const at::Tensor &logits_,
-                                      const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+Tensor host_softmax_xentropy_backward(const at::Tensor& grad_loss, const at::Tensor& logits_,
+                                      const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
                                       const float smoothing, bool half_to_float) {
   const int64_t dim = 1;
   Tensor gI = at::empty_like(logits_);
@@ -593,13 +593,13 @@ Tensor host_softmax_xentropy_backward(const at::Tensor &grad_loss, const at::Ten
   return gI;
 }
 
-std::vector<Tensor> softmax_xentropy_cuda(const Tensor &input, const Tensor &labels, const float smoothing,
+std::vector<Tensor> softmax_xentropy_cuda(const Tensor& input, const Tensor& labels, const float smoothing,
                                           const bool half_to_float) {
   return host_softmax_xentropy<LogSoftMaxForwardEpilogue>(input, labels, smoothing, half_to_float);
 }
 
-at::Tensor softmax_xentropy_backward_cuda(const at::Tensor &grad_loss, const at::Tensor &logits,
-                                          const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+at::Tensor softmax_xentropy_backward_cuda(const at::Tensor& grad_loss, const at::Tensor& logits,
+                                          const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
                                           const float smoothing) {
   bool half_to_float = grad_loss.scalar_type() != logits.scalar_type();
   if (half_to_float) {

@@ -44,8 +44,8 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_fwd_kernel(FwdPar
 
   Stats stats(params, bidm, bidn, warp_m, warp_n, lane, smem_);
 
-  compute_t *mu_ptr = static_cast<compute_t *>(params.mu);
-  compute_t *rs_ptr = static_cast<compute_t *>(params.rs);
+  compute_t* mu_ptr = static_cast<compute_t*>(params.mu);
+  compute_t* rs_ptr = static_cast<compute_t*>(params.rs);
 
   Wvec gamma[LDGS];
   Wvec beta[LDGS];

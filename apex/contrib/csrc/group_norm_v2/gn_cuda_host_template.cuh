@@ -212,7 +212,7 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
     throw std::invalid_argument("not __restrict__");
   }
 
-  cudaDeviceProp const &deviceProp = get_device_prop(device_id);
+  cudaDeviceProp const& deviceProp = get_device_prop(device_id);
   int runtime_cuda_arch = deviceProp.major * 100 + deviceProp.minor * 10;
   int sm_count = deviceProp.multiProcessorCount;
 
@@ -316,10 +316,10 @@ void gn_cuda_single_shape(GN_CUDA_HOST_PARAMS(T)) {
           }
           int max_cluster_size;
           int active_clusters;
-          CUDA_CHECK(cudaOccupancyMaxPotentialClusterSize(&max_cluster_size, (void *)kernel, &config));
+          CUDA_CHECK(cudaOccupancyMaxPotentialClusterSize(&max_cluster_size, (void*)kernel, &config));
           if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size && PERSISTENT) {
             attribute[0].val.clusterDim.x = VIRTUAL_CLUSTER_SIZE;
-            CUDA_CHECK(cudaOccupancyMaxActiveClusters(&active_clusters, (void *)kernel, &config));
+            CUDA_CHECK(cudaOccupancyMaxActiveClusters(&active_clusters, (void*)kernel, &config));
           }
           if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size &&
               (!PERSISTENT || PERSISTENT && NUM_VIRTUAL_CLUSTERS <= active_clusters)) {
@@ -357,7 +357,7 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
     throw std::invalid_argument("not __restrict__");
   }
 
-  cudaDeviceProp const &deviceProp = get_device_prop(device_id);
+  cudaDeviceProp const& deviceProp = get_device_prop(device_id);
   int runtime_cuda_arch = deviceProp.major * 100 + deviceProp.minor * 10;
   int sm_count = deviceProp.multiProcessorCount;
 
@@ -484,10 +484,10 @@ void gn_bwd_cuda_single_shape(GN_BWD_CUDA_HOST_PARAMS(T)) {
           }
           int max_cluster_size;
           int active_clusters;
-          CUDA_CHECK(cudaOccupancyMaxPotentialClusterSize(&max_cluster_size, (void *)kernel, &config));
+          CUDA_CHECK(cudaOccupancyMaxPotentialClusterSize(&max_cluster_size, (void*)kernel, &config));
           if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size && PERSISTENT) {
             attribute[0].val.clusterDim.x = VIRTUAL_CLUSTER_SIZE;
-            CUDA_CHECK(cudaOccupancyMaxActiveClusters(&active_clusters, (void *)kernel, &config));
+            CUDA_CHECK(cudaOccupancyMaxActiveClusters(&active_clusters, (void*)kernel, &config));
           }
           if (VIRTUAL_CLUSTER_SIZE <= max_cluster_size &&
               (!PERSISTENT || PERSISTENT && NUM_VIRTUAL_CLUSTERS <= active_clusters)) {

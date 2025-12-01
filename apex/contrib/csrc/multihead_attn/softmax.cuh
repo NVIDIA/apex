@@ -21,52 +21,52 @@
 
 namespace {
 template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void copy_vector(Datatype *dst, const Datatype *src);
+__device__ __inline__ void copy_vector(Datatype* dst, const Datatype* src);
 
 template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
+__device__ __inline__ void apply_mask(Datatype* dst, Datatype value, const uint8_t* src);
 
 template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void apply_additive_mask(Datatype *dst, const Datatype *additive_mask);
+__device__ __inline__ void apply_additive_mask(Datatype* dst, const Datatype* additive_mask);
 
 template <>
-__device__ __inline__ void copy_vector<__half, 1>(__half *dst, const __half *src) {
+__device__ __inline__ void copy_vector<__half, 1>(__half* dst, const __half* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<float, 1>(float *dst, const float *src) {
+__device__ __inline__ void copy_vector<float, 1>(float* dst, const float* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) {
-  *((float2 *)dst) = *((float2 *)src);
+__device__ __inline__ void copy_vector<__half, 4>(__half* dst, const __half* src) {
+  *((float2*)dst) = *((float2*)src);
 }
 template <>
-__device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) {
+__device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t* dst, const uint8_t* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {
-  *((half2 *)dst) = *((half2 *)src);
+__device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t* dst, const uint8_t* src) {
+  *((half2*)dst) = *((half2*)src);
 }
 
 template <>
-__device__ __inline__ void apply_mask<__half, 1>(__half *dst, __half value, const uint8_t *src) {
+__device__ __inline__ void apply_mask<__half, 1>(__half* dst, __half value, const uint8_t* src) {
   if (*src == 1) {
     *dst = value;
   }
 }
 
 template <>
-__device__ __inline__ void apply_additive_mask<__half, 1>(__half *dst, const __half *additive_mask) {
+__device__ __inline__ void apply_additive_mask<__half, 1>(__half* dst, const __half* additive_mask) {
   *dst += *additive_mask;
 }
 
 template <>
-__device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
+__device__ __inline__ void apply_additive_mask<__half, 4>(__half* dst, const __half* additive_mask) {
   *dst += *additive_mask;
   *(dst + 1) += *(additive_mask + 1);
   *(dst + 2) += *(additive_mask + 2);
@@ -83,7 +83,7 @@ __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __h
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void softmax_warp_forward(input_t *dst, const output_t *src, int batch_size, int stride, int element_count) {
+__global__ void softmax_warp_forward(input_t* dst, const output_t* src, int batch_size, int stride, int element_count) {
   assert(ELEMENTS_PER_LDG_STG == 1);
 
   int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
@@ -204,11 +204,11 @@ __global__ void softmax_warp_forward(input_t *dst, const output_t *src, int batc
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using softmax_forward_func = void (*)(input_t *dst, const output_t *src, int batch_size, int stride, int element_count);
+using softmax_forward_func = void (*)(input_t* dst, const output_t* src, int batch_size, int stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_softmax_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                         softmax_forward_func<input_t, output_t> &kernel) {
+bool warp_softmax_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                         softmax_forward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -257,7 +257,7 @@ bool warp_softmax_kernel(int log2_elements, int &warp_size, int &batches_per_war
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, int softmax_elements_stride,
+bool dispatch_softmax(output_t* dst, const input_t* src, int softmax_elements, int softmax_elements_stride,
                       int batch_count) {
   if (softmax_elements == 0) {
     return true;
@@ -294,8 +294,8 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, i
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE,
           int ELEMENTS_PER_LDG_STG>
-__global__ void additive_masked_softmax_dropout_warp_forward_vec4(output_t *dst, uint8_t *dropout_mask,
-                                                                  const input_t *src, const input_t *pad_mask,
+__global__ void additive_masked_softmax_dropout_warp_forward_vec4(output_t* dst, uint8_t* dropout_mask,
+                                                                  const input_t* src, const input_t* pad_mask,
                                                                   int batch_size, int stride, int element_count,
                                                                   int pad_batch_stride, at::PhiloxCudaState philox_args,
                                                                   float p) {
@@ -323,7 +323,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward_vec4(output_t *dst,
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const half *curr_mask = pad_mask + pad_thread_offset;
+    const half* curr_mask = pad_mask + pad_thread_offset;
 #pragma unroll
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
@@ -449,8 +449,8 @@ __global__ void additive_masked_softmax_dropout_warp_forward_vec4(output_t *dst,
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE,
           int ELEMENTS_PER_LDG_STG>
-__global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint8_t *dropout_mask, const input_t *src,
-                                                             const input_t *pad_mask, int batch_size, int stride,
+__global__ void additive_masked_softmax_dropout_warp_forward(output_t* dst, uint8_t* dropout_mask, const input_t* src,
+                                                             const input_t* pad_mask, int batch_size, int stride,
                                                              int element_count, int pad_batch_stride,
                                                              at::PhiloxCudaState philox_args, float p) {
   assert(ELEMENTS_PER_LDG_STG == 1);
@@ -477,7 +477,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + local_idx;
-    const half *curr_mask = pad_mask + pad_thread_offset;
+    const half* curr_mask = pad_mask + pad_thread_offset;
 #pragma unroll
     for (int it = 0; it < WARP_ITERATIONS; it += 1) {
       int element_index = local_idx + it * WARP_SIZE;
@@ -573,7 +573,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
         uint8_t dropout_mask_temp[1];
         // generate a vector of random numbers here
         float rand = curand_uniform(&state);
-        float *rand_ptr = (float *)(&rand);
+        float* rand_ptr = (float*)(&rand);
 #pragma unroll
         for (int element = 0; element < 1; ++element) {
           softmax_out[element] = (elements[i][it + element] / sum[i]);
@@ -596,15 +596,15 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t>
-using additive_masked_softmax_dropout_forward_func = void (*)(output_t *dst, uint8_t *dropout_mask, const input_t *src,
-                                                              const input_t *pad_mask, int batch_size, int stride,
+using additive_masked_softmax_dropout_forward_func = void (*)(output_t* dst, uint8_t* dropout_mask, const input_t* src,
+                                                              const input_t* pad_mask, int batch_size, int stride,
                                                               int element_count, int pad_batch_stride,
                                                               at::PhiloxCudaState philox_args, float p);
 
 template <typename input_t, typename output_t, typename acc_t>
 bool warp_additive_masked_softmax_dropout_kernel(
-    int element_count, int log2_elements, int &warp_size, int &batches_per_warp,
-    additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> &kernel) {
+    int element_count, int log2_elements, int& warp_size, int& batches_per_warp,
+    additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -671,8 +671,8 @@ bool warp_additive_masked_softmax_dropout_kernel(
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src,
-                                              const input_t *pad_mask, int totalElements, int softmax_elements,
+bool dispatch_additive_masked_softmax_dropout(output_t* dst, uint8_t* dropout_mask, const input_t* src,
+                                              const input_t* pad_mask, int totalElements, int softmax_elements,
                                               int softmax_elements_stride, int batch_count, int pad_batch_stride,
                                               float p,
                                               cudaStream_t streamid)  // p is the probability to keep, not drop
@@ -724,7 +724,7 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void additive_masked_softmax_warp_forward(input_t *dst, const output_t *src, const input_t *pad_mask,
+__global__ void additive_masked_softmax_warp_forward(input_t* dst, const output_t* src, const input_t* pad_mask,
                                                      int batch_size, int stride, int element_count,
                                                      int pad_batch_stride) {
   assert(ELEMENTS_PER_LDG_STG == 1);
@@ -749,7 +749,7 @@ __global__ void additive_masked_softmax_warp_forward(input_t *dst, const output_
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const half *curr_mask = pad_mask + pad_thread_offset;
+    const half* curr_mask = pad_mask + pad_thread_offset;
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
 #pragma unroll
@@ -857,13 +857,13 @@ __global__ void additive_masked_softmax_warp_forward(input_t *dst, const output_
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using additive_masked_softmax_forward_func = void (*)(input_t *dst, const output_t *src, const half *pad_mask,
+using additive_masked_softmax_forward_func = void (*)(input_t* dst, const output_t* src, const half* pad_mask,
                                                       int batch_size, int stride, int element_count,
                                                       int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_additive_masked_softmax_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                                         additive_masked_softmax_forward_func<input_t, output_t> &kernel) {
+bool warp_additive_masked_softmax_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                                         additive_masked_softmax_forward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -912,7 +912,7 @@ bool warp_additive_masked_softmax_kernel(int log2_elements, int &warp_size, int 
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax(output_t *dst, const input_t *src, const input_t *pad_mask, int softmax_elements,
+bool dispatch_additive_masked_softmax(output_t* dst, const input_t* src, const input_t* pad_mask, int softmax_elements,
                                       int softmax_elements_stride, int batch_count, int pad_batch_stride) {
   if (softmax_elements == 0) {
     return true;
@@ -949,7 +949,7 @@ bool dispatch_additive_masked_softmax(output_t *dst, const input_t *src, const i
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax_stream(output_t *dst, const input_t *src, const input_t *pad_mask,
+bool dispatch_additive_masked_softmax_stream(output_t* dst, const input_t* src, const input_t* pad_mask,
                                              int softmax_elements, int softmax_elements_stride, int batch_count,
                                              int pad_batch_stride, cudaStream_t streamid) {
   if (softmax_elements == 0) {
@@ -987,7 +987,7 @@ bool dispatch_additive_masked_softmax_stream(output_t *dst, const input_t *src, 
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void masked_softmax_warp_forward(input_t *dst, const output_t *src, const uint8_t *pad_mask, int batch_size,
+__global__ void masked_softmax_warp_forward(input_t* dst, const output_t* src, const uint8_t* pad_mask, int batch_size,
                                             int stride, int element_count, int pad_batch_stride) {
   assert(ELEMENTS_PER_LDG_STG == 1);
 
@@ -1011,7 +1011,7 @@ __global__ void masked_softmax_warp_forward(input_t *dst, const output_t *src, c
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const uint8_t *curr_mask = pad_mask + pad_thread_offset;
+    const uint8_t* curr_mask = pad_mask + pad_thread_offset;
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
 #pragma unroll
@@ -1116,12 +1116,12 @@ __global__ void masked_softmax_warp_forward(input_t *dst, const output_t *src, c
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using masked_softmax_forward_func = void (*)(input_t *dst, const output_t *src, const uint8_t *pad_mask, int batch_size,
+using masked_softmax_forward_func = void (*)(input_t* dst, const output_t* src, const uint8_t* pad_mask, int batch_size,
                                              int stride, int element_count, int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_masked_softmax_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                                masked_softmax_forward_func<input_t, output_t> &kernel) {
+bool warp_masked_softmax_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                                masked_softmax_forward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -1170,7 +1170,7 @@ bool warp_masked_softmax_kernel(int log2_elements, int &warp_size, int &batches_
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_masked_softmax(output_t *dst, const input_t *src, const uint8_t *pad_mask, int softmax_elements,
+bool dispatch_masked_softmax(output_t* dst, const input_t* src, const uint8_t* pad_mask, int softmax_elements,
                              int softmax_elements_stride, int batch_count, int pad_batch_stride) {
   if (softmax_elements == 0) {
     return true;
@@ -1211,7 +1211,7 @@ bool dispatch_masked_softmax(output_t *dst, const input_t *src, const uint8_t *p
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void time_masked_softmax_warp_forward(input_t *dst, const output_t *src, const uint8_t *pad_mask,
+__global__ void time_masked_softmax_warp_forward(input_t* dst, const output_t* src, const uint8_t* pad_mask,
                                                  int batch_size, int stride, int element_count, int mod_seq_len) {
   assert(ELEMENTS_PER_LDG_STG == 1);
 
@@ -1235,7 +1235,7 @@ __global__ void time_masked_softmax_warp_forward(input_t *dst, const output_t *s
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) % mod_seq_len) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const uint8_t *curr_mask = pad_mask + pad_thread_offset;
+    const uint8_t* curr_mask = pad_mask + pad_thread_offset;
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
 #pragma unroll
@@ -1340,12 +1340,12 @@ __global__ void time_masked_softmax_warp_forward(input_t *dst, const output_t *s
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using time_masked_softmax_forward_func = void (*)(input_t *dst, const output_t *src, const uint8_t *pad_mask,
+using time_masked_softmax_forward_func = void (*)(input_t* dst, const output_t* src, const uint8_t* pad_mask,
                                                   int batch_size, int stride, int element_count, int mod_seq_len);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_time_masked_softmax_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                                     time_masked_softmax_forward_func<input_t, output_t> &kernel) {
+bool warp_time_masked_softmax_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                                     time_masked_softmax_forward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -1394,7 +1394,7 @@ bool warp_time_masked_softmax_kernel(int log2_elements, int &warp_size, int &bat
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_time_masked_softmax(output_t *dst, const input_t *src, const uint8_t *pad_mask, int softmax_elements,
+bool dispatch_time_masked_softmax(output_t* dst, const input_t* src, const uint8_t* pad_mask, int softmax_elements,
                                   int softmax_elements_stride, int batch_count, int mod_seq_len) {
   if (softmax_elements == 0) {
     return true;
@@ -1447,7 +1447,7 @@ __device__ __forceinline__ T WARP_SHFL_XOR_NATIVE(T value, int laneMask, int wid
 }
 
 template <typename acc_t, int WARP_BATCH, int WARP_SIZE>
-__device__ __forceinline__ void warp_reduce_sum(acc_t *sum) {
+__device__ __forceinline__ void warp_reduce_sum(acc_t* sum) {
 #pragma unroll
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
 #pragma unroll
@@ -1467,9 +1467,9 @@ __device__ __forceinline__ void warp_reduce_sum(acc_t *sum) {
 // is fused in the epolog, as well as masking and scaling for fusing dropout
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements, bool is_log_softmax>
-__global__ void masked_scale_softmax_warp_backward_masked_dgrad(output_t *gradInput, const input_t *grad,
-                                                                const input_t *output, const uint8_t *mask,
-                                                                const uint8_t *pad_mask, acc_t scale, int batch_size,
+__global__ void masked_scale_softmax_warp_backward_masked_dgrad(output_t* gradInput, const input_t* grad,
+                                                                const input_t* output, const uint8_t* mask,
+                                                                const uint8_t* pad_mask, acc_t scale, int batch_size,
                                                                 int stride, int element_count, int heads) {
   // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
   // warp_size of method warp_softmax_backward_kernel.
@@ -1558,8 +1558,8 @@ __global__ void masked_scale_softmax_warp_backward_masked_dgrad(output_t *gradIn
   }
 }
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-void dispatch_masked_scale_softmax_backward_masked_out(output_t *grad_input, const input_t *grad, const input_t *output,
-                                                       const uint8_t *mask, const uint8_t *pad_mask, acc_t scale,
+void dispatch_masked_scale_softmax_backward_masked_out(output_t* grad_input, const input_t* grad, const input_t* output,
+                                                       const uint8_t* mask, const uint8_t* pad_mask, acc_t scale,
                                                        int softmax_elements, int softmax_elements_stride,
                                                        int batch_count, int heads) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 1024);
@@ -1659,9 +1659,9 @@ void dispatch_masked_scale_softmax_backward_masked_out(output_t *grad_input, con
 }
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-void dispatch_masked_scale_softmax_backward_masked_out_stream(output_t *grad_input, const input_t *grad,
-                                                              const input_t *output, const uint8_t *mask,
-                                                              const uint8_t *pad_mask, acc_t scale,
+void dispatch_masked_scale_softmax_backward_masked_out_stream(output_t* grad_input, const input_t* grad,
+                                                              const input_t* output, const uint8_t* mask,
+                                                              const uint8_t* pad_mask, acc_t scale,
                                                               int softmax_elements, int softmax_elements_stride,
                                                               int batch_count, int heads, cudaStream_t streamid) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 1024);
@@ -1746,8 +1746,8 @@ void dispatch_masked_scale_softmax_backward_masked_out_stream(output_t *grad_inp
 }
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements, bool is_log_softmax>
-__global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const input_t *grad, const input_t *output,
-                                                   const uint8_t *mask, acc_t scale, int batch_size, int stride,
+__global__ void masked_scale_softmax_warp_backward(output_t* gradInput, const input_t* grad, const input_t* output,
+                                                   const uint8_t* mask, acc_t scale, int batch_size, int stride,
                                                    int element_count) {
   // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
   // warp_size of method warp_softmax_backward_kernel.
@@ -1830,9 +1830,9 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG, bool is_log_softmax>
-__global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput, const input_t *grad,
-                                                             const input_t *softmax_input, const input_t *pad_mask,
-                                                             const uint8_t *mask, acc_t scale, int batch_size,
+__global__ void masked_scale_softmax_warp_backward_recompute(output_t* gradInput, const input_t* grad,
+                                                             const input_t* softmax_input, const input_t* pad_mask,
+                                                             const uint8_t* mask, acc_t scale, int batch_size,
                                                              int stride, int pad_batch_stride, int element_count) {
   int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
 
@@ -1866,7 +1866,7 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
   for (int i = 0; i < WARP_BATCH; ++i) {
     int batch_element_count = (i >= local_batches) ? 0 : element_count;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const input_t *curr_mask = pad_mask + pad_thread_offset;
+    const input_t* curr_mask = pad_mask + pad_thread_offset;
 #pragma unroll
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
@@ -2009,16 +2009,16 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
 }
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-using masked_scale_softmax_warp_backward_recompute_func = void (*)(output_t *gradInput, const input_t *grad,
-                                                                   const input_t *softmax_input,
-                                                                   const input_t *pad_mask, const uint8_t *mask,
+using masked_scale_softmax_warp_backward_recompute_func = void (*)(output_t* gradInput, const input_t* grad,
+                                                                   const input_t* softmax_input,
+                                                                   const input_t* pad_mask, const uint8_t* mask,
                                                                    acc_t scale, int batch_size, int stride,
                                                                    int pad_batch_stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
 bool masked_scale_softmax_warp_backward_recompute_kernel(
-    int element_count, int log2_elements, int &warp_size, int &batches_per_warp,
-    masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax> &kernel) {
+    int element_count, int log2_elements, int& warp_size, int& batches_per_warp,
+    masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -2082,9 +2082,9 @@ bool masked_scale_softmax_warp_backward_recompute_kernel(
 }
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-bool dispatch_masked_scale_softmax_backward_recompute(output_t *grad_input, const input_t *grad,
-                                                      const input_t *softmax_input, const input_t *pad_mask,
-                                                      const uint8_t *mask, acc_t scale, int softmax_elements,
+bool dispatch_masked_scale_softmax_backward_recompute(output_t* grad_input, const input_t* grad,
+                                                      const input_t* softmax_input, const input_t* pad_mask,
+                                                      const uint8_t* mask, acc_t scale, int softmax_elements,
                                                       int softmax_elements_stride, int pad_batch_stride,
                                                       int batch_count, cudaStream_t streamid) {
   if (softmax_elements == 0) {
@@ -2121,8 +2121,8 @@ bool dispatch_masked_scale_softmax_backward_recompute(output_t *grad_input, cons
 }
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-void dispatch_masked_scale_softmax_backward_stream(output_t *grad_input, const input_t *grad, const input_t *output,
-                                                   const uint8_t *mask, acc_t scale, int softmax_elements,
+void dispatch_masked_scale_softmax_backward_stream(output_t* grad_input, const input_t* grad, const input_t* output,
+                                                   const uint8_t* mask, acc_t scale, int softmax_elements,
                                                    int softmax_elements_stride, int batch_count,
                                                    cudaStream_t streamid) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 1024);
@@ -2210,7 +2210,7 @@ void dispatch_masked_scale_softmax_backward_stream(output_t *grad_input, const i
 // inside softmax dgrad kernel as a result of fusion, intermediate
 // multiplication result is stored in fp32 in registers, instead of fp16
 template <typename input_t, typename output_t, typename acc_t, int log2_elements, bool is_log_softmax>
-__global__ void softmax_warp_backward_fused_native(output_t *gradInput, const input_t *grad, const input_t *output,
+__global__ void softmax_warp_backward_fused_native(output_t* gradInput, const input_t* grad, const input_t* output,
                                                    int batch_size, int stride, int element_count) {
   // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
   // warp_size of method warp_softmax_backward_kernel.
@@ -2289,7 +2289,7 @@ __global__ void softmax_warp_backward_fused_native(output_t *gradInput, const in
 }
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-void dispatch_softmax_backward_fused_native(output_t *grad_input, const input_t *grad, const input_t *output,
+void dispatch_softmax_backward_fused_native(output_t* grad_input, const input_t* grad, const input_t* output,
                                             int softmax_elements, int softmax_elements_stride, int batch_count) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 1024);
   if (softmax_elements == 0) {
@@ -2382,7 +2382,7 @@ void dispatch_softmax_backward_fused_native(output_t *grad_input, const input_t 
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void softmax_warp_backward(__half *gradInput, const __half *grad, const __half *output, int batch_size,
+__global__ void softmax_warp_backward(__half* gradInput, const __half* grad, const __half* output, int batch_size,
                                       int stride, int element_count) {
   int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
 
@@ -2473,12 +2473,12 @@ __global__ void softmax_warp_backward(__half *gradInput, const __half *grad, con
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using softmax_backward_func = void (*)(output_t *gradInput, const input_t *grad, const input_t *output, int batch_size,
+using softmax_backward_func = void (*)(output_t* gradInput, const input_t* grad, const input_t* output, int batch_size,
                                        int stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_softmax_backward_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                                  softmax_backward_func<input_t, output_t> &kernel) {
+bool warp_softmax_backward_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                                  softmax_backward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -2527,7 +2527,7 @@ bool warp_softmax_backward_kernel(int log2_elements, int &warp_size, int &batche
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const input_t *output, int softmax_elements,
+bool dispatch_softmax_backward(output_t* grad_input, const input_t* grad, const input_t* output, int softmax_elements,
                                int softmax_elements_stride, int batch_count) {
   if (softmax_elements == 0) {
     return true;
@@ -2563,7 +2563,7 @@ bool dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const 
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_softmax_backward_stream(output_t *grad_input, const input_t *grad, const input_t *output,
+bool dispatch_softmax_backward_stream(output_t* grad_input, const input_t* grad, const input_t* output,
                                       int softmax_elements, int softmax_elements_stride, int batch_count,
                                       cudaStream_t streamid) {
   if (softmax_elements == 0) {
@@ -2596,8 +2596,8 @@ bool dispatch_softmax_backward_stream(output_t *grad_input, const input_t *grad,
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE = 32,
           int ELEMENTS_PER_LDG_STG = 1>
-__global__ void masked_softmax_warp_backward(__half *gradInput, const __half *grad, const __half *output,
-                                             const uint8_t *pad_mask, int batch_size, int stride, int element_count,
+__global__ void masked_softmax_warp_backward(__half* gradInput, const __half* grad, const __half* output,
+                                             const uint8_t* pad_mask, int batch_size, int stride, int element_count,
                                              int pad_batch_stride) {
   int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
 
@@ -2668,7 +2668,7 @@ __global__ void masked_softmax_warp_backward(__half *gradInput, const __half *gr
   for (int i = 0; i < WARP_BATCH; ++i) {
     if (i >= local_batches) break;
     int pad_thread_offset = ((first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
-    const uint8_t *curr_mask = pad_mask + pad_thread_offset;
+    const uint8_t* curr_mask = pad_mask + pad_thread_offset;
 #pragma unroll
     for (int it = 0; it < WARP_ITERATIONS; it += ELEMENTS_PER_LDG_STG) {
       int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
@@ -2695,13 +2695,13 @@ __global__ void masked_softmax_warp_backward(__half *gradInput, const __half *gr
 // over all data. WARP_SIZE number of elements working on a single batch, has to
 // be a power of two. ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t>
-using masked_softmax_backward_func = void (*)(output_t *gradInput, const input_t *grad, const input_t *output,
-                                              const uint8_t *pad_mask, int batch_size, int stride, int element_count,
+using masked_softmax_backward_func = void (*)(output_t* gradInput, const input_t* grad, const input_t* output,
+                                              const uint8_t* pad_mask, int batch_size, int stride, int element_count,
                                               int pad_batch_stride);
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_masked_softmax_backward_kernel(int log2_elements, int &warp_size, int &batches_per_warp,
-                                         masked_softmax_backward_func<input_t, output_t> &kernel) {
+bool warp_masked_softmax_backward_kernel(int log2_elements, int& warp_size, int& batches_per_warp,
+                                         masked_softmax_backward_func<input_t, output_t>& kernel) {
   // determine size of a warp
   const int next_power_of_two = 1 << log2_elements;
   warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -2750,8 +2750,8 @@ bool warp_masked_softmax_backward_kernel(int log2_elements, int &warp_size, int 
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-bool dispatch_masked_softmax_backward(output_t *grad_input, const input_t *grad, const input_t *output,
-                                      const uint8_t *pad_mask, int softmax_elements, int softmax_elements_stride,
+bool dispatch_masked_softmax_backward(output_t* grad_input, const input_t* grad, const input_t* output,
+                                      const uint8_t* pad_mask, int softmax_elements, int softmax_elements_stride,
                                       int batch_count, int pad_batch_stride) {
   if (softmax_elements == 0) {
     return true;
