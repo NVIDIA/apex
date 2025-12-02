@@ -30,7 +30,7 @@
 #include "cudnn_backend.h"
 
 // some helpers
-int64_t checkCudaError(cudaError_t code, const char *expr, const char *file, int line) {
+int64_t checkCudaError(cudaError_t code, const char* expr, const char* file, int line) {
   if (code) {
     printf("CUDA error at %s:%d, code=%d (%s) in '%s'", file, line, (int)code, cudaGetErrorString(code), expr);
     return 1;
@@ -38,7 +38,7 @@ int64_t checkCudaError(cudaError_t code, const char *expr, const char *file, int
   return 0;
 }
 
-int64_t checkCudnnError(cudnnStatus_t code, const char *expr, const char *file, int line) {
+int64_t checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line) {
   if (code) {
     printf("CUDNN error at %s:%d, code=%d (%s) in '%s'\n", file, line, (int)code, cudnnGetErrorString(code), expr);
     return 1;
@@ -51,7 +51,7 @@ bool AllowAll(cudnnBackendDescriptor_t engine_config) {
   return false;
 }
 
-void generateStrides(const int64_t *dimA, int64_t *strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat) {
+void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudnnTensorFormat_t filterFormat) {
   // For INT8x4 and INT8x32 we still compute standard strides here to input
   // into the cuDNN functions. We will manually scale by resizeFactor in the cpu ref.
   if (filterFormat == CUDNN_TENSOR_NCHW) {
@@ -71,8 +71,8 @@ void generateStrides(const int64_t *dimA, int64_t *strideA, int64_t nbDims, cudn
 }
 
 // runtime
-cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
-                                                     int64_t *peerDims, cudnnDataType_t data_type) {
+cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
+                                                     int64_t* peerDims, cudnnDataType_t data_type) {
   // get the cudnn handle
   cudnnHandle_t handle = torch::native::getCudnnHandle();
 
@@ -172,9 +172,9 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_
                            .setyDesc(yTensor)
                            .build();
 
-  std::array<cudnn_frontend::Operation const *, 1> ops = {&batch_norm_op};
+  std::array<cudnn_frontend::Operation const*, 1> ops = {&batch_norm_op};
 #else
-  std::array<cudnn_frontend::Operation const *, 0> ops = {};
+  std::array<cudnn_frontend::Operation const*, 0> ops = {};
 #endif
   auto opGraph =
       cudnn_frontend::OperationGraphBuilder().setHandle(handle).setOperationGraph(ops.size(), ops.data()).build();
@@ -203,7 +203,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_
                         .setEngineConfig(filtered_configs[i], opGraph.getTag())
                         .build();
         return plan;
-      } catch (cudnn_frontend::cudnnException &e) {
+      } catch (cudnn_frontend::cudnnException& e) {
         continue;
       }
     }
@@ -219,10 +219,10 @@ cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t *tensorDims, int64_
   return plan;
 }
 
-void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *yDevPtr, void *scaledevPtr,
-                                void *biasdevPtr, void *in_meandevPtr, void *in_vardevPtr, void *out_meandevPtr,
-                                void *out_vardevPtr, void *saved_meandevPtr, void *saved_inv_vardevPtr,
-                                const std::vector<void *> &peer_devPtrs, double epsilon_val,
+void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void* xDevPtr, void* yDevPtr, void* scaledevPtr,
+                                void* biasdevPtr, void* in_meandevPtr, void* in_vardevPtr, void* out_meandevPtr,
+                                void* out_vardevPtr, void* saved_meandevPtr, void* saved_inv_vardevPtr,
+                                const std::vector<void*>& peer_devPtrs, double epsilon_val,
                                 double exponential_decay_factor, size_t peer_size, int rank_id) {
   // get handle
   cudnnHandle_t handle_ = torch::native::getCudnnHandle();
@@ -235,13 +235,13 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPt
     // allocate workspace
     auto workspace_size = plan.getWorkspaceSize();
     auto workspace_tensor = at::empty({(workspace_size + 3) / 4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-    void *workPtr = nullptr;
+    void* workPtr = nullptr;
     if (workspace_size > 0) {
       workPtr = workspace_tensor.data_ptr<float>();
     }
 
     // first the data pointers
-    std::vector<void *> data_ptrs{
+    std::vector<void*> data_ptrs{
         xDevPtr,        yDevPtr,       scaledevPtr,      biasdevPtr,          in_meandevPtr, in_vardevPtr,
         out_meandevPtr, out_vardevPtr, saved_meandevPtr, saved_inv_vardevPtr, &epsilon_val,  &exponential_decay_factor};
     data_ptrs.insert(data_ptrs.end(), peer_devPtrs.begin(), peer_devPtrs.end());
@@ -262,7 +262,7 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPt
     // Reset local communication buffer
     cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size * 4, stream);
 
-  } catch (cudnn_frontend::cudnnException &e) {
+  } catch (cudnn_frontend::cudnnException& e) {
     struct cudaDeviceProp prop;
     checkCudaErr(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {
@@ -272,8 +272,8 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void *xDevPt
   }
 }
 
-cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64_t *perChannelSum, int64_t *epsilon,
-                                                      int64_t *peerDims, cudnnDataType_t data_type) {
+cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
+                                                      int64_t* peerDims, cudnnDataType_t data_type) {
   // get cudnn handle
   cudnnHandle_t handle = torch::native::getCudnnHandle();
 
@@ -364,9 +364,9 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64
                            .setPeerStatTensor(peerStatTensors)
                            .build();
 
-  std::array<cudnn_frontend::Operation const *, 1> ops = {&batch_norm_op};
+  std::array<cudnn_frontend::Operation const*, 1> ops = {&batch_norm_op};
 #else
-  std::array<cudnn_frontend::Operation const *, 0> ops = {};
+  std::array<cudnn_frontend::Operation const*, 0> ops = {};
 #endif
 
   auto opGraph =
@@ -385,7 +385,7 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64
                         .setEngineConfig(filtered_configs[i], opGraph.getTag())
                         .build();
         return plan;
-      } catch (cudnn_frontend::cudnnException &e) {
+      } catch (cudnn_frontend::cudnnException& e) {
         continue;
       }
     }
@@ -401,10 +401,10 @@ cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t *tensorDims, int64
   return plan;
 }
 
-void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void *xDevPtr, void *dyDevPtr, void *scaledevPtr,
-                                 void *saved_meandevPtr, void *saved_inv_vardevPtr,
-                                 const std::vector<void *> &peer_devPtrs, void *dxDevPtr, void *dscaledevPtr,
-                                 void *dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id) {
+void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void* xDevPtr, void* dyDevPtr, void* scaledevPtr,
+                                 void* saved_meandevPtr, void* saved_inv_vardevPtr,
+                                 const std::vector<void*>& peer_devPtrs, void* dxDevPtr, void* dscaledevPtr,
+                                 void* dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id) {
   // get handle
   cudnnHandle_t handle_ = torch::native::getCudnnHandle();
 
@@ -416,14 +416,14 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void *xDevP
     // allocate workspace
     auto workspace_size = plan.getWorkspaceSize();
     auto workspace_tensor = at::empty({(workspace_size + 3) / 4}, at::TensorOptions(at::kCUDA).dtype(at::kFloat));
-    void *workPtr = nullptr;
+    void* workPtr = nullptr;
     if (workspace_size > 0) {
       workPtr = workspace_tensor.data_ptr<float>();
     }
 
     // create helper arrays
-    std::vector<void *> data_ptrs{xDevPtr,  dyDevPtr,     scaledevPtr, saved_meandevPtr, saved_inv_vardevPtr,
-                                  dxDevPtr, dscaledevPtr, dbiasdevPtr, &epsilon_val};
+    std::vector<void*> data_ptrs{xDevPtr,  dyDevPtr,     scaledevPtr, saved_meandevPtr, saved_inv_vardevPtr,
+                                 dxDevPtr, dscaledevPtr, dbiasdevPtr, &epsilon_val};
     data_ptrs.insert(data_ptrs.end(), peer_devPtrs.begin(), peer_devPtrs.end());
     std::vector<int64_t> uids;
     for (size_t i = 100; i < 100 + data_ptrs.size(); ++i) {
@@ -442,7 +442,7 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void *xDevP
     // Reset local communication buffer
     cudaMemsetAsync(peer_devPtrs[rank_id], 0, peer_size * 4, stream);
 
-  } catch (cudnn_frontend::cudnnException &e) {
+  } catch (cudnn_frontend::cudnnException& e) {
     struct cudaDeviceProp prop;
     checkCudaErr(cudaGetDeviceProperties(&prop, 0));
     if (prop.major == 8) {

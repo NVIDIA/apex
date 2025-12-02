@@ -36,7 +36,7 @@ __global__ void fmha_fprop_fp16_128_64_sm80_kernel(Fused_multihead_attention_fpr
   fmha::device_1xN<Kernel_traits, Is_training>(params, total_heads);
 }
 
-void run_fmha_fp16_128_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
+void run_fmha_fp16_128_64_sm80(Launch_params<Fused_multihead_attention_fprop_params>& launch_params,
                                const bool configure) {
   auto kernel = launch_params.is_training ? &fmha_fprop_fp16_128_64_sm80_kernel<true>
                                           : &fmha_fprop_fp16_128_64_sm80_kernel<false>;

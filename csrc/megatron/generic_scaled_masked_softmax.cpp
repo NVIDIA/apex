@@ -23,11 +23,11 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace generic_scaled_masked_softmax {
 
-torch::Tensor fwd_cuda(torch::Tensor const &input, torch::Tensor const &mask, float scale_factor);
+torch::Tensor fwd_cuda(torch::Tensor const& input, torch::Tensor const& mask, float scale_factor);
 
-torch::Tensor bwd_cuda(torch::Tensor const &output_grads, torch::Tensor const &softmax_results, float scale_factor);
+torch::Tensor bwd_cuda(torch::Tensor const& output_grads, torch::Tensor const& softmax_results, float scale_factor);
 
-torch::Tensor fwd(torch::Tensor const &input, torch::Tensor const &mask, float scale_factor) {
+torch::Tensor fwd(torch::Tensor const& input, torch::Tensor const& mask, float scale_factor) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK((input.scalar_type() == at::ScalarType::Half) || (input.scalar_type() == at::ScalarType::BFloat16),
               "Only fp16 and bf16 are supported");
@@ -36,7 +36,7 @@ torch::Tensor fwd(torch::Tensor const &input, torch::Tensor const &mask, float s
   return fwd_cuda(input, mask, scale_factor);
 }
 
-torch::Tensor bwd(torch::Tensor const &output_grads, torch::Tensor const &softmax_results, float scale_factor) {
+torch::Tensor bwd(torch::Tensor const& output_grads, torch::Tensor const& softmax_results, float scale_factor) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 3D tensor");
   TORCH_CHECK(softmax_results.dim() == 4, "expected 3D tensor");
 

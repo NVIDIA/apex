@@ -42,7 +42,7 @@ __global__ void fmha_dgrad_fp16_512_64_sm80_nl_kernel(Fused_multihead_attention_
   fmha::compute_dq_dk_1xN_nl<CHUNKS, Kernel_traits>(params);
 }
 
-void run_fmha_dgrad_fp16_512_64_sm80(const Fused_multihead_attention_fprop_params &params, cudaStream_t stream) {
+void run_fmha_dgrad_fp16_512_64_sm80(const Fused_multihead_attention_fprop_params& params, cudaStream_t stream) {
   constexpr int smem_size_softmax = Kernel_traits::Cta_tile_p::M * Kernel_traits::Cta_tile_p::WARPS_N * sizeof(float);
   constexpr int smem_size_q = Kernel_traits::Smem_tile_q::BYTES_PER_TILE;
   constexpr int smem_size_v = Kernel_traits::Smem_tile_v::BYTES_PER_TILE;
@@ -65,7 +65,7 @@ void run_fmha_dgrad_fp16_512_64_sm80(const Fused_multihead_attention_fprop_param
   fmha_dgrad_fp16_512_64_sm80_kernel<<<grid, Kernel_traits::THREADS, smem_size, stream>>>(params);
 }
 
-void run_fmha_dgrad_fp16_512_64_sm80_nl(const Fused_multihead_attention_fprop_params &params, const int num_chunks,
+void run_fmha_dgrad_fp16_512_64_sm80_nl(const Fused_multihead_attention_fprop_params& params, const int num_chunks,
                                         cudaStream_t stream) {
   constexpr int smem_size_softmax = Kernel_traits::Cta_tile_p::M * Kernel_traits::Cta_tile_p::WARPS_N * sizeof(float);
   constexpr int smem_size_q = Kernel_traits::Smem_tile_q::BYTES_PER_TILE;

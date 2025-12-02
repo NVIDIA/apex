@@ -52,7 +52,7 @@ struct Gemm_Q_K_base {
 
   static constexpr int SMEM_BYTES_SOFTMAX = Cta_tile_p::M * Cta_tile_p::WARPS_N * sizeof(float) * 2;
 
-  __device__ inline Gemm_Q_K_base(char *smem_ptr_q, char *smem_ptr_k, const int tidx)
+  __device__ inline Gemm_Q_K_base(char* smem_ptr_q, char* smem_ptr_k, const int tidx)
       : smem_q(smem_ptr_q, tidx), smem_k(smem_ptr_k, tidx) {}
 
   __device__ inline void load_q() { smem_q.load(frag_q[0], 0); }
@@ -84,7 +84,7 @@ struct Gemm_Q_K : public Gemm_Q_K_base<Kernel_traits> {
       Smem_tile_q::BYTES_PER_TILE + std::max((SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE,
                                              Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX);
 
-  __device__ inline Gemm_Q_K(char *smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
+  __device__ inline Gemm_Q_K(char* smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
 
   __device__ inline void load_k() {
 #pragma unroll
@@ -139,7 +139,7 @@ struct Gemm_Q_K<Kernel_traits, false> : public Gemm_Q_K_base<Kernel_traits> {
                                     (SHARE_SMEM_FOR_K_AND_V ? 1 : 2) * Smem_tile_k::BYTES_PER_TILE +
                                     Smem_tile_o::BYTES_PER_TILE + Base::SMEM_BYTES_SOFTMAX;
 
-  __device__ inline Gemm_Q_K(char *smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
+  __device__ inline Gemm_Q_K(char* smem_, const int tidx) : Base(smem_, smem_ + Smem_tile_q::BYTES_PER_TILE, tidx) {}
 
   __device__ inline void load_k() { Base::smem_k.load(frag_k[0], 0); }
 
@@ -170,8 +170,8 @@ constexpr size_t get_dynamic_smem_size() {
 }
 
 template <typename Kernel_traits, bool Is_training, typename Params, typename Prng>
-inline __device__ void device_1xN_(const Params &params, const int bidb, const int bidh, const int begin,
-                                   const int steps, Prng &ph) {
+inline __device__ void device_1xN_(const Params& params, const int bidb, const int bidh, const int begin,
+                                   const int steps, Prng& ph) {
   // The description of the CTA tile for the 1st batched GEMM.
   using Cta_tile_p = typename Kernel_traits::Cta_tile_p;
   // The description of the CTA tile for the 2nd batched GEMM.
@@ -239,7 +239,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
   // Allocate the global memory tile loader for V.
   Gmem_tile_v gmem_v(params, 2, binfo, tidx);
   // The base pointer of smem_v;
-  char *smem_v_ = &smem_[Gemm1::SMEM_OFFSET_V];
+  char* smem_v_ = &smem_[Gemm1::SMEM_OFFSET_V];
 
   // Allocate the shared memory tile loader for V. We use the same as K so be careful!!!
   Smem_tile_v smem_v(smem_v_, tidx);
@@ -254,7 +254,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
   // Trigger the loads for V.
   gmem_v.load(smem_v);
 
-  const uint32_t scale_bmm1 = reinterpret_cast<const uint32_t &>(params.scale_bmm1);
+  const uint32_t scale_bmm1 = reinterpret_cast<const uint32_t&>(params.scale_bmm1);
 #pragma unroll
   for (int it = 0; it < Gmem_tile_k::LDGS; it++) {
     gmem_k.fetch_[it] = fmha::hmul8(scale_bmm1, gmem_k.fetch_[it]);
@@ -356,7 +356,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
         for (int ii = 0; ii < 2; ii++) {
 #pragma unroll
           for (int ni = 0; ni < Mma_tile_p::MMAS_N / 4; ni++) {
-            uint8_t *rand_arr = (uint8_t *)&ph();
+            uint8_t* rand_arr = (uint8_t*)&ph();
             // We encode the dropout pattern in the sign bit of the non-negative softmax to distinguish from
             // pre-existing zeros
             for (int ind = 0; ind < 16; ind++) {
@@ -440,7 +440,7 @@ inline __device__ void device_1xN_(const Params &params, const int bidb, const i
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Kernel_traits, bool Is_training, typename Params>
-inline __device__ void device_1xN(const Params &params, const int num_full_heads, const int num_main_groups,
+inline __device__ void device_1xN(const Params& params, const int num_full_heads, const int num_main_groups,
                                   const int main_group_size, const int main_steps, const int rest_steps) {
   constexpr int STEPS = Kernel_traits::Cta_tile_p::N / Kernel_traits::Cta_tile_p::M;
   const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
@@ -483,7 +483,7 @@ inline __device__ void device_1xN(const Params &params, const int num_full_heads
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename Kernel_traits, bool Is_training, typename Params>
-inline __device__ void device_1xN(const Params &params, const int total_heads) {
+inline __device__ void device_1xN(const Params& params, const int total_heads) {
   const int tidx_global = blockIdx.x * gridDim.x + threadIdx.x;
   auto seeds = at::cuda::philox::unpack(params.philox_args);
   Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));

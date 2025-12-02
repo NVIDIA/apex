@@ -18,28 +18,28 @@
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs, const bool transpose_output);
+torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, const bool transpose_output);
 
-torch::Tensor bwd_cuda(const torch::Tensor &output_grads, const torch::Tensor &freqs, const bool transpose_output);
+torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& freqs, const bool transpose_output);
 
-torch::Tensor fwd_cached_cuda(const torch::Tensor &input, const torch::Tensor &cos, const torch::Tensor &sin,
+torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& cos, const torch::Tensor& sin,
                               const bool transpose_output);
 
-torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos, const torch::Tensor &sin,
+torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos, const torch::Tensor& sin,
                               const bool transpose_output);
 
-torch::Tensor fwd_thd_cuda(const torch::Tensor &input, const torch::Tensor &cu_seqlens, const torch::Tensor &freqs);
+torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs);
 
-torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads, const torch::Tensor &cu_seqlens,
-                           const torch::Tensor &freqs);
+torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens,
+                           const torch::Tensor& freqs);
 
-torch::Tensor fwd_2d_cuda(const torch::Tensor &input, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w, const torch::Tensor &sin_w);
+torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                          const torch::Tensor& cos_w, const torch::Tensor& sin_w);
 
-torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w, const torch::Tensor &sin_w);
+torch::Tensor bwd_2d_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                          const torch::Tensor& cos_w, const torch::Tensor& sin_w);
 
-torch::Tensor fwd(const at::Tensor &input, const at::Tensor &freqs, const bool transpose_output) {
+torch::Tensor fwd(const at::Tensor& input, const at::Tensor& freqs, const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(input.size(0) == freqs.size(0), "expected input and freqs tensor have the same sequence length");
@@ -53,7 +53,7 @@ torch::Tensor fwd(const at::Tensor &input, const at::Tensor &freqs, const bool t
   return fwd_cuda(input, freqs, transpose_output);
 }
 
-torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &freqs, const bool transpose_output) {
+torch::Tensor bwd(const torch::Tensor& output_grads, const at::Tensor& freqs, const bool transpose_output) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(output_grads.size(0) == freqs.size(0),
@@ -68,7 +68,7 @@ torch::Tensor bwd(const torch::Tensor &output_grads, const at::Tensor &freqs, co
   return bwd_cuda(output_grads, freqs, transpose_output);
 }
 
-torch::Tensor fwd_cached(const at::Tensor &input, const at::Tensor &cos, const at::Tensor &sin,
+torch::Tensor fwd_cached(const at::Tensor& input, const at::Tensor& cos, const at::Tensor& sin,
                          const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
@@ -86,7 +86,7 @@ torch::Tensor fwd_cached(const at::Tensor &input, const at::Tensor &cos, const a
   return fwd_cached_cuda(input, cos, sin, transpose_output);
 }
 
-torch::Tensor bwd_cached(const torch::Tensor &output_grads, const at::Tensor &cos, const at::Tensor &sin,
+torch::Tensor bwd_cached(const torch::Tensor& output_grads, const at::Tensor& cos, const at::Tensor& sin,
                          const bool transpose_output) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
@@ -106,7 +106,7 @@ torch::Tensor bwd_cached(const torch::Tensor &output_grads, const at::Tensor &co
   return bwd_cached_cuda(output_grads, cos, sin, transpose_output);
 }
 
-torch::Tensor fwd_thd(const torch::Tensor &input, const torch::Tensor &cu_seqlens, const torch::Tensor &freqs) {
+torch::Tensor fwd_thd(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
@@ -120,7 +120,7 @@ torch::Tensor fwd_thd(const torch::Tensor &input, const torch::Tensor &cu_seqlen
   return fwd_thd_cuda(input, cu_seqlens, freqs);
 }
 
-torch::Tensor bwd_thd(const torch::Tensor &output_grads, const torch::Tensor &cu_seqlens, const torch::Tensor &freqs) {
+torch::Tensor bwd_thd(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
@@ -134,8 +134,8 @@ torch::Tensor bwd_thd(const torch::Tensor &output_grads, const torch::Tensor &cu
   return bwd_thd_cuda(output_grads, cu_seqlens, freqs);
 }
 
-torch::Tensor fwd_2d(const torch::Tensor &input, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                     const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
+torch::Tensor fwd_2d(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                     const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
   TORCH_CHECK(input.dim() == 5, "expected input to be 5D tensor");
   TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
   TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
@@ -151,8 +151,8 @@ torch::Tensor fwd_2d(const torch::Tensor &input, const torch::Tensor &cos_h, con
   return fwd_2d_cuda(input, cos_h, sin_h, cos_w, sin_w);
 }
 
-torch::Tensor bwd_2d(const torch::Tensor &output_grads, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                     const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
+torch::Tensor bwd_2d(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                     const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
   TORCH_CHECK(output_grads.dim() == 5, "expected output_grads to be 5D tensor");
   TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
   TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");

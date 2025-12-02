@@ -13,7 +13,7 @@ constexpr uint32_t THREADS_PER_WARP = 32;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline void check_cuda_(cudaError_t status, const char *file, int line) {
+inline void check_cuda_(cudaError_t status, const char* file, int line) {
   if (status != cudaSuccess) {
     fprintf(stderr, "CUDA Error: %s %s %d\n", cudaGetErrorString(status), file, line);
     exit(status);
@@ -22,45 +22,47 @@ inline void check_cuda_(cudaError_t status, const char *file, int line) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_CUDA(ans) \
-  { check_cuda_((ans), __FILE__, __LINE__); }
+#define CHECK_CUDA(ans)                     \
+  {                                         \
+    check_cuda_((ans), __FILE__, __LINE__); \
+  }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define DIVUP(x, y) (((x) + ((y)-1)) / (y))
+#define DIVUP(x, y) (((x) + ((y) - 1)) / (y))
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_FWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG) \
-  void ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<FwdParams> &launch_params,           \
+  void ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<FwdParams>& launch_params,           \
                                                                     const bool configure_params) {                    \
     launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG>(        \
         launch_params, configure_params);                                                                             \
   }                                                                                                                   \
   static FwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                                                        \
-      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                      \
-          ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
+  reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                          \
+      ln_fwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_BWD_LAUNCHER(HIDDEN_SIZE, WTYPE, ITYPE, OTYPE, CTYPE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG, \
                               BYTES_PER_LDG_FINALIZE)                                                                 \
-  void ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<BwdParams> &launch_params,           \
+  void ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(LaunchParams<BwdParams>& launch_params,           \
                                                                     const bool configure_params) {                    \
     launch_<WTYPE, ITYPE, OTYPE, CTYPE, uint32_t, HIDDEN_SIZE, CTAS_PER_ROW, WARPS_M, WARPS_N, BYTES_PER_LDG,         \
             BYTES_PER_LDG_FINALIZE>(launch_params, configure_params);                                                 \
   }                                                                                                                   \
   static BwdRegistrar<WTYPE, ITYPE, OTYPE, CTYPE, HIDDEN_SIZE>                                                        \
-      reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                      \
-          ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
+  reg_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE(                                                          \
+      ln_bwd_##HIDDEN_SIZE##_##WTYPE##_##ITYPE##_##OTYPE##_##CTYPE)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ float2 operator+(const float2 &a, const float2 &b) { return {a.x + b.x, a.y + b.y}; }
+inline __device__ float2 operator+(const float2& a, const float2& b) { return {a.x + b.x, a.y + b.y}; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline __device__ void operator+=(float2 &a, const float2 &b) {
+inline __device__ void operator+=(float2& a, const float2& b) {
   a.x += b.x;
   a.y += b.y;
 }
@@ -70,28 +72,28 @@ inline __device__ void operator+=(float2 &a, const float2 &b) {
 template <typename T>
 struct Sum {
   inline __device__ Sum() {}
-  inline __device__ T operator()(const T &a, const T &b) { return a + b; }
+  inline __device__ T operator()(const T& a, const T& b) { return a + b; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-inline __device__ T warp_shuffle_xor(const T &x, uint32_t idx) {
+inline __device__ T warp_shuffle_xor(const T& x, uint32_t idx) {
   return __shfl_xor_sync(uint32_t(-1), x, idx);
 }
 
 template <>
-inline __device__ float2 warp_shuffle_xor<float2>(const float2 &x, uint32_t idx) {
+inline __device__ float2 warp_shuffle_xor<float2>(const float2& x, uint32_t idx) {
   return {warp_shuffle_xor(x.x, idx), warp_shuffle_xor(x.y, idx)};
 }
 
 template <typename T>
-inline __device__ T warp_shuffle_down(const T &x, uint32_t idx) {
+inline __device__ T warp_shuffle_down(const T& x, uint32_t idx) {
   return __shfl_down_sync(uint32_t(-1), x, idx);
 }
 
 template <>
-inline __device__ float2 warp_shuffle_down<float2>(const float2 &x, uint32_t idx) {
+inline __device__ float2 warp_shuffle_down<float2>(const float2& x, uint32_t idx) {
   return {warp_shuffle_down(x.x, idx), warp_shuffle_down(x.y, idx)};
 }
 
@@ -187,30 +189,30 @@ struct TypeToVec2<nv_bfloat16> {
 template <int INDEX>
 struct Get {
   template <typename T, typename R>
-  static inline __device__ R of(const T &vec);
+  static inline __device__ R of(const T& vec);
 };
 
 template <>
 template <typename T, typename R>
-inline __device__ R Get<0>::of(const T &vec) {
+inline __device__ R Get<0>::of(const T& vec) {
   return vec.x;
 }
 
 template <>
 template <typename T, typename R>
-inline __device__ R Get<1>::of(const T &vec) {
+inline __device__ R Get<1>::of(const T& vec) {
   return vec.y;
 }
 
 template <>
 template <typename T, typename R>
-inline __device__ R Get<2>::of(const T &vec) {
+inline __device__ R Get<2>::of(const T& vec) {
   return vec.z;
 }
 
 template <>
 template <typename T, typename R>
-inline __device__ R Get<3>::of(const T &vec) {
+inline __device__ R Get<3>::of(const T& vec) {
   return vec.w;
 }
 
@@ -218,17 +220,17 @@ inline __device__ R Get<3>::of(const T &vec) {
 
 template <typename Src, typename Dst>
 struct Converter {
-  static inline __device__ Dst convert(const Src &from) { return Dst(from); }
+  static inline __device__ Dst convert(const Src& from) { return Dst(from); }
 };
 
 template <>
 struct Converter<float2, half2> {
-  static inline __device__ half2 convert(const float2 &x) { return __float22half2_rn(x); }
+  static inline __device__ half2 convert(const float2& x) { return __float22half2_rn(x); }
 };
 
 template <>
 struct Converter<float2, nv_bfloat162> {
-  static inline __device__ nv_bfloat162 convert(const float2 &x) {
+  static inline __device__ nv_bfloat162 convert(const float2& x) {
 #if __CUDA_ARCH__ >= 800
     return __float22bfloat162_rn(x);
 #else
@@ -272,7 +274,7 @@ struct Vec {
   Alias_type data;
 
   template <typename S>
-  inline __device__ void to(Vec<S, NUM_ELT> &other) {
+  inline __device__ void to(Vec<S, NUM_ELT>& other) {
 #pragma unroll
     for (int it = 0; it < NUM_ELT; it++) {
       other.data.elt[it] = S(this->data.elt[it]);
@@ -280,19 +282,19 @@ struct Vec {
   }
 
   template <typename Op>
-  inline __device__ void assign(const Op &op) {
+  inline __device__ void assign(const Op& op) {
 #pragma unroll
     for (int it = 0; it < NUM_ELT; it++) {
       this->data.elt[it] = op(it);
     }
   }
 
-  inline __device__ void load_from(const void *base_ptr, const size_t idx) {
-    this->data.vec = static_cast<const Vec_type *>(base_ptr)[idx];
+  inline __device__ void load_from(const void* base_ptr, const size_t idx) {
+    this->data.vec = static_cast<const Vec_type*>(base_ptr)[idx];
   }
 
-  inline __device__ void store_to(void *base_ptr, const size_t idx) {
-    static_cast<Vec_type *>(base_ptr)[idx] = this->data.vec;
+  inline __device__ void store_to(void* base_ptr, const size_t idx) {
+    static_cast<Vec_type*>(base_ptr)[idx] = this->data.vec;
   }
 };
 
@@ -301,7 +303,7 @@ struct Vec {
 template <uint32_t CTAS_PER_ROW>
 struct InterCTASync {
   template <typename Params>
-  inline __device__ InterCTASync(Params &params, uint32_t bidm, uint32_t bidn)
+  inline __device__ InterCTASync(Params& params, uint32_t bidm, uint32_t bidn)
       : phase_counter_(0),
         b0_(params.barrier + bidm)  // The barrier for this group of CTAs.
         ,
@@ -310,7 +312,7 @@ struct InterCTASync {
     // BARRIERS ARE ASSUMED TO BE INITIALIZED TO 0!
   }
 
-  inline __device__ void spin_wait_(int *barrier, int step, int expected) {
+  inline __device__ void spin_wait_(int* barrier, int step, int expected) {
     asm volatile("red.release.gpu.global.add.s32 [%0], %1;" ::"l"(barrier), "r"(step));
     for (int found = -1; found != expected;) {
       asm volatile("ld.global.acquire.gpu.b32 %0, [%1];" : "=r"(found) : "l"(barrier));
@@ -321,7 +323,7 @@ struct InterCTASync {
     // ALL THREADS MUST ENTER!
 
     // We switch barrier every iteration.
-    int *barrier = phase_counter_ & 0x1 ? b1_ : b0_;
+    int* barrier = phase_counter_ & 0x1 ? b1_ : b0_;
     // We decrement every other iteration.
     bool dec = phase_counter_ & 0x2;
     int step = dec ? -1 : 1;
@@ -337,8 +339,8 @@ struct InterCTASync {
   }
 
   int phase_counter_;
-  int *b0_;
-  int *b1_;
+  int* b0_;
+  int* b1_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -358,20 +360,20 @@ struct Reducer : public Reducer<T, 1, WARPS_M, WARPS_N> {
   enum { WORKSPACE_BYTES_PER_GROUP = Base::WORKSPACE_BYTES_PER_GROUP + WS_BARRIER_BYTES + WS_DATA_BYTES };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
-                            uint32_t lane, void *smem)
+  inline __device__ Reducer(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void* smem)
       : Base(params, bidm, bidn, warp_m, warp_n, lane, smem),
         inter_cta_(params, bidm, bidn),
         bidn_(bidn)  // CTA id within the group.
         ,
-        w0_(static_cast<T *>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
+        w0_(static_cast<T*>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
         w1_(w0_ + params.ctas_per_col * WARPS_M * CTAS_PER_ROW) {}
 
   template <typename Op>
-  inline __device__ T allreduce(T data, Op &op) {
+  inline __device__ T allreduce(T data, Op& op) {
     data = Base::reduce(data, op);
     // We switch workspace every iteration.
-    T *workspace = inter_cta_.phase_counter_ & 0x1 ? w1_ : w0_;
+    T* workspace = inter_cta_.phase_counter_ & 0x1 ? w1_ : w0_;
 
     // Warp leaders 0 hold the CTA-local results.
     if (this->warp_n_ == 0 && this->lane_ == 0) {
@@ -390,8 +392,8 @@ struct Reducer : public Reducer<T, 1, WARPS_M, WARPS_N> {
 
   InterCTASync inter_cta_;
 
-  T *w0_;
-  T *w1_;
+  T* w0_;
+  T* w1_;
   int bidn_;
 };
 
@@ -406,12 +408,12 @@ struct Reducer<T, 1, WARPS_M, 1> {
   enum { THREADS_PER_WARP = 32 };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
-                            uint32_t lane, void *smem)
+  inline __device__ Reducer(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void* smem)
       : warp_n_(warp_n), lane_(lane) {}
 
   template <typename Op>
-  static inline __device__ T allreduce_(T data, Op &op) {
+  static inline __device__ T allreduce_(T data, Op& op) {
 #pragma unroll
     for (int it = 1; it < THREADS_PER_WARP; it *= 2) {
       data = op(data, warp_shuffle_xor(data, it));
@@ -420,12 +422,12 @@ struct Reducer<T, 1, WARPS_M, 1> {
   }
 
   template <typename Op>
-  inline __device__ T allreduce(T data, Op &op) {
+  inline __device__ T allreduce(T data, Op& op) {
     return allreduce_(data, op);
   }
 
   template <typename Op>
-  inline __device__ T reduce(T data, Op &op) {
+  inline __device__ T reduce(T data, Op& op) {
 // only lane 0 holds the result!
 #pragma unroll
     for (int it = THREADS_PER_WARP / 2; it > 0; it /= 2) {
@@ -451,16 +453,16 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
   enum { THREADS_PER_WARP = 32 };
 
   template <typename Params>
-  inline __device__ Reducer(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
-                            uint32_t lane, void *smem)
+  inline __device__ Reducer(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n,
+                            uint32_t lane, void* smem)
       : Base(params, bidm, bidn, warp_m, warp_n, lane, smem), use0_(true) {
-    smem0_ = &static_cast<T *>(smem)[warp_m * WARPS_N];
+    smem0_ = &static_cast<T*>(smem)[warp_m * WARPS_N];
     smem1_ = smem0_ + WARPS_M * WARPS_N;
   }
 
   template <typename Op>
-  inline __device__ T allreduce(T data, Op &op) {
-    T *smem = use0_ ? smem0_ : smem1_;
+  inline __device__ T allreduce(T data, Op& op) {
+    T* smem = use0_ ? smem0_ : smem1_;
     use0_ = !use0_;
     data = Base::reduce(data, op);
     if (this->lane_ == 0) {
@@ -476,8 +478,8 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
   }
 
   template <typename Op>
-  inline __device__ T reduce(T data, Op &op) {
-    T *smem = use0_ ? smem0_ : smem1_;
+  inline __device__ T reduce(T data, Op& op) {
+    T* smem = use0_ ? smem0_ : smem1_;
     use0_ = !use0_;
     // only intra-CTA group leader holds the result!
     data = Base::reduce(data, op);
@@ -495,15 +497,15 @@ struct Reducer<T, 1, WARPS_M, WARPS_N> : public Reducer<T, 1, WARPS_M, 1> {
     return out;
   }
 
-  T *smem0_;
-  T *smem1_;
+  T* smem0_;
+  T* smem1_;
   bool use0_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-inline __device__ void warp_chan_upd_dynamic(T &m_a, T &m2_a, T &n_a, int num_active) {
+inline __device__ void warp_chan_upd_dynamic(T& m_a, T& m2_a, T& n_a, int num_active) {
   // Assume at least leftmost is valid and init: step = next_pow2(num_active) / 2 (might get NaN otherwise)
   int highest_bit_set = (8 * sizeof(num_active)) - __clz(num_active - 1);
 
@@ -543,13 +545,13 @@ struct Stats {
   enum { SMEM_BYTES = BlockStats::SMEM_BYTES };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                          void *smem)
+  inline __device__ Stats(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+                          void* smem)
       : inter_cta_(params, bidm, bidn),
         block_stats_(params, bidm, bidn, warp_m, warp_n, lane, smem),
         bidn_(bidn)  // CTA id within the group.
         ,
-        w0_(static_cast<stats_t *>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
+        w0_(static_cast<stats_t*>(params.workspace) + (bidm * WARPS_M + warp_m) * CTAS_PER_ROW),
         w1_(w0_ + params.ctas_per_col * WARPS_M * CTAS_PER_ROW),
         warp_n_(warp_n),
         lane_(lane) {}
@@ -561,7 +563,7 @@ struct Stats {
     constexpr T block_rn = 1.f / T(ELTS_PER_ROW_PER_CTA);
     stats_t block_stats = block_stats_.compute(elts, block_rn);
 
-    stats_t *workspace = inter_cta_.phase_counter_ & 0x1 ? w1_ : w0_;
+    stats_t* workspace = inter_cta_.phase_counter_ & 0x1 ? w1_ : w0_;
 
     if (warp_n_ == 0 && lane_ == 0) {
       workspace[bidn_] = block_stats;
@@ -593,8 +595,8 @@ struct Stats {
   InterCTASync inter_cta_;
   BlockStats block_stats_;
 
-  stats_t *w0_;
-  stats_t *w1_;
+  stats_t* w0_;
+  stats_t* w1_;
   int bidn_;
   int warp_n_;
   int lane_;
@@ -610,16 +612,16 @@ struct Stats<T, 1, WARPS_M, WARPS_N> {
   enum { SMEM_BYTES = WARPS_M * WARPS_N * sizeof(stats_t) * 2 };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                          void *smem)
+  inline __device__ Stats(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+                          void* smem)
       : warp_stats_(params, bidm, bidn, warp_m, warp_n, lane, smem), use0_(true) {
-    smem0_ = static_cast<stats_t *>(smem) + warp_m * WARPS_N;
+    smem0_ = static_cast<stats_t*>(smem) + warp_m * WARPS_N;
     smem1_ = smem0_ + WARPS_M * WARPS_N;
   }
 
   template <uint32_t N>
   inline __device__ stats_t compute(const T (&elts)[N], const T rn) {
-    stats_t *smem = use0_ ? smem0_ : smem1_;
+    stats_t* smem = use0_ ? smem0_ : smem1_;
     use0_ = !use0_;
     // Compute warp local for all WARPS_N
     constexpr T warp_rn = 1.f / T(N * THREADS_PER_WARP);
@@ -651,8 +653,8 @@ struct Stats<T, 1, WARPS_M, WARPS_N> {
     return {m, m2};
   }
   WarpStats warp_stats_;
-  stats_t *smem0_;
-  stats_t *smem1_;
+  stats_t* smem0_;
+  stats_t* smem1_;
   bool use0_;
 };
 
@@ -667,8 +669,8 @@ struct Stats<T, 1, WARPS_M, 1> {
   enum { SMEM_BYTES = 0 };
 
   template <typename Params>
-  inline __device__ Stats(Params &params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
-                          void *smem)
+  inline __device__ Stats(Params& params, uint32_t bidm, uint32_t bidn, uint32_t warp_m, uint32_t warp_n, uint32_t lane,
+                          void* smem)
       : reducer_(params, bidm, bidn, warp_m, warp_n, lane, smem) {}
 
   template <uint32_t N>

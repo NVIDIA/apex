@@ -34,7 +34,7 @@ struct Mask {
   using Mma_tile = fmha::Hmma_tile<Cta_tile>;
 
   template <typename Params, typename BInfo>
-  __device__ Mask(const Params &params, const BInfo &blockInfo, int tidx) {
+  __device__ Mask(const Params& params, const BInfo& blockInfo, int tidx) {
     actual_seqlen = blockInfo.actual_seqlen;
 
     const int warp = tidx / Cta_tile::THREADS_PER_WARP;

@@ -29,7 +29,7 @@
 
 #include <fmha/utils.h>
 
-#define FMHA_DIV_UP(m, n) (((m) + (n)-1) / (n))
+#define FMHA_DIV_UP(m, n) (((m) + (n) - 1) / (n))
 
 namespace fmha {
 

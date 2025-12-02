@@ -30,7 +30,7 @@ std::string cuFileGetErrorString(T status) {
   return errStr;
 }
 
-File::File() : is_open(false){};
+File::File() : is_open(false) {};
 
 File::File(const std::string& filename, const std::string& mode) : filename(filename), mode(mode), is_open(false) {
   open(filename, mode);

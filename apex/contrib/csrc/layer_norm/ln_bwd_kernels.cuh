@@ -48,8 +48,8 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(layer_
   memset(dzy_sum, 0, sizeof(dzy_sum));
   memset(dz_sum, 0, sizeof(dz_sum));
 
-  compute_t *smem_wgrad = reinterpret_cast<compute_t *>(smem_);
-  char *smem_dgrad = smem_ + Ktraits::SMEM_BYTES_WGRAD;
+  compute_t* smem_wgrad = reinterpret_cast<compute_t*>(smem_);
+  char* smem_dgrad = smem_ + Ktraits::SMEM_BYTES_WGRAD;
 
   Reducer reducer(params, bidm, bidn, warp_m, warp_n, lane, smem_dgrad);
 
@@ -72,8 +72,8 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(layer_
 // grid stride over rows
 #pragma unroll 1
   for (int row = r; row < params.rows; row += params.ctas_per_col * ROWS_PER_CTA) {
-    const compute_t mu_r = params.z == nullptr ? static_cast<const compute_t *>(params.mu)[row] : 0.f;
-    const compute_t rs_r = static_cast<const compute_t *>(params.rs)[row];
+    const compute_t mu_r = params.z == nullptr ? static_cast<const compute_t*>(params.mu)[row] : 0.f;
+    const compute_t rs_r = static_cast<const compute_t*>(params.rs)[row];
     Ivec x_or_z[LDGS];
     Ovec dz[LDGS];
     index_t idx = row * Ktraits::VEC_COLS + c;
@@ -184,13 +184,13 @@ __global__ __launch_bounds__(Ktraits::THREADS_PER_CTA) void ln_bwd_kernel(layer_
       }
     }
 
-    compute_t *dgamma_part = static_cast<compute_t *>(params.dgamma_part) + bidm * COLS + tidx;
+    compute_t* dgamma_part = static_cast<compute_t*>(params.dgamma_part) + bidm * COLS + tidx;
     for (int jt = 0; jt < NUM_RES; jt++) {
       *dgamma_part = cta_dzy_sum[jt];
       dgamma_part += Ktraits::THREADS_PER_CTA;
     }
 
-    compute_t *dbeta_part = static_cast<compute_t *>(params.dbeta_part) + bidm * COLS + tidx;
+    compute_t* dbeta_part = static_cast<compute_t*>(params.dbeta_part) + bidm * COLS + tidx;
     for (int jt = 0; jt < NUM_RES; jt++) {
       *dbeta_part = cta_dz_sum[jt];
       dbeta_part += Ktraits::THREADS_PER_CTA;
@@ -242,8 +242,8 @@ __global__ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finaliz
       }
     }
 
-    void *smem_gamma = smem_;
-    void *smem_beta = &smem_[Kernel_traits::SMEM_BYTES_TRANSPOSE];
+    void* smem_gamma = smem_;
+    void* smem_beta = &smem_[Kernel_traits::SMEM_BYTES_TRANSPOSE];
 
     const int write_row = warp;
     const int write_col = lane ^ write_row;
@@ -255,8 +255,8 @@ __global__ __launch_bounds__(Kernel_traits::THREADS_PER_CTA) void ln_bwd_finaliz
     __syncthreads();
 
     // It would be probably safe to reuse the first row of smem_beta and smem_gamma
-    void *smem_gamma_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE];
-    void *smem_beta_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE + Kernel_traits::SMEM_BYTES_OUTPUT];
+    void* smem_gamma_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE];
+    void* smem_beta_out = &smem_[2 * Kernel_traits::SMEM_BYTES_TRANSPOSE + Kernel_traits::SMEM_BYTES_OUTPUT];
 
     // More than one iter iff ROWS_PER_CTA < 32.
     for (int w = warp; w < THREADS_PER_WARP; w += Kernel_traits::ROWS_PER_CTA) {

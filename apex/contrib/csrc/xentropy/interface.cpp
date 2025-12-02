@@ -4,11 +4,11 @@
 
 // CUDA forward declarations
 
-std::vector<at::Tensor> softmax_xentropy_cuda(const at::Tensor &input, const at::Tensor &labels, const float smoothing,
+std::vector<at::Tensor> softmax_xentropy_cuda(const at::Tensor& input, const at::Tensor& labels, const float smoothing,
                                               const bool half_to_float);
 
-at::Tensor softmax_xentropy_backward_cuda(const at::Tensor &grad_loss, const at::Tensor &logits,
-                                          const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+at::Tensor softmax_xentropy_backward_cuda(const at::Tensor& grad_loss, const at::Tensor& logits,
+                                          const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
                                           const float smoothing);
 
 // C++ interface
@@ -19,7 +19,7 @@ at::Tensor softmax_xentropy_backward_cuda(const at::Tensor &grad_loss, const at:
   CHECK_CUDA(x);       \
   CHECK_CONTIGUOUS(x)
 
-std::vector<at::Tensor> softmax_xentropy_forward(const at::Tensor &input, const at::Tensor &labels,
+std::vector<at::Tensor> softmax_xentropy_forward(const at::Tensor& input, const at::Tensor& labels,
                                                  const float smoothing, const bool half_to_float) {
   CHECK_CUDA(input);
   CHECK_INPUT(labels);
@@ -27,8 +27,8 @@ std::vector<at::Tensor> softmax_xentropy_forward(const at::Tensor &input, const 
   return softmax_xentropy_cuda(input, labels, smoothing, half_to_float);
 }
 
-at::Tensor softmax_xentropy_backward(const at::Tensor &grad_loss, const at::Tensor &logits,
-                                     const at::Tensor &max_log_sum_exp, const at::Tensor &labels,
+at::Tensor softmax_xentropy_backward(const at::Tensor& grad_loss, const at::Tensor& logits,
+                                     const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
                                      const float smoothing) {
   CHECK_CUDA(grad_loss);
   CHECK_CUDA(logits);

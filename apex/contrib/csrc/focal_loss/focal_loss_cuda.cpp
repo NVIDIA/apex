@@ -5,12 +5,12 @@
 
 // CUDA forward declarations
 
-std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor &cls_output, const at::Tensor &cls_targets_at_level,
-                                                const at::Tensor &num_positives_sum, const int64_t num_real_classes,
+std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor& cls_output, const at::Tensor& cls_targets_at_level,
+                                                const at::Tensor& num_positives_sum, const int64_t num_real_classes,
                                                 const float alpha, const float gamma, const float smoothing_factor);
 
-at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output, const at::Tensor &partial_grad,
-                                    const at::Tensor &num_positives_sum);
+at::Tensor focal_loss_backward_cuda(const at::Tensor& grad_output, const at::Tensor& partial_grad,
+                                    const at::Tensor& num_positives_sum);
 
 // C++ interface
 
@@ -20,8 +20,8 @@ at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output, const at::Ten
   CHECK_CUDA(x);       \
   CHECK_CONTIGUOUS(x)
 
-std::vector<at::Tensor> focal_loss_forward(const at::Tensor &cls_output, const at::Tensor &cls_targets_at_level,
-                                           const at::Tensor &num_positives_sum, const int64_t num_real_classes,
+std::vector<at::Tensor> focal_loss_forward(const at::Tensor& cls_output, const at::Tensor& cls_targets_at_level,
+                                           const at::Tensor& num_positives_sum, const int64_t num_real_classes,
                                            const float alpha, const float gamma, const float smoothing_factor) {
   CHECK_INPUT(cls_output);
   CHECK_INPUT(cls_targets_at_level);
@@ -31,8 +31,8 @@ std::vector<at::Tensor> focal_loss_forward(const at::Tensor &cls_output, const a
                                  smoothing_factor);
 }
 
-at::Tensor focal_loss_backward(const at::Tensor &grad_output, const at::Tensor &partial_grad,
-                               const at::Tensor &num_positives_sum) {
+at::Tensor focal_loss_backward(const at::Tensor& grad_output, const at::Tensor& partial_grad,
+                               const at::Tensor& num_positives_sum) {
   CHECK_INPUT(grad_output);
   CHECK_INPUT(partial_grad);
 

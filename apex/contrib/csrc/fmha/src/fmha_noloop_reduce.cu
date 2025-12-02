@@ -27,14 +27,14 @@
 
 #include "fmha.h"
 
-inline __device__ float4 ldg128(const void *ptr) { return *static_cast<const float4 *>(ptr); }
+inline __device__ float4 ldg128(const void* ptr) { return *static_cast<const float4*>(ptr); }
 
-inline __device__ void stg128(void *ptr, const float4 &data) { *static_cast<float4 *>(ptr) = data; }
+inline __device__ void stg128(void* ptr, const float4& data) { *static_cast<float4*>(ptr) = data; }
 
 template <typename T, int THREADS, int HIDDEN_SIZE, int CHUNKS>
-__global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void *__restrict__ out,
-                                                                     const void *__restrict__ in,
-                                                                     const int *__restrict__ cu_seqlens,
+__global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void* __restrict__ out,
+                                                                     const void* __restrict__ in,
+                                                                     const int* __restrict__ cu_seqlens,
                                                                      const int batch_size) {
   enum { BYTES_PER_LDG = 16 };
   enum { NUM_ELTS = BYTES_PER_LDG / sizeof(T) };
@@ -69,7 +69,7 @@ __global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void *__res
 
     const float4 zeros = make_float4(0.f, 0.f, 0.f, 0.f);
 
-    char *base_ptr = static_cast<char *>(out) + blockIdx.x * OUT_STRIDE_BYTES;
+    char* base_ptr = static_cast<char*>(out) + blockIdx.x * OUT_STRIDE_BYTES;
 
     for (int tidx = threadIdx.x; tidx < STGS; tidx += THREADS) {
       stg128(base_ptr + tidx * BYTES_PER_LDG, zeros);
@@ -80,10 +80,10 @@ __global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void *__res
 
   // SETUP
   const int offset_in = blockIdx.x * BYTES_PER_TILE + threadIdx.x * BYTES_PER_LDG;
-  const char *ptr_in = static_cast<const char *>(in) + offset_in;
+  const char* ptr_in = static_cast<const char*>(in) + offset_in;
 
   const int offset_out = blockIdx.x * OUT_STRIDE_BYTES + threadIdx.x * BYTES_PER_LDG;
-  char *ptr_out = static_cast<char *>(out) + OUT_OFFSET_KV_BYTES + offset_out;
+  char* ptr_out = static_cast<char*>(out) + OUT_OFFSET_KV_BYTES + offset_out;
 
   // LOAD
 
@@ -140,7 +140,7 @@ __global__ __launch_bounds__(THREADS) void fmha_noloop_reduce_kernel(void *__res
   }
 }
 
-void fmha_run_noloop_reduce(void *out, const void *in, const int *cu_seqlens, const int hidden_size,
+void fmha_run_noloop_reduce(void* out, const void* in, const int* cu_seqlens, const int hidden_size,
                             const int batch_size, const int total, const int num_chunks, cudaStream_t stream) {
   const int blocks = total;
 

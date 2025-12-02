@@ -501,7 +501,7 @@ void push_pull_halos_1d(
     int numBlocksPerSm;                                                                                           \
     cudaOccupancyMaxActiveBlocksPerMultiprocessor(                                                                \
         &numBlocksPerSm, push_pull_halos_1d_kernel<T, CONTIGUOUS, TOP_ZERO, BTM_ZERO>, THREADS_PER_CTA, 0);       \
-    dim3 grid(numSM* numBlocksPerSm, 1, 1);                                                                       \
+    dim3 grid(numSM * numBlocksPerSm, 1, 1);                                                                      \
     if (grid.x % 2 != 0) {                                                                                        \
       /* require even number of blocks (half for top, half for bottom) */                                         \
       grid.x -= 1;                                                                                                \

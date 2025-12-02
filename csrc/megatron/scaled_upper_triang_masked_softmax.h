@@ -27,59 +27,59 @@
 namespace {
 
 template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void copy_vector(Datatype *dst, const Datatype *src);
+__device__ __inline__ void copy_vector(Datatype* dst, const Datatype* src);
 
 template <>
-__device__ __inline__ void copy_vector<c10::BFloat16, 1>(c10::BFloat16 *dst, const c10::BFloat16 *src) {
+__device__ __inline__ void copy_vector<c10::BFloat16, 1>(c10::BFloat16* dst, const c10::BFloat16* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<c10::BFloat16, 4>(c10::BFloat16 *dst, const c10::BFloat16 *src) {
-  *((float2 *)dst) = *((float2 *)src);
+__device__ __inline__ void copy_vector<c10::BFloat16, 4>(c10::BFloat16* dst, const c10::BFloat16* src) {
+  *((float2*)dst) = *((float2*)src);
 }
 
 template <>
-__device__ __inline__ void copy_vector<c10::Half, 1>(c10::Half *dst, const c10::Half *src) {
+__device__ __inline__ void copy_vector<c10::Half, 1>(c10::Half* dst, const c10::Half* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<c10::Half, 4>(c10::Half *dst, const c10::Half *src) {
-  *((float2 *)dst) = *((float2 *)src);
+__device__ __inline__ void copy_vector<c10::Half, 4>(c10::Half* dst, const c10::Half* src) {
+  *((float2*)dst) = *((float2*)src);
 }
 
 template <>
-__device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) {
+__device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t* dst, const uint8_t* src) {
   *dst = *src;
 }
 
 template <>
-__device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {
-  *((half2 *)dst) = *((half2 *)src);
+__device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t* dst, const uint8_t* src) {
+  *((half2*)dst) = *((half2*)src);
 }
 
 template <typename Datatype, int ELEMENTS_PER_LDG>
-__device__ __inline__ void copy_zero_vector(Datatype *dst);
+__device__ __inline__ void copy_zero_vector(Datatype* dst);
 
 template <>
-__device__ __inline__ void copy_zero_vector<c10::BFloat16, 1>(c10::BFloat16 *dst) {
+__device__ __inline__ void copy_zero_vector<c10::BFloat16, 1>(c10::BFloat16* dst) {
   *dst = 0.0;
 }
 
 template <>
-__device__ __inline__ void copy_zero_vector<c10::BFloat16, 4>(c10::BFloat16 *dst) {
-  *((float2 *)dst) = make_float2(0.0f, 0.0f);
+__device__ __inline__ void copy_zero_vector<c10::BFloat16, 4>(c10::BFloat16* dst) {
+  *((float2*)dst) = make_float2(0.0f, 0.0f);
 }
 
 template <>
-__device__ __inline__ void copy_zero_vector<c10::Half, 1>(c10::Half *dst) {
+__device__ __inline__ void copy_zero_vector<c10::Half, 1>(c10::Half* dst) {
   *dst = 0.0;
 }
 
 template <>
-__device__ __inline__ void copy_zero_vector<c10::Half, 4>(c10::Half *dst) {
-  *((float2 *)dst) = make_float2(0.0f, 0.0f);
+__device__ __inline__ void copy_zero_vector<c10::Half, 4>(c10::Half* dst) {
+  *((float2*)dst) = make_float2(0.0f, 0.0f);
 }
 
 int log2_ceil(int value) {
@@ -109,7 +109,7 @@ __device__ __forceinline__ T WARP_SHFL_XOR_NATIVE(T value, int laneMask, int wid
 }
 
 template <typename acc_t, int WARP_BATCH, int WARP_SIZE, template <typename> class ReduceOp>
-__device__ __forceinline__ void warp_reduce(acc_t *sum) {
+__device__ __forceinline__ void warp_reduce(acc_t* sum) {
   ReduceOp<acc_t> r;
 #pragma unroll
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
@@ -127,7 +127,7 @@ __device__ __forceinline__ void warp_reduce(acc_t *sum) {
  * 2) Implicit time (diagonal masking)
  */
 template <typename input_t, typename output_t, typename acc_t, int log2_elements>
-__global__ void scaled_upper_triang_masked_softmax_warp_forward(output_t *dst, const input_t *src, const acc_t scale,
+__global__ void scaled_upper_triang_masked_softmax_warp_forward(output_t* dst, const input_t* src, const acc_t scale,
                                                                 int micro_batch_size, int stride, int element_count) {
   // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
   // warp_size of method warp_softmax_forward_kernel.
@@ -238,8 +238,8 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(output_t *dst, c
 }
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements>
-__global__ void scaled_upper_triang_masked_softmax_warp_backward(output_t *gradInput, input_t *grad,
-                                                                 const input_t *output, acc_t scale,
+__global__ void scaled_upper_triang_masked_softmax_warp_backward(output_t* gradInput, input_t* grad,
+                                                                 const input_t* output, acc_t scale,
                                                                  int micro_batch_size, int stride, int element_count) {
   // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
   // warp_size of method warp_softmax_backward_kernel.
@@ -332,7 +332,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_backward(output_t *gradI
 }  // end of anonymous namespace
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_upper_triang_masked_softmax_forward(output_t *dst, const input_t *src, const input_t scale,
+void dispatch_scaled_upper_triang_masked_softmax_forward(output_t* dst, const input_t* src, const input_t scale,
                                                          int softmax_elements, int softmax_elements_stride,
                                                          int attn_batches) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 16384);
@@ -444,7 +444,7 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(output_t *dst, const in
 }
 
 template <typename input_t, typename output_t, typename acc_t>
-void dispatch_scaled_upper_triang_masked_softmax_backward(output_t *grad_input, input_t *grad, const input_t *output,
+void dispatch_scaled_upper_triang_masked_softmax_backward(output_t* grad_input, input_t* grad, const input_t* output,
                                                           const acc_t scale, int softmax_elements,
                                                           int softmax_elements_stride, int attn_batches) {
   TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 16384);

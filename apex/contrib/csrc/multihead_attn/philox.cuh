@@ -15,8 +15,8 @@ class Philox {
     // STATE = 0;
     // incr_n(offset / 4);
 
-    key = reinterpret_cast<const uint2 &>(seed);
-    ull2 *tmp = reinterpret_cast<ull2 *>(&counter);
+    key = reinterpret_cast<const uint2&>(seed);
+    ull2* tmp = reinterpret_cast<ull2*>(&counter);
     tmp->x = offset / 4;
     tmp->y = subsequence;
   }
@@ -77,15 +77,15 @@ class Philox {
   }
 
   __device__ inline void incr() { counter = incr128(counter); }
-  __device__ unsigned int mulhilo32(unsigned int a, unsigned int b, unsigned int *result_high) {
+  __device__ unsigned int mulhilo32(unsigned int a, unsigned int b, unsigned int* result_high) {
     *result_high = __umulhi(a, b);
     return a * b;
   }
   __device__ uint2 mulhilo32_v2(unsigned int a, unsigned int b) {
-    uint2 *res;
+    uint2* res;
     unsigned long long tmp;
     asm("mul.wide.u32      %0, %1, %2;\n\t" : "=l"(tmp) : "r"(a), "r"(b));
-    res = (uint2 *)(&tmp);
+    res = (uint2*)(&tmp);
     return *res;
   }
   __device__ inline uint4 single_round(uint4 ctr, uint2 key) {

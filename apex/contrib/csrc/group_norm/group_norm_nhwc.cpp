@@ -13,29 +13,29 @@
 #include <type_traits>
 
 template <typename T>
-float inline unpack(const T &x) {
+float inline unpack(const T& x) {
   return {};
 }
 
 template <>
-float inline unpack(const __half &x) {
+float inline unpack(const __half& x) {
   return __half2float(x);
 }
 
 template <>
-float inline unpack(const __nv_bfloat16 &x) {
+float inline unpack(const __nv_bfloat16& x) {
   return __bfloat162float(x);
 }
 
 template <>
-float inline unpack(const float &x) {
+float inline unpack(const float& x) {
   return x;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void check_results(const char *name, const T *out, const T *ref, size_t elts, float tol) {
+void check_results(const char* name, const T* out, const T* ref, size_t elts, float tol) {
   // The number of errors.
   int failed = 0;
   // The number of infinite value.
@@ -72,11 +72,11 @@ void check_results(const char *name, const T *out, const T *ref, size_t elts, fl
       fprintf(stderr, ">> invalid result for ii=%lu:\n", ii);
       if (std::is_same<T, __half>::value || std::is_same<T, __nv_bfloat16>::value) {
         // The data.
-        fprintf(stderr, ">>   found...: 0x%04x (%10.6f)\n", reinterpret_cast<const uint16_t &>(out[ii]), a);
-        fprintf(stderr, ">>   expected: 0x%04x (%10.6f)\n", reinterpret_cast<const uint16_t &>(ref[ii]), b);
+        fprintf(stderr, ">>   found...: 0x%04x (%10.6f)\n", reinterpret_cast<const uint16_t&>(out[ii]), a);
+        fprintf(stderr, ">>   expected: 0x%04x (%10.6f)\n", reinterpret_cast<const uint16_t&>(ref[ii]), b);
       } else if (std::is_same<T, float>::value) {
-        fprintf(stderr, ">>   found...: 0x%08x (%10.6f)\n", reinterpret_cast<const uint32_t &>(a), a);
-        fprintf(stderr, ">>   expected: 0x%08x (%10.6f)\n", reinterpret_cast<const uint32_t &>(b), b);
+        fprintf(stderr, ">>   found...: 0x%08x (%10.6f)\n", reinterpret_cast<const uint32_t&>(a), a);
+        fprintf(stderr, ">>   expected: 0x%08x (%10.6f)\n", reinterpret_cast<const uint32_t&>(b), b);
       } else {
         fprintf(stderr, "\e[1;34mUnknown type of check_results\e[0m\n");
         exit(1);
@@ -120,17 +120,17 @@ void check_results(const char *name, const T *out, const T *ref, size_t elts, fl
   printf("\n");
 }
 
-template void check_results(const char *name, const __half *out, const __half *ref, size_t elts, float tol);
+template void check_results(const char* name, const __half* out, const __half* ref, size_t elts, float tol);
 
-template void check_results(const char *name, const __nv_bfloat16 *out, const __nv_bfloat16 *ref, size_t elts,
+template void check_results(const char* name, const __nv_bfloat16* out, const __nv_bfloat16* ref, size_t elts,
                             float tol);
 
-template void check_results(const char *name, const float *out, const float *ref, size_t elts, float tol);
+template void check_results(const char* name, const float* out, const float* ref, size_t elts, float tol);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, const void *dy_h, const void *x_h,
-                                 const float *gamma_h, const float *beta_h, const float2 *sums_h, float epsilon, int n,
+static void group_norm_nhwc_bwd_(void* dx_h, float* dgamma_h, float* dbeta_h, const void* dy_h, const void* x_h,
+                                 const float* gamma_h, const float* beta_h, const float2* sums_h, float epsilon, int n,
                                  int h, int w, int c, int groups, bool with_swish, bool use_fp32, bool use_bf16) {
   // The number of channels in each group.
   int channels_per_group = c / groups;
@@ -138,9 +138,9 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
   float rcp_hwc_per_group = 1.f / (float)(h * w * channels_per_group);
 
   // The array to compute gamma.
-  float *dgamma = (float *)malloc(c * sizeof(float));
+  float* dgamma = (float*)malloc(c * sizeof(float));
   // The array to compute beta.
-  float *dbeta = (float *)malloc(c * sizeof(float));
+  float* dbeta = (float*)malloc(c * sizeof(float));
 
   // Set gamma/beta to 0.
   memset(dgamma, 0, c * sizeof(float));
@@ -176,20 +176,20 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
             // Convert the element at that position to float.
             float x;
             if (use_fp32) {
-              x = reinterpret_cast<const float *>(x_h)[offset];
+              x = reinterpret_cast<const float*>(x_h)[offset];
             } else if (use_bf16) {
-              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(x_h)[offset]);
+              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(x_h)[offset]);
             } else {
-              x = __half2float(reinterpret_cast<const __half *>(x_h)[offset]);
+              x = __half2float(reinterpret_cast<const __half*>(x_h)[offset]);
             }
             // The output.
             float dy;
             if (use_fp32) {
-              dy = reinterpret_cast<const float *>(dy_h)[offset];
+              dy = reinterpret_cast<const float*>(dy_h)[offset];
             } else if (use_bf16) {
-              dy = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(dy_h)[offset]);
+              dy = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(dy_h)[offset]);
             } else {
-              dy = __half2float(reinterpret_cast<const __half *>(dy_h)[offset]);
+              dy = __half2float(reinterpret_cast<const __half*>(dy_h)[offset]);
             }
 
             // Gamma.
@@ -223,8 +223,8 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
             mean_2 += dx_norm;
 
           }  // ii
-        }    // wi
-      }      // hi
+        }  // wi
+      }  // hi
 
       mean_1 *= rcp_hwc_per_group;
       mean_2 *= rcp_hwc_per_group;
@@ -239,20 +239,20 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
             size_t offset = (size_t)ni * h * w * c + (size_t)hi * w * c + (size_t)wi * c + (size_t)ci;
             float x;
             if (use_fp32) {
-              x = reinterpret_cast<const float *>(x_h)[offset];
+              x = reinterpret_cast<const float*>(x_h)[offset];
             } else if (use_bf16) {
-              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(x_h)[offset]);
+              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(x_h)[offset]);
             } else {
-              x = __half2float(reinterpret_cast<const __half *>(x_h)[offset]);
+              x = __half2float(reinterpret_cast<const __half*>(x_h)[offset]);
             }
             // The output.
             float dy;
             if (use_fp32) {
-              dy = reinterpret_cast<const float *>(dy_h)[offset];
+              dy = reinterpret_cast<const float*>(dy_h)[offset];
             } else if (use_bf16) {
-              dy = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(dy_h)[offset]);
+              dy = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(dy_h)[offset]);
             } else {
-              dy = __half2float(reinterpret_cast<const __half *>(dy_h)[offset]);
+              dy = __half2float(reinterpret_cast<const __half*>(dy_h)[offset]);
             }
 
             // Gamma.
@@ -280,19 +280,19 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
 
             // Set the output gradient.
             if (use_fp32) {
-              reinterpret_cast<float *>(dx_h)[offset] = dx;
+              reinterpret_cast<float*>(dx_h)[offset] = dx;
             } else if (use_bf16) {
-              reinterpret_cast<__nv_bfloat16 *>(dx_h)[offset] = __float2bfloat16_rn(dx);
+              reinterpret_cast<__nv_bfloat16*>(dx_h)[offset] = __float2bfloat16_rn(dx);
             } else {
-              reinterpret_cast<__half *>(dx_h)[offset] = __float2half_rn(dx);
+              reinterpret_cast<__half*>(dx_h)[offset] = __float2half_rn(dx);
             }
 
           }  // ii
-        }    // wi
-      }      // hi
+        }  // wi
+      }  // hi
 
     }  // gi
-  }    // ni
+  }  // ni
 
   // Store gamma/beta.
   for (int ci = 0; ci < c; ++ci) {
@@ -307,7 +307,7 @@ static void group_norm_nhwc_bwd_(void *dx_h, float *dgamma_h, float *dbeta_h, co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void group_norm_nhwc_fwd_(void *y_h, const void *x_h, const float *gamma_h, const float *beta_h, float epsilon,
+static void group_norm_nhwc_fwd_(void* y_h, const void* x_h, const float* gamma_h, const float* beta_h, float epsilon,
                                  int n, int h, int w, int c, int groups, bool with_swish, bool use_fp32,
                                  bool use_bf16) {
   // The number of channels in each group.
@@ -333,11 +333,11 @@ static void group_norm_nhwc_fwd_(void *y_h, const void *x_h, const float *gamma_
             // Convert the element at that position to float.
             float x;
             if (use_fp32) {
-              x = reinterpret_cast<const float *>(x_h)[offset];
+              x = reinterpret_cast<const float*>(x_h)[offset];
             } else if (use_bf16) {
-              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(x_h)[offset]);
+              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(x_h)[offset]);
             } else {
-              x = __half2float(reinterpret_cast<const __half *>(x_h)[offset]);
+              x = __half2float(reinterpret_cast<const __half*>(x_h)[offset]);
             }
 
             // Update the sums.
@@ -345,8 +345,8 @@ static void group_norm_nhwc_fwd_(void *y_h, const void *x_h, const float *gamma_
             sum_sq += x * x;
 
           }  // ii
-        }    // wi
-      }      // hi
+        }  // wi
+      }  // hi
 
       // Compute the mean.
       float mean = sum * inv_hwcg;
@@ -368,11 +368,11 @@ static void group_norm_nhwc_fwd_(void *y_h, const void *x_h, const float *gamma_
             // Normalize.
             float x;
             if (use_fp32) {
-              x = reinterpret_cast<const float *>(x_h)[offset];
+              x = reinterpret_cast<const float*>(x_h)[offset];
             } else if (use_bf16) {
-              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16 *>(x_h)[offset]);
+              x = __bfloat162float(reinterpret_cast<const __nv_bfloat16*>(x_h)[offset]);
             } else {
-              x = __half2float(reinterpret_cast<const __half *>(x_h)[offset]);
+              x = __half2float(reinterpret_cast<const __half*>(x_h)[offset]);
             }
             float y = (x - mean) * inv_stddev;
             // Scale with gamma and add beta.
@@ -383,24 +383,24 @@ static void group_norm_nhwc_fwd_(void *y_h, const void *x_h, const float *gamma_
             }
             // Store the result.
             if (use_fp32) {
-              reinterpret_cast<float *>(y_h)[offset] = y;
+              reinterpret_cast<float*>(y_h)[offset] = y;
             } else if (use_bf16) {
-              reinterpret_cast<__nv_bfloat16 *>(y_h)[offset] = __float2bfloat16_rn(y);
+              reinterpret_cast<__nv_bfloat16*>(y_h)[offset] = __float2bfloat16_rn(y);
             } else {
-              reinterpret_cast<__half *>(y_h)[offset] = __float2half_rn(y);
+              reinterpret_cast<__half*>(y_h)[offset] = __float2half_rn(y);
             }
 
           }  // ii
-        }    // wi
-      }      // hi
-    }        // gi
-  }          // ni
+        }  // wi
+      }  // hi
+    }  // gi
+  }  // ni
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void random_data(T *dst_h, size_t n, bool use_1s, int range = 3) {
+void random_data(T* dst_h, size_t n, bool use_1s, int range = 3) {
   for (size_t ii = 0; ii < n; ++ii) {
     float x = 1.f;
     if (!use_1s) {
@@ -419,11 +419,11 @@ void random_data(T *dst_h, size_t n, bool use_1s, int range = 3) {
   }
 }
 
-template void random_data(float *dst_h, size_t n, bool use_1s, int range);
+template void random_data(float* dst_h, size_t n, bool use_1s, int range);
 
-template void random_data(__half *dst_h, size_t n, bool use_1s, int range);
+template void random_data(__half* dst_h, size_t n, bool use_1s, int range);
 
-template void random_data(__nv_bfloat16 *dst_h, size_t n, bool use_1s, int range);
+template void random_data(__nv_bfloat16* dst_h, size_t n, bool use_1s, int range);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -431,7 +431,7 @@ enum class Mode { FWD_INFERENCE, FWD_TRAINING, BWD };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // The tensor size.
   int n = 2, h = 64, w = 64, c = 320, groups = 32;
   // The default mode is inference.
@@ -591,32 +591,32 @@ int main(int argc, char **argv) {
   size_t x_sz = x_elts * io_bytes;
 
   // Allocate the src/dst on the host.
-  void *x_h = malloc(x_sz);
-  void *y_h = malloc(x_sz);
+  void* x_h = malloc(x_sz);
+  void* y_h = malloc(x_sz);
 
   // Allocate src/dst on the device.
   void *x_d, *y_d;
-  CHECK_CUDA(cudaMalloc((void **)&x_d, x_sz));
-  CHECK_CUDA(cudaMalloc((void **)&y_d, x_sz));
+  CHECK_CUDA(cudaMalloc((void**)&x_d, x_sz));
+  CHECK_CUDA(cudaMalloc((void**)&y_d, x_sz));
 
   // The number of elements in the gamma/beta array.
   size_t gamma_elts = (size_t)c;
   // The size of the gamma/beta array in bytes.
   size_t gamma_sz = gamma_elts * sizeof(float);
   // Allocate gamma/beta on the host.
-  float *gamma_h = (float *)malloc(gamma_sz);
+  float* gamma_h = (float*)malloc(gamma_sz);
   // Allocate gamma/beta on the device.
-  float *gamma_d;
-  CHECK_CUDA(cudaMalloc((void **)&gamma_d, gamma_sz));
+  float* gamma_d;
+  CHECK_CUDA(cudaMalloc((void**)&gamma_d, gamma_sz));
 
   // Allocate gamma/beta on the host.
-  float *beta_h = (float *)malloc(gamma_sz);
+  float* beta_h = (float*)malloc(gamma_sz);
   // Allocate gamma/beta on the device.
-  float *beta_d;
-  CHECK_CUDA(cudaMalloc((void **)&beta_d, gamma_sz));
+  float* beta_d;
+  CHECK_CUDA(cudaMalloc((void**)&beta_d, gamma_sz));
 
   // Allocate the reference on the host (to be computed on the host).
-  void *y_ref_h = nullptr;
+  void* y_ref_h = nullptr;
   if (!skip_checks) {
     y_ref_h = malloc(x_sz);
   }
@@ -631,22 +631,22 @@ int main(int argc, char **argv) {
   // Allocate src/dst on the device.
   void *dx_d = nullptr, *dy_d = nullptr;
   if (mode == Mode::BWD) {
-    CHECK_CUDA(cudaMalloc((void **)&dx_d, x_sz));
-    CHECK_CUDA(cudaMalloc((void **)&dy_d, x_sz));
+    CHECK_CUDA(cudaMalloc((void**)&dx_d, x_sz));
+    CHECK_CUDA(cudaMalloc((void**)&dy_d, x_sz));
   }
 
   // The gradients for gamma and beta on the host.
   float *dgamma_h = nullptr, *dbeta_h = nullptr;
   if (mode == Mode::BWD) {
-    dgamma_h = (float *)malloc(gamma_sz);
-    dbeta_h = (float *)malloc(gamma_sz);
+    dgamma_h = (float*)malloc(gamma_sz);
+    dbeta_h = (float*)malloc(gamma_sz);
   }
 
   // The gradients for gamma and beta on the device.
   float *dgamma_d = nullptr, *dbeta_d = nullptr;
   if (mode == Mode::BWD) {
-    CHECK_CUDA(cudaMalloc((void **)&dgamma_d, gamma_sz));
-    CHECK_CUDA(cudaMalloc((void **)&dbeta_d, gamma_sz));
+    CHECK_CUDA(cudaMalloc((void**)&dgamma_d, gamma_sz));
+    CHECK_CUDA(cudaMalloc((void**)&dbeta_d, gamma_sz));
   }
 
   // The number of sums for the bwd pass.
@@ -655,19 +655,19 @@ int main(int argc, char **argv) {
   size_t sums_sz = sums_elts * sizeof(float2);
 
   // The sums for the bwd pass on the host.
-  float2 *sums_h = nullptr;
+  float2* sums_h = nullptr;
   if (sums_sz > 0) {
-    sums_h = (float2 *)malloc(sums_sz);
+    sums_h = (float2*)malloc(sums_sz);
   }
 
   // The sums for the bwd pass on the device.
-  float2 *sums_d = nullptr;
+  float2* sums_d = nullptr;
   if (sums_sz > 0) {
-    CHECK_CUDA(cudaMalloc((void **)&sums_d, sums_sz));
+    CHECK_CUDA(cudaMalloc((void**)&sums_d, sums_sz));
   }
 
   // Allocate the reference on the host (to be computed on the host).
-  void *dx_ref_h = nullptr;
+  void* dx_ref_h = nullptr;
   if (mode == Mode::BWD && !skip_checks) {
     dx_ref_h = malloc(x_sz);
   }
@@ -675,17 +675,17 @@ int main(int argc, char **argv) {
   // Allocate the reference on the host (to be computed on the host).
   float *dgamma_ref_h = nullptr, *dbeta_ref_h = nullptr;
   if (mode == Mode::BWD && !skip_checks) {
-    dgamma_ref_h = (float *)malloc(gamma_sz);
-    dbeta_ref_h = (float *)malloc(gamma_sz);
+    dgamma_ref_h = (float*)malloc(gamma_sz);
+    dbeta_ref_h = (float*)malloc(gamma_sz);
   }
 
   // Generate random input data for the forward pass.
   if (use_fp32) {
-    random_data<float>(reinterpret_cast<float *>(x_h), x_elts, use_1s);
+    random_data<float>(reinterpret_cast<float*>(x_h), x_elts, use_1s);
   } else if (use_bf16) {
-    random_data<__nv_bfloat16>(reinterpret_cast<__nv_bfloat16 *>(x_h), x_elts, use_1s);
+    random_data<__nv_bfloat16>(reinterpret_cast<__nv_bfloat16*>(x_h), x_elts, use_1s);
   } else {
-    random_data<__half>(reinterpret_cast<__half *>(x_h), x_elts, use_1s);
+    random_data<__half>(reinterpret_cast<__half*>(x_h), x_elts, use_1s);
   }
   random_data<float>(gamma_h, gamma_elts, use_1s);
   random_data<float>(beta_h, gamma_elts, use_1s);
@@ -693,11 +693,11 @@ int main(int argc, char **argv) {
   // Generate the gradients for the bwd pass.
   if (mode == Mode::BWD) {
     if (use_fp32) {
-      random_data<float>(reinterpret_cast<float *>(dy_h), x_elts, use_1s);
+      random_data<float>(reinterpret_cast<float*>(dy_h), x_elts, use_1s);
     } else if (use_bf16) {
-      random_data<__nv_bfloat16>(reinterpret_cast<__nv_bfloat16 *>(dy_h), x_elts, use_1s);
+      random_data<__nv_bfloat16>(reinterpret_cast<__nv_bfloat16*>(dy_h), x_elts, use_1s);
     } else {
-      random_data<__half>(reinterpret_cast<__half *>(dy_h), x_elts, use_1s);
+      random_data<__half>(reinterpret_cast<__half*>(dy_h), x_elts, use_1s);
     }
   }
 
@@ -721,11 +721,11 @@ int main(int argc, char **argv) {
               // The element in float.
               float x;
               if (use_fp32) {
-                x = reinterpret_cast<float *>(x_h)[offset];
+                x = reinterpret_cast<float*>(x_h)[offset];
               } else if (use_bf16) {
-                x = __bfloat162float(reinterpret_cast<__nv_bfloat16 *>(x_h)[offset]);
+                x = __bfloat162float(reinterpret_cast<__nv_bfloat16*>(x_h)[offset]);
               } else {
-                x = __half2float(reinterpret_cast<__half *>(x_h)[offset]);
+                x = __half2float(reinterpret_cast<__half*>(x_h)[offset]);
               }
 
               // Update the sums (sum of X and sum of squares).
@@ -853,8 +853,8 @@ int main(int argc, char **argv) {
   size_t red_buffer_sz = red_buffer_elts * sizeof(float);
   // Allocate on the device.
   if (red_buffer_sz > 0) {
-    float **ptr = mode == Mode::BWD ? &params_bwd.red_buffer : &params_fwd.red_buffer;
-    CHECK_CUDA(cudaMalloc((void **)ptr, red_buffer_sz));
+    float** ptr = mode == Mode::BWD ? &params_bwd.red_buffer : &params_fwd.red_buffer;
+    CHECK_CUDA(cudaMalloc((void**)ptr, red_buffer_sz));
   }
 
   // The size of the array of barriers.
@@ -863,17 +863,17 @@ int main(int argc, char **argv) {
   size_t zeroed_red_buffer_sz = barriers_sz + zeroed_red_buffer_elts * sizeof(float);
 
   // Allocate the buffer if needed.
-  void *zeroed_red_buffer_d_ = nullptr;
+  void* zeroed_red_buffer_d_ = nullptr;
   if (zeroed_red_buffer_sz > 0) {
-    CHECK_CUDA(cudaMalloc((void **)&zeroed_red_buffer_d_, zeroed_red_buffer_sz));
+    CHECK_CUDA(cudaMalloc((void**)&zeroed_red_buffer_d_, zeroed_red_buffer_sz));
   }
 
   // The buffer of barriers. DO NOT CALL cudaFree on it!!!
-  int *barriers_d = reinterpret_cast<int *>(zeroed_red_buffer_d_);
+  int* barriers_d = reinterpret_cast<int*>(zeroed_red_buffer_d_);
   // The zeroed red buffer. DO NOT CALL cudaFree on it!!!
-  float *zeroed_red_buffer_d = reinterpret_cast<float *>(&barriers_d[barriers_elts]);
+  float* zeroed_red_buffer_d = reinterpret_cast<float*>(&barriers_d[barriers_elts]);
   // Must be aligned on 4B for floats. It obviously is (unless someone changes the code ;)).
-  assert(reinterpret_cast<const int64_t &>(zeroed_red_buffer_d) % sizeof(float) == 0);
+  assert(reinterpret_cast<const int64_t&>(zeroed_red_buffer_d) % sizeof(float) == 0);
 
   // Set the barriers if needed.
   if (mode == Mode::BWD) {
@@ -937,24 +937,23 @@ int main(int argc, char **argv) {
   if (!csv_output) {
     if (mode == Mode::BWD && !skip_checks) {
       if (use_fp32) {
-        check_results<float>("dx", reinterpret_cast<float *>(dx_h), reinterpret_cast<float *>(dx_ref_h), x_elts, tol);
+        check_results<float>("dx", reinterpret_cast<float*>(dx_h), reinterpret_cast<float*>(dx_ref_h), x_elts, tol);
       } else if (use_bf16) {
-        check_results<__nv_bfloat16>("dx", reinterpret_cast<__nv_bfloat16 *>(dx_h),
-                                     reinterpret_cast<__nv_bfloat16 *>(dx_ref_h), x_elts, tol);
+        check_results<__nv_bfloat16>("dx", reinterpret_cast<__nv_bfloat16*>(dx_h),
+                                     reinterpret_cast<__nv_bfloat16*>(dx_ref_h), x_elts, tol);
       } else {
-        check_results<__half>("dx", reinterpret_cast<__half *>(dx_h), reinterpret_cast<__half *>(dx_ref_h), x_elts,
-                              tol);
+        check_results<__half>("dx", reinterpret_cast<__half*>(dx_h), reinterpret_cast<__half*>(dx_ref_h), x_elts, tol);
       }
       check_results<float>("dgamma", dgamma_h, dgamma_ref_h, gamma_elts, tol);
       check_results<float>("dbeta", dbeta_h, dbeta_ref_h, gamma_elts, tol);
     } else if (!skip_checks) {
       if (use_fp32) {
-        check_results<float>("y", reinterpret_cast<float *>(y_h), reinterpret_cast<float *>(y_ref_h), x_elts, tol);
+        check_results<float>("y", reinterpret_cast<float*>(y_h), reinterpret_cast<float*>(y_ref_h), x_elts, tol);
       } else if (use_bf16) {
-        check_results<__nv_bfloat16>("y", reinterpret_cast<__nv_bfloat16 *>(y_h),
-                                     reinterpret_cast<__nv_bfloat16 *>(y_ref_h), x_elts, tol);
+        check_results<__nv_bfloat16>("y", reinterpret_cast<__nv_bfloat16*>(y_h),
+                                     reinterpret_cast<__nv_bfloat16*>(y_ref_h), x_elts, tol);
       } else {
-        check_results<__half>("y", reinterpret_cast<__half *>(y_h), reinterpret_cast<__half *>(y_ref_h), x_elts, tol);
+        check_results<__half>("y", reinterpret_cast<__half*>(y_h), reinterpret_cast<__half*>(y_ref_h), x_elts, tol);
       }
     }
   } else {

@@ -60,7 +60,7 @@ using mvec_type = typename MaskVecType<V>::type;
 // Helper class to calculate pointer offset that can be shared by different flavors of kernels.
 // For fwd, batch offset and stride are different for packing and non-packing mode.
 struct OffsetCalFwd {
-  __device__ __forceinline__ OffsetCalFwd(int64_t batch, const int64_t *batchOffset, int64_t maxFLen, int64_t maxGLen,
+  __device__ __forceinline__ OffsetCalFwd(int64_t batch, const int64_t* batchOffset, int64_t maxFLen, int64_t maxGLen,
                                           int64_t gLen, int64_t hiddenSize, bool packOutput)
       : batch(batch),
         batchOffset(batchOffset),
@@ -71,7 +71,7 @@ struct OffsetCalFwd {
         packOutput(packOutput) {}
 
   int64_t batch;
-  const int64_t *batchOffset;
+  const int64_t* batchOffset;
   int64_t maxFLen;
   int64_t maxGLen;
   int64_t gLen;
@@ -91,7 +91,7 @@ struct OffsetCalFwd {
 // The reducion is done for two input tensors. Therefore, generating two sets of offsets
 // according to bwdFasterDim can lead to a unified implementation in the actual kernel.
 struct OffsetCalBwd {
-  __device__ __forceinline__ OffsetCalBwd(int64_t batch, const int64_t *batchOffset, const int *fLen, const int *gLen,
+  __device__ __forceinline__ OffsetCalBwd(int64_t batch, const int64_t* batchOffset, const int* fLen, const int* gLen,
                                           int64_t maxFLen, int64_t maxGLen, int64_t hiddenSize, bool packOutput,
                                           bool bwdFasterDim)
       : batch(batch),
@@ -105,9 +105,9 @@ struct OffsetCalBwd {
         bwdFasterDim(bwdFasterDim) {}
 
   int64_t batch;
-  const int64_t *batchOffset;
-  const int *fLen;
-  const int *gLen;
+  const int64_t* batchOffset;
+  const int* fLen;
+  const int* gLen;
   int64_t maxFLen;
   int64_t maxGLen;
   int64_t hiddenSize;
@@ -154,9 +154,9 @@ struct OffsetCalBwd {
 // Don't-care region (t > fLen) or (u > gLen) is removed.
 // To enable packing, the starting offset for each batch need to be specified with batchOffset.
 template <typename scalar_t, class OffsetCal>
-__global__ void transducer_joint_forward(const scalar_t *f, const scalar_t *g, const int *fLen, const int *gLen,
-                                         const int64_t *batchOffset, int64_t maxFLen, int64_t maxGLen,
-                                         int64_t hiddenSize, bool packOutput, scalar_t *sum) {
+__global__ void transducer_joint_forward(const scalar_t* f, const scalar_t* g, const int* fLen, const int* gLen,
+                                         const int64_t* batchOffset, int64_t maxFLen, int64_t maxGLen,
+                                         int64_t hiddenSize, bool packOutput, scalar_t* sum) {
   const int batch = blockIdx.z;
   const int t = blockIdx.y;
   const int u = blockIdx.x;
@@ -166,9 +166,9 @@ __global__ void transducer_joint_forward(const scalar_t *f, const scalar_t *g, c
   OffsetCal offsetCal(batch, batchOffset, maxFLen, maxGLen, myGLen, hiddenSize, packOutput);
   const auto myBatchOffset = offsetCal.getBatchOffset();
   const auto strideF = offsetCal.getStrideF();
-  scalar_t const *myF = f + batch * maxFLen * hiddenSize + t * hiddenSize;
-  scalar_t const *myG = g + batch * maxGLen * hiddenSize + u * hiddenSize;
-  scalar_t *mySum = sum + myBatchOffset + t * strideF + u * hiddenSize;
+  scalar_t const* myF = f + batch * maxFLen * hiddenSize + t * hiddenSize;
+  scalar_t const* myG = g + batch * maxGLen * hiddenSize + u * hiddenSize;
+  scalar_t* mySum = sum + myBatchOffset + t * strideF + u * hiddenSize;
 
   if (t < myFLen and u < myGLen) {
 #pragma unroll
@@ -218,11 +218,11 @@ function is a masked operation, which is controlled by the template argument mas
 masks are saved to backward.
 */
 template <typename scalar_t, int tileF, int tileG, int U, class OffsetCal, bool masked>
-__global__ void transducer_joint_tiled_forward(const scalar_t *f, const scalar_t *g, const int *fLen, const int *gLen,
-                                               const int64_t *batchOffset, int64_t maxFLen, int64_t maxGLen,
+__global__ void transducer_joint_tiled_forward(const scalar_t* f, const scalar_t* g, const int* fLen, const int* gLen,
+                                               const int64_t* batchOffset, int64_t maxFLen, int64_t maxGLen,
                                                int64_t hiddenSize, int64_t hiddenPerBlock, bool packOutput, bool relu,
-                                               bool dropout, float p, at::PhiloxCudaState philoxArgs, scalar_t *sum,
-                                               uint8_t *mask) {
+                                               bool dropout, float p, at::PhiloxCudaState philoxArgs, scalar_t* sum,
+                                               uint8_t* mask) {
   static_assert(U == 4, "U has to be 4, as random numbers are generated in batch of 4");
 
   const int batch = blockIdx.z;
@@ -238,10 +238,10 @@ __global__ void transducer_joint_tiled_forward(const scalar_t *f, const scalar_t
   const auto myBatchOffset = offsetCal.getBatchOffset();
   const auto strideF = offsetCal.getStrideF();
 
-  scalar_t const *myF = f + batch * maxFLen * hiddenSize + t * hiddenSize + hOffset;
-  scalar_t const *myG = g + batch * maxGLen * hiddenSize + u * hiddenSize + hOffset;
-  scalar_t *mySum = sum + myBatchOffset + t * strideF + u * hiddenSize + hOffset;
-  uint8_t *myMask = mask + myBatchOffset + t * strideF + u * hiddenSize + hOffset;
+  scalar_t const* myF = f + batch * maxFLen * hiddenSize + t * hiddenSize + hOffset;
+  scalar_t const* myG = g + batch * maxGLen * hiddenSize + u * hiddenSize + hOffset;
+  scalar_t* mySum = sum + myBatchOffset + t * strideF + u * hiddenSize + hOffset;
+  uint8_t* myMask = mask + myBatchOffset + t * strideF + u * hiddenSize + hOffset;
 
   // The following code is only needed for dropout. We try to bypass them as much as possible.
   auto seeds = masked ? at::cuda::philox::unpack(philoxArgs)
@@ -327,11 +327,11 @@ When ReLU and/or dropout are performed in the fwd pass, this operation becomes a
 and mask contains the mask information.
 */
 template <typename scalar_t, typename acc_t, class OffsetCal, bool masked>
-__device__ void transducer_joint_single_backward(const scalar_t *grad, const uint8_t *mask, const int *fLen,
-                                                 const int *gLen, const int64_t *batchOffset, int64_t maxFLen,
+__device__ void transducer_joint_single_backward(const scalar_t* grad, const uint8_t* mask, const int* fLen,
+                                                 const int* gLen, const int64_t* batchOffset, int64_t maxFLen,
                                                  int64_t maxGLen, int64_t hiddenSize, bool packOutput,
                                                  bool bwdFasterDim,  // whether bwd on the faster moving dimension (u)
-                                                 float scale, scalar_t *inGrad, int yBlockOffset = 0) {
+                                                 float scale, scalar_t* inGrad, int yBlockOffset = 0) {
   const int batch = blockIdx.z;
   // For the second input tensor, this offset need to be subtracted because the first yBlockOffset
   // sets of thread blocks are for the first input tensor.
@@ -341,20 +341,20 @@ __device__ void transducer_joint_single_backward(const scalar_t *grad, const uin
   const int lid = threadIdx.x;
   const int numWarp = blockDim.y;
   extern __shared__ char smem8[];
-  auto smem = reinterpret_cast<acc_t *>(smem8);
+  auto smem = reinterpret_cast<acc_t*>(smem8);
 
   OffsetCal offsetCal(batch, batchOffset, fLen, gLen, maxFLen, maxGLen, hiddenSize, packOutput, bwdFasterDim);
   const auto maxXLen = offsetCal.getMaxXLen();
   const auto myXLen = offsetCal.getMyXLen();
   const auto myYLen = offsetCal.getMyYLen();
-  scalar_t *myInGrad = inGrad + batch * maxXLen * hiddenSize + x * hiddenSize + hOffset;
+  scalar_t* myInGrad = inGrad + batch * maxXLen * hiddenSize + x * hiddenSize + hOffset;
 
   if (x < myXLen) {
     const auto myBatchOffset = offsetCal.getBatchOffset();
     const auto strideX = offsetCal.getStrideX();
     const auto strideY = offsetCal.getStrideY();
-    const scalar_t *myGrad = grad + myBatchOffset + x * strideX + hOffset;
-    const uint8_t *myMask = masked ? mask + myBatchOffset + x * strideX + hOffset : nullptr;
+    const scalar_t* myGrad = grad + myBatchOffset + x * strideX + hOffset;
+    const uint8_t* myMask = masked ? mask + myBatchOffset + x * strideX + hOffset : nullptr;
 
     // Each warp reduces numYPerWarp "y" first
     acc_t warpSum = 0;
@@ -401,10 +401,10 @@ When ReLU and/or dropout are performed in the fwd pass, this operation becomes a
 and mask contains the mask information.
 */
 template <typename scalar_t, typename acc_t, class OffsetCal, bool masked>
-__global__ void transducer_joint_combined_backward(const scalar_t *grad, const uint8_t *mask, const int *fLen,
-                                                   const int *gLen, const int64_t *batchOffset, int64_t maxFLen,
+__global__ void transducer_joint_combined_backward(const scalar_t* grad, const uint8_t* mask, const int* fLen,
+                                                   const int* gLen, const int64_t* batchOffset, int64_t maxFLen,
                                                    int64_t maxGLen, int64_t hiddenSize, bool packOutput, float scale,
-                                                   scalar_t *fGrad, scalar_t *gGrad) {
+                                                   scalar_t* fGrad, scalar_t* gGrad) {
   if (blockIdx.y < maxFLen) {
     transducer_joint_single_backward<scalar_t, acc_t, OffsetCal, masked>(
         grad, mask, fLen, gLen, batchOffset, maxFLen, maxGLen, hiddenSize, packOutput, false, scale, fGrad);
@@ -424,10 +424,10 @@ When ReLU and/or dropout are performed in the fwd pass, this operation becomes a
 and mask contains the mask information.
 */
 template <typename scalar_t, typename acc_t, typename vec_t, int V, class OffsetCal, bool masked>
-__device__ void transducer_joint_single_vec_backward(const scalar_t *grad, const uint8_t *mask, const int *fLen,
-                                                     const int *gLen, const int64_t *batchOffset, int64_t maxFLen,
+__device__ void transducer_joint_single_vec_backward(const scalar_t* grad, const uint8_t* mask, const int* fLen,
+                                                     const int* gLen, const int64_t* batchOffset, int64_t maxFLen,
                                                      int64_t maxGLen, int64_t hiddenSize, bool packOutput,
-                                                     bool bwdFasterDim, float scale, scalar_t *inGrad,
+                                                     bool bwdFasterDim, float scale, scalar_t* inGrad,
                                                      int yBlockOffset = 0) {
   const int batch = blockIdx.z;
   const int x = blockIdx.y - yBlockOffset;
@@ -443,23 +443,23 @@ __device__ void transducer_joint_single_vec_backward(const scalar_t *grad, const
   const auto maxXLen = offsetCal.getMaxXLen();
   const auto myXLen = offsetCal.getMyXLen();
   const auto myYLen = offsetCal.getMyYLen();
-  scalar_t *myInGrad = inGrad + batch * maxXLen * hiddenSize + x * hiddenSize + hOffset;
+  scalar_t* myInGrad = inGrad + batch * maxXLen * hiddenSize + x * hiddenSize + hOffset;
   extern __shared__ char smem8[];
-  auto smem = reinterpret_cast<acc_t *>(smem8);
+  auto smem = reinterpret_cast<acc_t*>(smem8);
 
   acc_t warpSum[V];
   scalar_t inBuffer[V];
   uint8_t maskBuffer[V];
   scalar_t outBuffer[V];
-  auto myInGradVec = reinterpret_cast<vec_t *>(myInGrad);
-  auto outBufferVec = reinterpret_cast<vec_t *>(outBuffer);
+  auto myInGradVec = reinterpret_cast<vec_t*>(myInGrad);
+  auto outBufferVec = reinterpret_cast<vec_t*>(outBuffer);
 
   if (x < myXLen) {
     const auto myBatchOffset = offsetCal.getBatchOffset();
     const auto strideX = offsetCal.getStrideX();
     const auto strideY = offsetCal.getStrideY();
-    const scalar_t *myGrad = grad + myBatchOffset + x * strideX + hOffset;
-    const uint8_t *myMask = masked ? mask + myBatchOffset + x * strideX + hOffset : nullptr;
+    const scalar_t* myGrad = grad + myBatchOffset + x * strideX + hOffset;
+    const uint8_t* myMask = masked ? mask + myBatchOffset + x * strideX + hOffset : nullptr;
 
     for (int i = 0; i < V; ++i) warpSum[i] = 0;
 
@@ -467,10 +467,10 @@ __device__ void transducer_joint_single_vec_backward(const scalar_t *grad, const
     auto numYPerWarp = (myYLen + numWarp - 1) / numWarp;
     for (int warpY = 0; warpY < numYPerWarp; ++warpY) {
       auto y = wid * numYPerWarp + warpY;
-      auto myGradVec = reinterpret_cast<vec_t const *>(myGrad + y * strideY);
-      auto myMaskVec = masked ? reinterpret_cast<mvec_t const *>(myMask + y * strideY) : nullptr;
-      auto inBufferVec = reinterpret_cast<vec_t *>(inBuffer);
-      auto maskBufferVec = reinterpret_cast<mvec_t *>(maskBuffer);
+      auto myGradVec = reinterpret_cast<vec_t const*>(myGrad + y * strideY);
+      auto myMaskVec = masked ? reinterpret_cast<mvec_t const*>(myMask + y * strideY) : nullptr;
+      auto inBufferVec = reinterpret_cast<vec_t*>(inBuffer);
+      auto maskBufferVec = reinterpret_cast<mvec_t*>(maskBuffer);
       if (hOffset + lid * V < hiddenSize and y < myYLen) {
         *inBufferVec = myGradVec[lid];  // vectorized load
         if (masked) {
@@ -522,10 +522,10 @@ When ReLU and/or dropout are performed in the fwd pass, this operation becomes a
 and mask contains the mask information.
 */
 template <typename scalar_t, typename acc_t, typename vec_t, int V, class OffsetCal, bool masked>
-__global__ void transducer_joint_combined_vec_backward(const scalar_t *grad, const uint8_t *mask, const int *fLen,
-                                                       const int *gLen, const int64_t *batchOffset, int64_t maxFLen,
+__global__ void transducer_joint_combined_vec_backward(const scalar_t* grad, const uint8_t* mask, const int* fLen,
+                                                       const int* gLen, const int64_t* batchOffset, int64_t maxFLen,
                                                        int64_t maxGLen, int64_t hiddenSize, bool packOutput,
-                                                       float scale, scalar_t *fGrad, scalar_t *gGrad) {
+                                                       float scale, scalar_t* fGrad, scalar_t* gGrad) {
   if (blockIdx.y < maxFLen) {
     transducer_joint_single_vec_backward<scalar_t, acc_t, vec_t, V, OffsetCal, masked>(
         grad, mask, fLen, gLen, batchOffset, maxFLen, maxGLen, hiddenSize, packOutput, false, scale, fGrad);
@@ -547,7 +547,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
   const auto hiddenSize = f.size(2);
   bool masked = dropout or relu;
 
-  int64_t *batchOffsetPtr = nullptr;
+  int64_t* batchOffsetPtr = nullptr;
   torch::Tensor sum, mask;
   auto maskOpt = tensorOpt.dtype(torch::kUInt8);
   if (!packOutput) {
@@ -559,7 +559,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
     batchOffsetPtr = batchOffset.data_ptr<int64_t>();
     if (masked) mask = torch::empty({packedBatch, hiddenSize}, maskOpt);
   }
-  uint8_t *maskPtr = masked ? mask.data_ptr<uint8_t>() : nullptr;
+  uint8_t* maskPtr = masked ? mask.data_ptr<uint8_t>() : nullptr;
 
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
@@ -610,9 +610,8 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         dtype, "transducer_joint_forward", ([&] {
-          void (*kernel)(const scalar_t *, const scalar_t *, const int *, const int *, const int64_t *, int64_t,
-                         int64_t, int64_t, int64_t, bool, bool, bool, float, at::PhiloxCudaState, scalar_t *,
-                         uint8_t *);
+          void (*kernel)(const scalar_t*, const scalar_t*, const int*, const int*, const int64_t*, int64_t, int64_t,
+                         int64_t, int64_t, bool, bool, bool, float, at::PhiloxCudaState, scalar_t*, uint8_t*);
           if (masked) {
             switch (tileSize) {
               case 2:
@@ -655,7 +654,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
                                                           int maxGLen, bool packOutput, float scale) {
   auto grad = in[0];
   bool masked = (in.size() == 2);
-  uint8_t *maskPtr = masked ? in[1].data_ptr<uint8_t>() : nullptr;
+  uint8_t* maskPtr = masked ? in[1].data_ptr<uint8_t>() : nullptr;
 
   auto tensorOpt = grad.options();
   auto dtype = grad.scalar_type();
@@ -668,7 +667,7 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
   torch::Tensor fGrad = torch::empty({batchSize, maxFLen, hiddenSize}, tensorOpt);
   torch::Tensor gGrad = torch::empty({batchSize, maxGLen, hiddenSize}, tensorOpt);
 
-  int64_t *batchOffsetPtr = (!packOutput) ? nullptr : batchOffset.data_ptr<int64_t>();
+  int64_t* batchOffsetPtr = (!packOutput) ? nullptr : batchOffset.data_ptr<int64_t>();
 
   // The number "y" I would like each thread to work on
   const int workPerThread = 32;

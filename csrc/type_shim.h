@@ -261,7 +261,7 @@
   }
 
 template <typename T>
-__device__ __forceinline__ T reduce_block_into_lanes(T *x, T val, int lanes = 1,
+__device__ __forceinline__ T reduce_block_into_lanes(T* x, T val, int lanes = 1,
                                                      bool share_result = false)  // lanes is intended to be <= 32.
 {
   int tid = threadIdx.x + threadIdx.y * blockDim.x;
@@ -285,7 +285,7 @@ __device__ __forceinline__ T reduce_block_into_lanes(T *x, T val, int lanes = 1,
       final = x[tid] + x[tid + 32];
     else
       final = val;
-      // __SYNCWARP();
+    // __SYNCWARP();
 
 #pragma unroll
     for (int i = 16; i >= lanes; i >>= 1) final = final + __shfl_down_sync(0xffffffff, final, i);
@@ -303,7 +303,7 @@ __device__ __forceinline__ T reduce_block_into_lanes(T *x, T val, int lanes = 1,
 
 template <typename T>
 __device__ __forceinline__ T
-reduce_block_into_lanes_max_op(T *x, T val, int lanes = 1,
+reduce_block_into_lanes_max_op(T* x, T val, int lanes = 1,
                                bool share_result = false)  // lanes is intended to be <= 32.
 {
   int tid = threadIdx.x + threadIdx.y * blockDim.x;
@@ -327,7 +327,7 @@ reduce_block_into_lanes_max_op(T *x, T val, int lanes = 1,
       final = fmaxf(fabsf(x[tid]), fabsf(x[tid + 32]));
     else
       final = val;
-      // __SYNCWARP();
+    // __SYNCWARP();
 
 #pragma unroll
     for (int i = 16; i >= lanes; i >>= 1) final = fmaxf(fabsf(final), fabsf(__shfl_down_sync(0xffffffff, final, i)));

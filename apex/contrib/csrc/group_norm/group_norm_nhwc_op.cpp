@@ -69,11 +69,11 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch
   memset(&params_fwd, 0, sizeof(params_fwd));
 
   // Initialize the parameters.
-  params_fwd.y = reinterpret_cast<void *>(output.data_ptr());
-  params_fwd.sums = reinterpret_cast<float2 *>(sums_d.data_ptr());
-  params_fwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
-  params_fwd.gamma = const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
-  params_fwd.beta = const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
+  params_fwd.y = reinterpret_cast<void*>(output.data_ptr());
+  params_fwd.sums = reinterpret_cast<float2*>(sums_d.data_ptr());
+  params_fwd.x = const_cast<void*>(reinterpret_cast<void*>(input.data_ptr()));
+  params_fwd.gamma = const_cast<void*>(reinterpret_cast<void*>(weight.data_ptr()));
+  params_fwd.beta = const_cast<void*>(reinterpret_cast<void*>(bias.data_ptr()));
   params_fwd.epsilon = eps;
   params_fwd.n = n;
   params_fwd.h = h;
@@ -178,15 +178,15 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tens
   memset(&params_bwd, 0, sizeof(params_bwd));
 
   // Initialize the parameters.
-  params_bwd.dx = reinterpret_cast<void *>(grad_input.data_ptr());
-  params_bwd.dgamma = reinterpret_cast<void *>(grad_weight.data_ptr());
-  params_bwd.dbeta = reinterpret_cast<void *>(grad_bias.data_ptr());
-  params_bwd.sums = const_cast<float2 *>(reinterpret_cast<float2 *>(sums.data_ptr()));
-  params_bwd.dy = const_cast<void *>(reinterpret_cast<void *>(grad_output.data_ptr()));
-  params_bwd.x = const_cast<void *>(reinterpret_cast<void *>(input.data_ptr()));
+  params_bwd.dx = reinterpret_cast<void*>(grad_input.data_ptr());
+  params_bwd.dgamma = reinterpret_cast<void*>(grad_weight.data_ptr());
+  params_bwd.dbeta = reinterpret_cast<void*>(grad_bias.data_ptr());
+  params_bwd.sums = const_cast<float2*>(reinterpret_cast<float2*>(sums.data_ptr()));
+  params_bwd.dy = const_cast<void*>(reinterpret_cast<void*>(grad_output.data_ptr()));
+  params_bwd.x = const_cast<void*>(reinterpret_cast<void*>(input.data_ptr()));
   ;
-  params_bwd.gamma = const_cast<void *>(reinterpret_cast<void *>(weight.data_ptr()));
-  params_bwd.beta = const_cast<void *>(reinterpret_cast<void *>(bias.data_ptr()));
+  params_bwd.gamma = const_cast<void*>(reinterpret_cast<void*>(weight.data_ptr()));
+  params_bwd.beta = const_cast<void*>(reinterpret_cast<void*>(bias.data_ptr()));
   ;
   params_bwd.epsilon = eps;
   params_bwd.n = n;

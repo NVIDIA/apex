@@ -5,23 +5,23 @@
 #include <vector>
 
 template <typename T>
-int linear_bias_forward_cuda(at::Tensor input, T *weight, at::Tensor bias, int in_features, int batch_size,
-                             int out_features, at::Tensor output, void *lt_workspace);
+int linear_bias_forward_cuda(at::Tensor input, T* weight, at::Tensor bias, int in_features, int batch_size,
+                             int out_features, at::Tensor output, void* lt_workspace);
 
 template <typename T>
-int linear_bias_backward_cuda(T *input, T *weight, T *d_output, int in_features, int batch_size, int out_features,
-                              T *d_weight, T *d_bias, T *d_input, void *lt_workspace);
+int linear_bias_backward_cuda(T* input, T* weight, T* d_output, int in_features, int batch_size, int out_features,
+                              T* d_weight, T* d_bias, T* d_input, void* lt_workspace);
 
 template <typename T>
-int linear_gelu_linear_forward_cuda(T *input, T *weight1, T *bias1, T *weight2, T *bias2, int in_features,
-                                    int hidden_features, int batch_size, int out_features, T *output1, T *output2,
-                                    T *gelu_in, void *lt_workspace);
+int linear_gelu_linear_forward_cuda(T* input, T* weight1, T* bias1, T* weight2, T* bias2, int in_features,
+                                    int hidden_features, int batch_size, int out_features, T* output1, T* output2,
+                                    T* gelu_in, void* lt_workspace);
 
 template <typename T>
-int linear_gelu_linear_backward_cuda(T *input, T *gelu_in, T *output1, T *weight1, T *weight2, T *d_output1,
-                                     T *d_output2, int in_features, int batch_size, int hidden_features,
-                                     int out_features, T *d_weight1, T *d_weight2, T *d_bias1, T *d_bias2, T *d_input,
-                                     void *lt_workspace);
+int linear_gelu_linear_backward_cuda(T* input, T* gelu_in, T* output1, T* weight1, T* weight2, T* d_output1,
+                                     T* d_output2, int in_features, int batch_size, int hidden_features,
+                                     int out_features, T* d_weight1, T* d_weight2, T* d_bias1, T* d_bias2, T* d_input,
+                                     void* lt_workspace);
 
 at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor bias) {
   auto batch_size = input.size(0);
@@ -39,13 +39,13 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
 
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_forward", [&] {
-        scalar_t *w_ptr = weight.data_ptr<scalar_t>();
-        scalar_t *b_ptr = bias.data_ptr<scalar_t>();
+        scalar_t* w_ptr = weight.data_ptr<scalar_t>();
+        scalar_t* b_ptr = bias.data_ptr<scalar_t>();
         [[maybe_unused]] auto result =
             linear_bias_forward_cuda<scalar_t>(input, w_ptr, bias, in_features, batch_size, out_features, out,
                                                // out.data_ptr<scalar_t>(),
                                                // reserved_space.data_ptr<scalar_t>(),
-                                               (void *)(lt_workspace.data_ptr<scalar_t>()));
+                                               (void*)(lt_workspace.data_ptr<scalar_t>()));
       });
 
   return {out};
@@ -73,13 +73,13 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
 
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
-        scalar_t *w_ptr = weight.data_ptr<scalar_t>();
-        scalar_t *d_b_ptr = d_bias.data_ptr<scalar_t>();
+        scalar_t* w_ptr = weight.data_ptr<scalar_t>();
+        scalar_t* d_b_ptr = d_bias.data_ptr<scalar_t>();
         [[maybe_unused]] auto result = linear_bias_backward_cuda<scalar_t>(
             input.data_ptr<scalar_t>(), w_ptr, d_output.data_ptr<scalar_t>(), in_features, batch_size, out_features,
             d_weight.data_ptr<scalar_t>(), d_bias.data_ptr<scalar_t>(), d_input.data_ptr<scalar_t>(),
             // reserved_space.data_ptr<scalar_t>(),
-            (void *)(lt_workspace.data_ptr<scalar_t>()));
+            (void*)(lt_workspace.data_ptr<scalar_t>()));
       });
 
   return {d_input, d_weight, d_bias};
@@ -105,15 +105,15 @@ std::vector<at::Tensor> linear_gelu_linear_forward(at::Tensor input, at::Tensor 
 
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_gelu_linear_forward", [&] {
-        scalar_t *w1_ptr = weight1.data_ptr<scalar_t>();
-        scalar_t *b1_ptr = bias1.data_ptr<scalar_t>();
-        scalar_t *w2_ptr = weight2.data_ptr<scalar_t>();
-        scalar_t *b2_ptr = bias2.data_ptr<scalar_t>();
+        scalar_t* w1_ptr = weight1.data_ptr<scalar_t>();
+        scalar_t* b1_ptr = bias1.data_ptr<scalar_t>();
+        scalar_t* w2_ptr = weight2.data_ptr<scalar_t>();
+        scalar_t* b2_ptr = bias2.data_ptr<scalar_t>();
         [[maybe_unused]] auto result = linear_gelu_linear_forward_cuda<scalar_t>(
             input.data_ptr<scalar_t>(), w1_ptr, b1_ptr, w2_ptr, b2_ptr, in_features, hidden_features, batch_size,
             out_features, output1.data_ptr<scalar_t>(), output2.data_ptr<scalar_t>(), gelu_in.data_ptr<scalar_t>(),
             // reserved_space.data_ptr<scalar_t>(),
-            (void *)(lt_workspace.data_ptr<scalar_t>()));
+            (void*)(lt_workspace.data_ptr<scalar_t>()));
       });
 
   return {output1, output2, gelu_in};
@@ -151,7 +151,7 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
             d_weight1.data_ptr<scalar_t>(), d_weight2.data_ptr<scalar_t>(), d_bias1.data_ptr<scalar_t>(),
             d_bias2.data_ptr<scalar_t>(), d_input.data_ptr<scalar_t>(),
             // reserved_space.data_ptr<scalar_t>(),
-            (void *)(lt_workspace.data_ptr<scalar_t>()));
+            (void*)(lt_workspace.data_ptr<scalar_t>()));
       });
 
   return {d_input, d_weight1, d_bias1, d_weight2, d_bias2};

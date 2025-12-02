@@ -45,7 +45,7 @@ __global__ void fmha_fprop_fp16_512_64_sm80_kernel_nl(Fused_multihead_attention_
                                                rest_steps);
 }
 
-void run_fmha_fp16_512_64_sm80_(Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
+void run_fmha_fp16_512_64_sm80_(Launch_params<Fused_multihead_attention_fprop_params>& launch_params,
                                 const bool configure) {
   auto kernel = launch_params.is_training ? &fmha_fprop_fp16_512_64_sm80_kernel<true>
                                           : &fmha_fprop_fp16_512_64_sm80_kernel<false>;
@@ -81,7 +81,7 @@ void run_fmha_fp16_512_64_sm80_(Launch_params<Fused_multihead_attention_fprop_pa
   FMHA_CHECK_CUDA(cudaPeekAtLastError());
 }
 
-void run_fmha_fp16_512_64_sm80_nl_(Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
+void run_fmha_fp16_512_64_sm80_nl_(Launch_params<Fused_multihead_attention_fprop_params>& launch_params,
                                    const bool configure) {
   auto kernel = launch_params.is_training ? &fmha_fprop_fp16_512_64_sm80_kernel_nl<true>
                                           : &fmha_fprop_fp16_512_64_sm80_kernel_nl<false>;
@@ -114,7 +114,7 @@ void run_fmha_fp16_512_64_sm80_nl_(Launch_params<Fused_multihead_attention_fprop
   FMHA_CHECK_CUDA(cudaPeekAtLastError());
 }
 
-void run_fmha_fp16_512_64_sm80(Launch_params<Fused_multihead_attention_fprop_params> &launch_params,
+void run_fmha_fp16_512_64_sm80(Launch_params<Fused_multihead_attention_fprop_params>& launch_params,
                                const bool configure) {
   if (launch_params.is_nl) {
     run_fmha_fp16_512_64_sm80_nl_(launch_params, configure);

@@ -21,7 +21,7 @@
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs, const bool transpose_output) {
+torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -62,7 +62,7 @@ torch::Tensor fwd_cuda(const torch::Tensor &input, const torch::Tensor &freqs, c
   return output;
 }
 
-torch::Tensor bwd_cuda(const torch::Tensor &output_grads, const torch::Tensor &freqs, const bool transpose_output) {
+torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& freqs, const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -156,7 +156,7 @@ torch::Tensor bwd_cuda(const torch::Tensor &output_grads, const torch::Tensor &f
       TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'");     \
   }
 
-torch::Tensor fwd_cached_cuda(const torch::Tensor &input, const torch::Tensor &cos, const torch::Tensor &sin,
+torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& cos, const torch::Tensor& sin,
                               const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
@@ -198,7 +198,7 @@ torch::Tensor fwd_cached_cuda(const torch::Tensor &input, const torch::Tensor &c
   return output;
 }
 
-torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos, const torch::Tensor &sin,
+torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos, const torch::Tensor& sin,
                               const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
@@ -238,7 +238,7 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor &output_grads, const torch::Te
   return input_grads;
 }
 
-torch::Tensor fwd_thd_cuda(const torch::Tensor &input, const torch::Tensor &cu_seqlens, const torch::Tensor &freqs) {
+torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
   // input sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
   // h: head num
@@ -272,8 +272,8 @@ torch::Tensor fwd_thd_cuda(const torch::Tensor &input, const torch::Tensor &cu_s
   return output;
 }
 
-torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads, const torch::Tensor &cu_seqlens,
-                           const torch::Tensor &freqs) {
+torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens,
+                           const torch::Tensor& freqs) {
   // output_grads sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
   // h: head num
@@ -305,8 +305,8 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor &output_grads, const torch::Tenso
   return input_grads;
 }
 
-torch::Tensor fwd_2d_cuda(const torch::Tensor &input, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
+torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                          const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
   // input sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height
@@ -343,8 +343,8 @@ torch::Tensor fwd_2d_cuda(const torch::Tensor &input, const torch::Tensor &cos_h
   return output;
 }
 
-torch::Tensor bwd_2d_cuda(const torch::Tensor &output_grads, const torch::Tensor &cos_h, const torch::Tensor &sin_h,
-                          const torch::Tensor &cos_w, const torch::Tensor &sin_w) {
+torch::Tensor bwd_2d_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
+                          const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
   // output_grads sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height

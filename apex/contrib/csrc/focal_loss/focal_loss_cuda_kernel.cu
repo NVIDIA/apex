@@ -9,21 +9,21 @@ typedef uint4 vector_t;
   TORCH_INTERNAL_ASSERT(is_aligned<DTYPE>(PTR), "Tensor " #PTR " is not " #DTYPE " aligned")
 
 template <class T>
-bool is_aligned(const void *ptr) noexcept {
+bool is_aligned(const void* ptr) noexcept {
   auto iptr = reinterpret_cast<std::uintptr_t>(ptr);
   return !(iptr % alignof(T));
 }
 
 template <bool SMOOTHING, int ILP, typename scalar_t, typename labelscalar_t, typename accscalar_t,
           typename outscalar_t>
-__global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *partial_grad,
-                                               const scalar_t *__restrict__ cls_output,
-                                               const labelscalar_t *__restrict__ cls_targets_at_level,
-                                               const float *__restrict__ num_positives_sum, const int64_t num_examples,
+__global__ void focal_loss_forward_cuda_kernel(outscalar_t* loss, scalar_t* partial_grad,
+                                               const scalar_t* __restrict__ cls_output,
+                                               const labelscalar_t* __restrict__ cls_targets_at_level,
+                                               const float* __restrict__ num_positives_sum, const int64_t num_examples,
                                                const int64_t num_classes, const int64_t num_real_classes,
                                                const float alpha, const float gamma, const float smoothing_factor) {
   extern __shared__ unsigned char shm[];
-  accscalar_t *loss_shm = reinterpret_cast<accscalar_t *>(shm);
+  accscalar_t* loss_shm = reinterpret_cast<accscalar_t*>(shm);
   loss_shm[threadIdx.x] = 0;
   accscalar_t loss_acc = 0;
 
@@ -50,15 +50,15 @@ __global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *part
     int64_t base_yid = i % num_classes;
 
     int64_t pos_idx = idy * num_classes + y;
-    p_vec = *(vector_t *)&cls_output[i];  // Vectorized load
+    p_vec = *(vector_t*)&cls_output[i];  // Vectorized load
 
     // Skip ignored matches
     if (y == -2) {
 #pragma unroll
       for (int j = 0; j < ILP; j++) {
-        *((scalar_t *)(&grad_vec) + j) = 0;
+        *((scalar_t*)(&grad_vec) + j) = 0;
       }
-      *(vector_t *)&partial_grad[i] = grad_vec;
+      *(vector_t*)&partial_grad[i] = grad_vec;
       continue;
     }
 
@@ -66,11 +66,11 @@ __global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *part
     for (int j = 0; j < ILP; j++) {
       // Skip the pad classes
       if (base_yid + j >= num_real_classes) {
-        *((scalar_t *)(&grad_vec) + j) = 0;
+        *((scalar_t*)(&grad_vec) + j) = 0;
         continue;
       }
 
-      accscalar_t p = static_cast<accscalar_t>(*((scalar_t *)(&p_vec) + j));
+      accscalar_t p = static_cast<accscalar_t>(*((scalar_t*)(&p_vec) + j));
       accscalar_t exp_np = ::exp(-p);
       accscalar_t exp_pp = ::exp(p);
       accscalar_t sigma = one / (one + exp_np);
@@ -107,11 +107,11 @@ __global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *part
       // sensitive to the small gradient. No worry on overflow here since
       // gradient has relative smaller range than input.
       loss_acc += loss_t;
-      *((scalar_t *)(&grad_vec) + j) = static_cast<scalar_t>(grad);
+      *((scalar_t*)(&grad_vec) + j) = static_cast<scalar_t>(grad);
     }
 
     // This may generate two vectorized stores instead of one
-    *(vector_t *)&partial_grad[i] = grad_vec;
+    *(vector_t*)&partial_grad[i] = grad_vec;
   }
   loss_shm[threadIdx.x] = loss_acc;
 
@@ -132,8 +132,8 @@ __global__ void focal_loss_forward_cuda_kernel(outscalar_t *loss, scalar_t *part
 }
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t>
-__global__ void focal_loss_backward_cuda_kernel(scalar_t *partial_grad, const outscalar_t *__restrict__ grad_output,
-                                                const float *__restrict__ num_positives_sum, const uint64_t numel) {
+__global__ void focal_loss_backward_cuda_kernel(scalar_t* partial_grad, const outscalar_t* __restrict__ grad_output,
+                                                const float* __restrict__ num_positives_sum, const uint64_t numel) {
   int64_t idx = (blockIdx.x * blockDim.x + threadIdx.x) * ILP;
 
   accscalar_t normalizer = static_cast<accscalar_t>(grad_output[0]) / static_cast<accscalar_t>(num_positives_sum[0]);
@@ -143,18 +143,18 @@ __global__ void focal_loss_backward_cuda_kernel(scalar_t *partial_grad, const ou
   if (idx >= numel) return;
 
   vector_t grad_vec;
-  grad_vec = *(vector_t *)&partial_grad[idx];
+  grad_vec = *(vector_t*)&partial_grad[idx];
 #pragma unroll(ILP)
   for (int i = 0; i < ILP; i++) {
-    auto grad = static_cast<accscalar_t>(*((scalar_t *)(&grad_vec) + i));
+    auto grad = static_cast<accscalar_t>(*((scalar_t*)(&grad_vec) + i));
     grad *= normalizer;
-    *((scalar_t *)(&grad_vec) + i) = static_cast<scalar_t>(grad);
+    *((scalar_t*)(&grad_vec) + i) = static_cast<scalar_t>(grad);
   }
-  *(vector_t *)&partial_grad[idx] = grad_vec;
+  *(vector_t*)&partial_grad[idx] = grad_vec;
 }
 
-std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor &cls_output, const at::Tensor &cls_targets_at_level,
-                                                const at::Tensor &num_positives_sum, const int64_t num_real_classes,
+std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor& cls_output, const at::Tensor& cls_targets_at_level,
+                                                const at::Tensor& num_positives_sum, const int64_t num_real_classes,
                                                 const float alpha, const float gamma, const float smoothing_factor) {
   // Checks required for correctness
   TORCH_INTERNAL_ASSERT(cls_output.size(-1) >= num_real_classes, "Incorrect number of real classes.");
@@ -226,8 +226,8 @@ std::vector<at::Tensor> focal_loss_forward_cuda(const at::Tensor &cls_output, co
   return {loss, partial_grad};
 }
 
-at::Tensor focal_loss_backward_cuda(const at::Tensor &grad_output, const at::Tensor &partial_grad,
-                                    const at::Tensor &num_positives_sum) {
+at::Tensor focal_loss_backward_cuda(const at::Tensor& grad_output, const at::Tensor& partial_grad,
+                                    const at::Tensor& num_positives_sum) {
   // Each thread process ILP elements
   const int ILP = sizeof(vector_t) / partial_grad.element_size();
   dim3 block(512);
