@@ -1,8 +1,9 @@
 #ifdef TORCH_STABLE_ONLY
-#include <torch/csrc/stable/tensor.h>
-#include <torch/csrc/stable/accelerator.h>
 #include <torch/csrc/inductor/aoti_torch/c/shim.h>
+#include <torch/csrc/stable/accelerator.h>
+#include <torch/csrc/stable/tensor.h>
 #include <torch/headeronly/types.h>
+
 #include "stable_abi_utils.h"
 #else
 #include <ATen/ATen.h>
@@ -21,28 +22,27 @@
 // Namespace aliases for dual-build support
 #ifdef TORCH_STABLE_ONLY
 namespace apex_tensor {
-  using Tensor = torch::stable::Tensor;
-  using MemoryFormat = apex::stable::MemoryFormat;
-  namespace device = torch::headeronly;
+using Tensor = torch::stable::Tensor;
+using MemoryFormat = apex::stable::MemoryFormat;
+namespace device = torch::headeronly;
 
-  inline bool is_contiguous_any_format(const Tensor& t) {
-    return apex::stable::is_contiguous(t, MemoryFormat::Contiguous) ||
-           apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast) ||
-           apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast3d);
-  }
+inline bool is_contiguous_any_format(const Tensor& t) {
+  return apex::stable::is_contiguous(t, MemoryFormat::Contiguous) ||
+         apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast) ||
+         apex::stable::is_contiguous(t, MemoryFormat::ChannelsLast3d);
 }
+}  // namespace apex_tensor
 #else
 namespace apex_tensor {
-  using Tensor = at::Tensor;
-  using MemoryFormat = at::MemoryFormat;
-  namespace device = at;
+using Tensor = at::Tensor;
+using MemoryFormat = at::MemoryFormat;
+namespace device = at;
 
-  inline bool is_contiguous_any_format(const Tensor& t) {
-    return t.is_contiguous() ||
-           t.is_contiguous(at::MemoryFormat::ChannelsLast) ||
-           t.is_contiguous(at::MemoryFormat::ChannelsLast3d);
-  }
+inline bool is_contiguous_any_format(const Tensor& t) {
+  return t.is_contiguous() || t.is_contiguous(at::MemoryFormat::ChannelsLast) ||
+         t.is_contiguous(at::MemoryFormat::ChannelsLast3d);
 }
+}  // namespace apex_tensor
 #endif
 
 // TODO:  Kernel arg size limit may be <4KB for some other cards (ie Jetson)
@@ -67,7 +67,8 @@ __global__ void multi_tensor_apply_kernel(int64_t chunk_size, volatile int* noop
 
 template <int depth, typename T, typename... ArgTypes>
 void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const apex_tensor::Tensor& noop_flag,
-                        const std::vector<std::vector<apex_tensor::Tensor>>& tensor_lists, T callable, ArgTypes... args) {
+                        const std::vector<std::vector<apex_tensor::Tensor>>& tensor_lists, T callable,
+                        ArgTypes... args) {
   TORCH_CHECK(tensor_lists.size() == depth, "tensor_lists.size() != depth");
   int len0 = tensor_lists[0].size();
   TORCH_CHECK(len0 > 0, "tensor_lists[0].size() is not > 0");
@@ -100,9 +101,7 @@ void multi_tensor_apply(int64_t block_size, int64_t chunk_size, const apex_tenso
   // Get current CUDA stream using stable ABI C API
   void* stream_ptr = nullptr;
   auto err = aoti_torch_get_current_cuda_stream(device_index, &stream_ptr);
-  cudaStream_t stream = (err == AOTI_TORCH_SUCCESS)
-                        ? reinterpret_cast<cudaStream_t>(stream_ptr)
-                        : nullptr;
+  cudaStream_t stream = (err == AOTI_TORCH_SUCCESS) ? reinterpret_cast<cudaStream_t>(stream_ptr) : nullptr;
 #else
   const at::cuda::OptionalCUDAGuard device_guard(device_of(tensor_lists[0][0]));
   auto stream = at::cuda::getCurrentCUDAStream();

@@ -168,12 +168,11 @@ def StableCUDAExtension(name, sources, extra_compile_args=None, **kwargs):
     Wrapper for CUDAExtension that automatically handles stable ABI source substitution and flags.
     """
     stable_sources = prepare_stable_abi_sources(sources)
-    stable_compile_args = add_stable_abi_compile_args(extra_compile_args if extra_compile_args else {})
+    stable_compile_args = add_stable_abi_compile_args(
+        extra_compile_args if extra_compile_args else {}
+    )
     return CUDAExtension(
-        name=name,
-        sources=stable_sources,
-        extra_compile_args=stable_compile_args,
-        **kwargs
+        name=name, sources=stable_sources, extra_compile_args=stable_compile_args, **kwargs
     )
 
 
@@ -182,12 +181,11 @@ def StableCppExtension(name, sources, extra_compile_args=None, **kwargs):
     Wrapper for CppExtension that automatically handles stable ABI source substitution and flags.
     """
     stable_sources = prepare_stable_abi_sources(sources)
-    stable_compile_args = add_stable_abi_compile_args(extra_compile_args if extra_compile_args else {})
+    stable_compile_args = add_stable_abi_compile_args(
+        extra_compile_args if extra_compile_args else {}
+    )
     return CppExtension(
-        name=name,
-        sources=stable_sources,
-        extra_compile_args=stable_compile_args,
-        **kwargs
+        name=name, sources=stable_sources, extra_compile_args=stable_compile_args, **kwargs
     )
 
 
