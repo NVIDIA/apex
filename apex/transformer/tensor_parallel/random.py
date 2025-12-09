@@ -37,50 +37,6 @@ from apex.transformer.tensor_parallel.memory import allocate_mem_buff
 # Default name for the model parallel rng tracker.
 _MODEL_PARALLEL_RNG_TRACKER_NAME = "model-parallel-rng"
 
-# TODO(mkozuki): Remove `_CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER` as megatron-lm doesn't seem to use.
-# Whether apply model parallelism to checkpointed hidden states.
-_CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = None
-
-
-# TODO(mkozuki): Remove `init_checkpointed_activations_memory_buffer` as megatron-lm doesn't seem to use.
-def init_checkpointed_activations_memory_buffer(
-    micro_batch_size,
-    max_position_embeddings,
-    hidden_size,
-    num_layers,
-    tensor_model_parallel_size,
-    checkpoint_num_layers,
-    fp16,
-):
-    """Initializ the memory buffer for the checkpointed activations."""
-
-    per_layer = (
-        micro_batch_size * max_position_embeddings * hidden_size // tensor_model_parallel_size
-    )
-    assert num_layers % checkpoint_num_layers == 0, (
-        "number of layers is not divisible by checkpoint-num-layers"
-    )
-    num_checkpointer_layers = num_layers // checkpoint_num_layers
-    numel = per_layer * num_checkpointer_layers
-    dtype = torch.half
-    if not fp16:
-        dtype = torch.float
-
-    global _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER
-    assert _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is None, (
-        "checkpointed activations memory buffer is already allocated."
-    )
-    _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = allocate_mem_buff(
-        "checkpointed activations", numel, dtype, track_usage=False
-    )
-
-
-# TODO(mkozuki): Remove `reset_checkpointed_activations_memory_buffer` as megatron-lm doesn't seem to use.
-def reset_checkpointed_activations_memory_buffer():
-    """Reset the memory used for checkpointing."""
-    if _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER is not None:
-        _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER.reset()
-
 
 def _set_cuda_rng_state(new_state, device=-1):
     """Sets the random number generator state of the current GPU.
