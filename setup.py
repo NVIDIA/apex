@@ -66,6 +66,8 @@ def has_flag(flag, env_var):
 
 
 def get_cuda_bare_metal_version(cuda_dir):
+    if not cuda_dir:
+        return '', ''
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
     output = raw_output.split()
     release_idx = output.index("release") + 1
