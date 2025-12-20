@@ -9,6 +9,8 @@ from apex.transformer import parallel_state
 # The following 4 lines are for backward comparability with
 # older PyTorch.
 if "all_gather_into_tensor" not in dir(torch.distributed):
+    if not torch.distributed.is_available():
+        raise RuntimeError("PyTorch Distributed is Not available or Disabled.")
     torch.distributed.all_gather_into_tensor = torch.distributed._all_gather_base
 
 
