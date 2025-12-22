@@ -1,13 +1,13 @@
 repos:
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v21.1.7 # Or pin to your preferred clang-format version
+  rev: v21.1.8 # Or pin to your preferred clang-format version
   hooks:
   - id: clang-format
     files: \.(c|h|cpp|hpp|proto|cu|cuh)$
     exclude: ^(apex/contrib/csrc/multihead_attn/cutlass|apex/contrib/csrc/cudnn-frontend)/
 
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.14.9
+  rev: v0.14.10
   hooks:
   - id: ruff-check
     args: ["--fix"]
