@@ -14,32 +14,8 @@ import torch
 from . import optimizers
 from . import normalization
 
-if torch.distributed.is_available():
-    from . import transformer
 
-    __all__ = ["optimizers", "normalization", "transformer"]
-
-    # Logging utilities for apex.transformer module
-    class RankInfoFormatter(logging.Formatter):
-        def format(self, record):
-            from apex.transformer.parallel_state import get_rank_info
-
-            record.rank_info = get_rank_info()
-            return super().format(record)
-
-    _library_root_logger = logging.getLogger(__name__)
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        RankInfoFormatter(
-            "%(asctime)s - PID:%(process)d - rank:%(rank_info)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s",
-            "%y-%m-%d %H:%M:%S",
-        )
-    )
-    _library_root_logger.addHandler(handler)
-    _library_root_logger.propagate = False
-else:
-    # Transformers require PyTorch built with distributed support
-    __all__ = ["optimizers", "normalization"]
+__all__ = ["optimizers", "normalization"]
 
 
 def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:
