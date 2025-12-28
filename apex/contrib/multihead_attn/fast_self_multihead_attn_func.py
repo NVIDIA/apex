@@ -19,6 +19,13 @@ class FastSelfAttnFunc(torch.autograd.Function):
         mask_additive,
         dropout_prob,
     ):
+        from apex import deprecated_warning
+        deprecated_warning(
+            "`apex.contrib.multihead_attn` is deprecated and will be removed in March 2026. "
+            "We encourage you to migrate to PyTorch native MultiheadAttention"
+            "The documentation is available in https://docs.pytorch.org/docs/main/generated/torch.nn.MultiheadAttention.html"
+        )
+
         use_biases_t = torch.tensor([input_biases is not None])
         heads_t = torch.tensor([heads])
         dropout_prob_t = torch.tensor([dropout_prob])
