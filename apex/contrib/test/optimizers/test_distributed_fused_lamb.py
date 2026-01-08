@@ -6,7 +6,7 @@ from torch.testing._internal import common_utils
 from torch.distributed.distributed_c10d import _coalescing_manager
 
 from apex.contrib.optimizers.distributed_fused_lamb import DistributedFusedLAMB
-from apex.distributed.testing.distributed_test_base import NcclDistributedTestBase
+from apex.distributed_testing.distributed_test_base import NcclDistributedTestBase
 
 
 def flat_dist_call(param_list: list[torch.Tensor], op, args):
