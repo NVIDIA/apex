@@ -13,7 +13,7 @@ try:
     from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 except ImportError as e:
     SKIP_TEST = e
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.distributed.testing.distributed_test_base import NcclDistributedTestBase
 
 
 class SimpleModel(torch.nn.Module):

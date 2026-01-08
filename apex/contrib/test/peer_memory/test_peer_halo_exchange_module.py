@@ -4,7 +4,7 @@ import torch
 from torch.testing._internal import common_utils
 
 SKIP_TEST = None
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.distributed.testing.distributed_test_base import NcclDistributedTestBase
 
 try:
     from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d

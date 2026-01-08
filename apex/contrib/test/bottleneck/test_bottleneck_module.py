@@ -3,7 +3,7 @@ import unittest
 import torch
 from torch.testing._internal import common_utils
 
-from apex.transformer.testing.distributed_test_base import NcclDistributedTestBase
+from apex.distributed.testing.distributed_test_base import NcclDistributedTestBase
 
 SKIP_TEST = None
 try:
