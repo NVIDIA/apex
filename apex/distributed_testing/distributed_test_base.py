@@ -9,7 +9,7 @@ from torch.utils import collect_env
 from torch.testing._internal import common_utils
 from torch.testing._internal import common_distributed
 
-from apex.transformer._ucc_util import HAS_UCC
+from apex.distributed_testing._ucc_util import HAS_UCC
 
 # NOTE(mkozuki): Version guard for ucc. ref: https://github.com/openucx/ucc/issues/496
 _TORCH_UCC_COMPAT_NVIDIA_DRIVER_VERSION = Version("470.42.01")
