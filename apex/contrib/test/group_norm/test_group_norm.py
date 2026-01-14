@@ -53,6 +53,60 @@ def relative_ulp(dtype, device):
     return (torch.nextafter(one, two) - one).item()
 
 
+def _ref_compute_type(ref_func, xdtype: torch.dtype) -> torch.dtype:
+    # `torch_group_norm_high_precision_fp64` is a functools.partial with compute_type keyword.
+    if isinstance(ref_func, functools.partial):
+        compute_type = (ref_func.keywords or {}).get("compute_type", None)
+        if compute_type is not None:
+            return compute_type
+    return xdtype
+
+
+def _estimate_group_norm_test_bytes(
+    *,
+    N: int,
+    C: int,
+    H: int,
+    W: int,
+    xdtype: torch.dtype,
+    wdtype: torch.dtype,
+    ref_func,
+) -> int:
+    """
+    Conservative VRAM estimate for `verify_group_norm`.
+
+    The reference path converts to a high-precision compute type (fp64 by default)
+    and runs both forward+backward while retaining graphs, which can roughly require
+    multiple full-size buffers at once. We intentionally over-estimate to avoid OOMs.
+    """
+    numel = int(N) * int(C) * int(H) * int(W)
+    ref_dtype = _ref_compute_type(ref_func, xdtype)
+
+    x_bytes = numel * int(xdtype.itemsize)
+    ref_bytes = numel * int(ref_dtype.itemsize)
+
+    # Live tensors: x, dy, y_ref, y_tst, dx_ref/dx_tst + autograd saved buffers.
+    # Empirically, a ~10x multiplier on the reference compute buffers is a safer
+    # lower bound for fp64 reference on large tensors.
+    #
+    # Keep the estimate simple and intentionally conservative:
+    # - Base fp16/bf16 buffers: ~6x (x, dy, y, grads/temps)
+    # - Reference high-precision buffers: ~10x
+    estimate = (6 * x_bytes) + (10 * ref_bytes)
+
+    # Small extras: weights/bias/grads.
+    estimate += 6 * int(C) * int(wdtype.itemsize)
+    return int(estimate)
+
+
+def _has_sufficient_cuda_memory(required_bytes: int, *, safety_factor: float = 0.90) -> bool:
+    if not torch.cuda.is_available():
+        return False
+    # `mem_get_info` reports free/total for the current device.
+    free_bytes, _total_bytes = torch.cuda.mem_get_info()
+    return required_bytes <= int(free_bytes * safety_factor)
+
+
 @unittest.skipIf(
     torch.cuda.get_device_properties().multi_processor_count < 16,
     "GroupNorm is unsupported on low SM count devices",
@@ -206,8 +260,25 @@ class GroupNormTest(unittest.TestCase):
             [1, 128, 16128, 1200],
         ]
         for sz in sizes:
-            n, c, h, w = sz
-            self.verify_group_norm(GroupNorm, N=n, C=c, H=h, W=w, G=16, act="swish")
+            with self.subTest(size=sz):
+                n, c, h, w = sz
+                required = _estimate_group_norm_test_bytes(
+                    N=n,
+                    C=c,
+                    H=h,
+                    W=w,
+                    xdtype=torch.float16,
+                    wdtype=torch.float32,
+                    ref_func=torch_group_norm_high_precision_fp64,
+                )
+                if not _has_sufficient_cuda_memory(required):
+                    free_bytes, total_bytes = torch.cuda.mem_get_info()
+                    raise unittest.SkipTest(
+                        f"Skipping large GroupNorm case {sz}: estimated {required/1e9:.1f} GB "
+                        f"requires more than available free VRAM ({free_bytes/1e9:.1f} GB free, "
+                        f"{total_bytes/1e9:.1f} GB total)."
+                    )
+                self.verify_group_norm(GroupNorm, N=n, C=c, H=h, W=w, G=16, act="swish")
 
     def test_fp16_parameters(self):
         n, c, h, w = 8, 2560, 16, 16
