@@ -274,9 +274,9 @@ class GroupNormTest(unittest.TestCase):
                 if not _has_sufficient_cuda_memory(required):
                     free_bytes, total_bytes = torch.cuda.mem_get_info()
                     raise unittest.SkipTest(
-                        f"Skipping large GroupNorm case {sz}: estimated {required/1e9:.1f} GB "
-                        f"requires more than available free VRAM ({free_bytes/1e9:.1f} GB free, "
-                        f"{total_bytes/1e9:.1f} GB total)."
+                        f"Skipping large GroupNorm case {sz}: estimated {required / 1e9:.1f} GB "
+                        f"requires more than available free VRAM ({free_bytes / 1e9:.1f} GB free, "
+                        f"{total_bytes / 1e9:.1f} GB total)."
                     )
                 self.verify_group_norm(GroupNorm, N=n, C=c, H=h, W=w, G=16, act="swish")
 
