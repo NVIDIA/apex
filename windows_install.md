@@ -13,6 +13,18 @@ set DISTUTILS_USE_SDK=1
 pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation ./
 ```
 
+## Trouble shooting
+If you encounter trouble with `compiled_autograd.h(1134 / 1108 / 1181)`, based on the [Pytorch issue #148317](https://github.com/pytorch/pytorch/issues/148317#issuecomment-3344732754), you may need to navigate to `\anaconda\envs\basic\lib\site-packages\torch\include\torch\csrc\dynamo\compiled_autograd.h`to Line 1134, and change it from:
+```python
+} else if constexpr (::std::is_same_v<T, ::std::string>) {
+  return at::StringType::get();
+```
+to
+```python
+// } else if constexpr (::std::is_same_v<T, ::std::string>) {
+//   return at::StringType::get();
+```
+
 ---
 
 > **Note:** Building NVIDIA Apex on Windows is challenging and may find different errors on different devices. This guide documents a successful build on Win11 RTX5070 (sm_120) with CUDA 12.8.

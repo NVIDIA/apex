@@ -113,7 +113,11 @@ def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int
         return False
     return True
 
-
+import sys
+nvcc_args = []
+if sys.platform == 'win32':
+    nvcc_args.append("-D_WIN32=1")
+    
 if not torch.cuda.is_available():
     # https://github.com/NVIDIA/apex/issues/486
     # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
@@ -1050,6 +1054,7 @@ class BuildExtensionSeparateDir(BuildExtension):
         self.thread_ext_name_map[threading.current_thread().ident] = ext.name
         objects = super().build_extension(ext)
         return objects
+
 
 
 setup(
