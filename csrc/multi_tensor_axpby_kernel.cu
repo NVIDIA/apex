@@ -9,7 +9,7 @@
 
 #include "multi_tensor_apply.cuh"
 #include "type_shim.h"
-
+#include <cmath>
 #define BLOCK_SIZE 512
 #define ILP 4
 
@@ -61,9 +61,12 @@ struct AxpbyFunctor {
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
           r_out[ii] = a * static_cast<float>(r_x[ii]) + b * static_cast<float>(r_y[ii]);
-          if (arg_to_check == -1) finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
-          if (arg_to_check == 0) finite = finite && isfinite(r_x[ii]);
-          if (arg_to_check == 1) finite = finite && isfinite(r_y[ii]);
+          if (arg_to_check == -1) finite = finite && ((fabsf((float)r_x[ii]) <= 3.40282e+38f) && (fabsf((float)r_y[ii]) <= 3.40282e+38f));
+          // if (arg_to_check == -1) finite = finite && (std::isfinite(static_cast<float>(r_x[ii])) && std::isfinite(static_cast<float>(r_y[ii])));
+          if (arg_to_check == 0) finite = finite && (fabsf((float)r_x[ii]) <= 3.40282e+38f);
+          // if (arg_to_check == 0) finite = finite && std::isfinite(static_cast<float>(r_x[ii]));
+          if (arg_to_check == 1) finite = finite && (fabsf((float)r_y[ii]) <= 3.40282e+38f);
+          // if (arg_to_check == 1) finite = finite && std::isfinite(static_cast<float>(r_y[ii]));
         }
         // store
         load_store(out, r_out, i_start, 0);
@@ -84,9 +87,12 @@ struct AxpbyFunctor {
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
           r_out[ii] = a * static_cast<float>(r_x[ii]) + b * static_cast<float>(r_y[ii]);
-          if (arg_to_check == -1) finite = finite && (isfinite(r_x[ii]) && isfinite(r_y[ii]));
-          if (arg_to_check == 0) finite = finite && isfinite(r_x[ii]);
-          if (arg_to_check == 1) finite = finite && isfinite(r_y[ii]);
+          if (arg_to_check == -1) finite = finite && ((fabsf((float)r_x[ii]) <= 3.40282e+38f) && (fabsf((float)r_y[ii]) <= 3.40282e+38f));
+          // if (arg_to_check == -1) finite = finite && (std::isfinite(static_cast<float>(r_x[ii])) && std::isfinite(static_cast<float>(r_y[ii])));
+          if (arg_to_check == 0) finite = finite && (fabsf((float)r_x[ii]) <= 3.40282e+38f);
+          // if (arg_to_check == 0) finite = finite && std::isfinite(static_cast<float>(r_x[ii]));
+          if (arg_to_check == 1) finite = finite && (fabsf((float)r_y[ii]) <= 3.40282e+38f);
+          // if (arg_to_check == 1) finite = finite && std::isfinite(static_cast<float>(r_y[ii]));
         }
         // see note in multi_tensor_scale_kernel.cu
 #pragma unroll
