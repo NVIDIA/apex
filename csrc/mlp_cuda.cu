@@ -6,7 +6,6 @@
 #include <string.h>
 #include <torch/torch.h>
 
-
 /* Includes, cuda */
 #include <cublas_v2.h>
 #include <cuda_runtime.h>

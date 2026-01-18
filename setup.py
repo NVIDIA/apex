@@ -1052,7 +1052,6 @@ class BuildExtensionSeparateDir(BuildExtension):
         return objects
 
 
-
 setup(
     name="apex",
     version="0.1",

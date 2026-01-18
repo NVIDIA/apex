@@ -7,11 +7,11 @@
 
 #include <assert.h>
 // Stringstream is a big hammer, but I want to rely on operator<< for dtype.
+#include <cmath>
 #include <sstream>
 
 #include "multi_tensor_apply.cuh"
 #include "type_shim.h"
-#include <cmath>
 
 #define BLOCK_SIZE 512
 #define ILP 4
