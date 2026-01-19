@@ -7,7 +7,7 @@ repos:
     exclude: ^(apex/contrib/csrc/multihead_attn/cutlass|apex/contrib/csrc/cudnn-frontend)/
 
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.14.11
+  rev: v0.14.13
   hooks:
   - id: ruff-check
     args: ["--fix"]
