@@ -11,6 +11,12 @@ template <class T> bool is_aligned(const void *ptr) noexcept {
   return !(iptr % alignof(T));
 }
 
+__device__ __forceinline__ float fast_pow_ml(float x, float y) {
+    // Hardware instructions: v_log_f32 followed by v_exp_f32
+    // x^y = exp2(y * log2(x))
+    return __builtin_amdgcn_exp2f(y * __builtin_amdgcn_logf(x));
+}
+
 template <bool SMOOTHING, int ILP, typename scalar_t, typename labelscalar_t,
           typename accscalar_t, typename outscalar_t>
 __global__ void focal_loss_forward_cuda_kernel(
@@ -94,7 +100,19 @@ __global__ void focal_loss_forward_cuda_kernel(
         coeff_b2 = sigma;
       }
 
-      accscalar_t coeff_f = coeff_f1 * ::pow(coeff_f2, gamma);
+      // Specialized pow for common gamma values to reduce VALU pressure
+      accscalar_t coeff_f;
+      if (gamma == 2.0f) {
+          coeff_f = coeff_f1 * (coeff_f2 * coeff_f2);
+      } else if (gamma == 1.0f) {
+          coeff_f = coeff_f1 * coeff_f2;
+      } else if (gamma == 0.0f) {
+        coeff_f = coeff_f1;
+      } else {
+        constexpr bool is_float_v = std::is_same<accscalar_t, float>::value;
+        coeff_f = coeff_f1 * (is_float_v ? (accscalar_t)fast_pow_ml(float(coeff_f2), gamma) : ::pow(coeff_f2, gamma));
+      }
+
       accscalar_t coeff_b = coeff_b1 * coeff_b2;
 
       accscalar_t loss_t = coeff_f * (base + off_a);
