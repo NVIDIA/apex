@@ -7,6 +7,11 @@ assignees: ''
 
 ---
 
+<!--
+If you see missing features of `apex.amp` and/or DDP of `apex` after https://github.com/NVIDIA/apex/pull/1896,
+We suggest https://github.com/NVIDIA/apex/releases/tag/25.04.
+-->
+
 **Describe the Bug**
 
 **Minimal Steps/Code to Reproduce the Bug**
