@@ -34,9 +34,13 @@ class FMHAFun(torch.autograd.Function):
     @staticmethod
     def forward(ctx, qkv, cu_seqlens, p_dropout, max_s, is_training, zero_tensors):
         batch_size = cu_seqlens.numel() - 1
-        if batch_size < 4:
+        # Note: bwd_nl (no-loop backward) only works correctly for batch_size <= 2.
+        # For batch_size == 3, bwd_nl produces incorrect results due to num_chunks
+        # configuration issue in the CUDA kernel, so we use the regular path instead.
+        use_nl = batch_size <= 2
+        if use_nl:
             max_s = 512
-            context, S_dmask = mha.fwd_nl(
+            context, S_dmask = mha.fwd(
                 qkv, cu_seqlens, p_dropout, max_s, is_training, True, zero_tensors, None
             )
         else:
@@ -55,13 +59,13 @@ class FMHAFun(torch.autograd.Function):
         ctx.p_dropout = p_dropout
         ctx.max_s = max_s
         ctx.zero_tensors = zero_tensors
+        ctx.use_nl = use_nl
         return context
 
     @staticmethod
     def backward(ctx, dout):
         qkv, S_dmask = ctx.saved_tensors
-        batch_size = ctx.cu_seqlens.numel() - 1
-        if batch_size < 4:
+        if ctx.use_nl:
             dqkv, dp, _ = mha.bwd_nl(
                 dout,
                 qkv,
