@@ -226,7 +226,7 @@ for epoch in range(opt.niter):
         label = torch.full((batch_size,), real_label, device=device)
 
         output = netD(real_cpu)
-        errD_real = criterion(output, label)
+        errD_real = criterion(output, label.type_as(output))
         with amp.scale_loss(errD_real, optimizerD, loss_id=0) as errD_real_scaled:
             errD_real_scaled.backward()
         D_x = output.mean().item()
@@ -236,7 +236,7 @@ for epoch in range(opt.niter):
         fake = netG(noise)
         label.fill_(fake_label)
         output = netD(fake.detach())
-        errD_fake = criterion(output, label)
+        errD_fake = criterion(output, label.type_as(output))
         with amp.scale_loss(errD_fake, optimizerD, loss_id=1) as errD_fake_scaled:
             errD_fake_scaled.backward()
         D_G_z1 = output.mean().item()
@@ -249,7 +249,7 @@ for epoch in range(opt.niter):
         netG.zero_grad()
         label.fill_(real_label)  # fake labels are real for generator cost
         output = netD(fake)
-        errG = criterion(output, label)
+        errG = criterion(output, label.type_as(output))
         with amp.scale_loss(errG, optimizerG, loss_id=2) as errG_scaled:
             errG_scaled.backward()
         D_G_z2 = output.mean().item()
