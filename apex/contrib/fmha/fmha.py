@@ -33,6 +33,13 @@ import fmhalib as mha
 class FMHAFun(torch.autograd.Function):
     @staticmethod
     def forward(ctx, qkv, cu_seqlens, p_dropout, max_s, is_training, zero_tensors):
+        from apex import deprecated_warning
+        deprecated_warning(
+            "`apex.contrib.fmha` is deprecated and will be removed in March 2026. "
+            "We encourage you to migrate to PyTorch native MultiheadAttention"
+            "The documentation is available in https://docs.pytorch.org/docs/main/generated/torch.nn.MultiheadAttention.html"
+        )
+
         batch_size = cu_seqlens.numel() - 1
         if batch_size < 4:
             max_s = 512
