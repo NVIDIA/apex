@@ -1,0 +1,55 @@
+name: Build
+on:
+  - push
+jobs:
+  main:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+        cuda:
+          - container: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+            torch-index: https://download.pytorch.org/whl/cu118
+          - container: nvidia/cuda:12.1.1-cudnn8-devel-ubuntu20.04
+            torch-index: https://download.pytorch.org/whl/cu121
+          - container: nvidia/cuda:12.4.1-cudnn-devel-ubuntu20.04
+            torch-index: https://pypi.org/simple
+    runs-on: ubuntu-latest
+    container: ${{ matrix.cuda.container }}
+    steps:
+      - uses: actions/checkout@v4
+      # We need Python development headers which actions/setup-python does not provide.
+      # Instead, grab from the deadsnakes ppa
+      - name: Install build dependencies
+        env:
+          PYTHON: python${{ matrix.python-version }}
+          DEBIAN_FRONTEND: noninteractive
+        shell: bash
+        run: |
+          DEPS=('ninja-build' "${PYTHON}-dev" "${PYTHON}-venv")
+
+          # Default on Ubuntu 20 is Python 3.8, so we need to grab the appropriate Python
+          # from ppa
+          apt update --yes && apt install --yes software-properties-common
+          add-apt-repository ppa:deadsnakes/ppa
+
+          apt update --yes && apt install --yes "${DEPS[@]}"
+
+          "${PYTHON}" -m venv venv
+          . venv/bin/activate
+          python -m pip install --upgrade build wheel setuptools
+          python -m pip install --index-url ${{ matrix.cuda.torch-index }} torch~=2.5.0
+      - run: |
+          . venv/bin/activate
+          python -m build --no-isolation --config-setting="--build-option=--cpp_ext" --config-setting="--build-option=--cuda_ext" ./
+      - name: Save CUDA version
+        run: echo "CUDA_VERSION=${CUDA_VERSION}" >> "${GITHUB_ENV}"
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-py${{ matrix.python-version }}-cu${{ env.CUDA_VERSION }}
+          path: dist/
