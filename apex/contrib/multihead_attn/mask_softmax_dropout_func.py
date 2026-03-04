@@ -8,7 +8,7 @@ class MaskSoftmaxDropout(torch.autograd.Function):
     def forward(ctx, is_training, heads, inputs, pad_mask, mask_additive, dropout_prob):
         from apex import deprecated_warning
         deprecated_warning(
-            "`apex.contrib.multihead_attn` is deprecated and will be removed in March 2026. "
+            "`apex.contrib.multihead_attn` is deprecated and will be removed in July 2026. "
             "We encourage you to migrate to PyTorch native MultiheadAttention"
             "The documentation is available in https://docs.pytorch.org/docs/main/generated/torch.nn.MultiheadAttention.html"
         )
