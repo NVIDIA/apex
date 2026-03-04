@@ -19,6 +19,7 @@ class FastEncdecAttnFunc(torch.autograd.Function):
         dropout_prob,
     ):
         from apex import deprecated_warning
+
         deprecated_warning(
             "`apex.contrib.multihead_attn` is deprecated and will be removed in July 2026. "
             "We encourage you to migrate to PyTorch native MultiheadAttention"
