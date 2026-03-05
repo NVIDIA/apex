@@ -126,6 +126,9 @@ void group_norm_nhwc_fwd_two_passes_setup(Group_norm_nhwc_fwd_params& params, si
     blocks_per_act_slice = 512 / params.n;
   }
 
+  // Clamp to at least 1 to avoid divide-by-zero when batch size is large.
+  blocks_per_act_slice = max(blocks_per_act_slice, 1);
+
   // Make sure we launch blocks per activation is no less than activations
   blocks_per_act_slice = min(blocks_per_act_slice, div_up(params.hw, params.n));
 

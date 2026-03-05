@@ -280,6 +280,41 @@ class GroupNormTest(unittest.TestCase):
                     )
                 self.verify_group_norm(GroupNorm, N=n, C=c, H=h, W=w, G=16, act="swish")
 
+    def test_large_batch_two_pass(self):
+        """Regression test for divide-by-zero when batch size is large.
+
+        When batch_size >= 256 and c >= 640, blocks_per_act_slice = 256 / n
+        truncates to 0, causing div_up(hw, 0). Test all three heuristic branches.
+        """
+        sizes = [
+            [256, 1280, 8, 8],
+            [512, 640, 16, 16],
+            [1024, 512, 8, 8],
+        ]
+        for sz in sizes:
+            with self.subTest(size=sz):
+                n, c, h, w = sz
+                required = _estimate_group_norm_test_bytes(
+                    N=n,
+                    C=c,
+                    H=h,
+                    W=w,
+                    xdtype=torch.float16,
+                    wdtype=torch.float32,
+                    ref_func=torch_group_norm_high_precision_fp64,
+                )
+                if not _has_sufficient_cuda_memory(required):
+                    free_bytes, total_bytes = torch.cuda.mem_get_info()
+                    raise unittest.SkipTest(
+                        f"Skipping large-batch GroupNorm case {sz}: estimated "
+                        f"{required / 1e9:.1f} GB requires more than available "
+                        f"free VRAM ({free_bytes / 1e9:.1f} GB free, "
+                        f"{total_bytes / 1e9:.1f} GB total)."
+                    )
+                self.verify_group_norm(
+                    cuda_group_norm_nhwc_two_pass, N=n, C=c, H=h, W=w, G=32, act="silu"
+                )
+
     def test_fp16_parameters(self):
         n, c, h, w = 8, 2560, 16, 16
         self.verify_group_norm(
