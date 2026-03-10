@@ -27,7 +27,8 @@ __device__ __forceinline__ void load_store(T* dst, const T* src, int dst_offset 
 }
 
 // (1-t)*x + t*y
-__device__ __forceinline__ float lerp(float t, float x, float y) {
+// Note: Named _lerp to avoid ambiguity with std::lerp under C++20.
+__device__ __forceinline__ float _lerp(float t, float x, float y) {
   // See https://developer.nvidia.com/blog/lerp-faster-cuda/
   return fma(t, y, fma(-t, x, x));
 }
@@ -53,8 +54,8 @@ struct DistAdamFunctor {
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
-        float next_m = lerp(beta1, scaled_grad, m[ii]);
-        float next_v = lerp(beta2, scaled_grad * scaled_grad, v[ii]);
+        float next_m = _lerp(beta1, scaled_grad, m[ii]);
+        float next_v = _lerp(beta2, scaled_grad * scaled_grad, v[ii]);
         float next_m_unbiased = next_m / beta1_correction;
         float next_v_unbiased = next_v / beta2_correction;
         float denom = sqrtf(next_v_unbiased) + eps;
@@ -67,8 +68,8 @@ struct DistAdamFunctor {
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = g[ii] * grad_scale;
-        float next_m = lerp(beta1, scaled_grad, m[ii]);
-        float next_v = lerp(beta2, scaled_grad * scaled_grad, v[ii]);
+        float next_m = _lerp(beta1, scaled_grad, m[ii]);
+        float next_v = _lerp(beta2, scaled_grad * scaled_grad, v[ii]);
         float next_m_unbiased = next_m / beta1_correction;
         float next_v_unbiased = next_v / beta2_correction;
         float denom = sqrtf(next_v_unbiased) + eps;
@@ -183,8 +184,8 @@ struct DistAdamCapturableFunctor {
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = (g[ii] * grad_scale) + (weight_decay * p[ii]);
-        float next_m = lerp(beta1, scaled_grad, m[ii]);
-        float next_v = lerp(beta2, scaled_grad * scaled_grad, v[ii]);
+        float next_m = _lerp(beta1, scaled_grad, m[ii]);
+        float next_v = _lerp(beta2, scaled_grad * scaled_grad, v[ii]);
         float next_m_unbiased = next_m / beta1_correction;
         float next_v_unbiased = next_v / beta2_correction;
         float denom = sqrtf(next_v_unbiased) + eps;
@@ -197,8 +198,8 @@ struct DistAdamCapturableFunctor {
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
         float scaled_grad = g[ii] * grad_scale;
-        float next_m = lerp(beta1, scaled_grad, m[ii]);
-        float next_v = lerp(beta2, scaled_grad * scaled_grad, v[ii]);
+        float next_m = _lerp(beta1, scaled_grad, m[ii]);
+        float next_v = _lerp(beta2, scaled_grad * scaled_grad, v[ii]);
         float next_m_unbiased = next_m / beta1_correction;
         float next_v_unbiased = next_v / beta2_correction;
         float denom = sqrtf(next_v_unbiased) + eps;
