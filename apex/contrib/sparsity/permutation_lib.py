@@ -2009,13 +2009,7 @@ class Permutation:
             if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
                 if cls.__verbosity > 0:
                     print(ex)
-                    print(
-                        "".join(
-                            traceback.format_exception(
-                                value=ex, tb=ex.__traceback__
-                            )
-                        )
-                    )
+                    print("".join(traceback.format_exception(value=ex, tb=ex.__traceback__)))
                     print(
                         "\n[print_raw_fx_graph] Meet the fatal fault when trying to symbolic trace the model with Torch.FX"
                     )
