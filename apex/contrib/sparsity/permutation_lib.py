@@ -2012,7 +2012,7 @@ class Permutation:
                     print(
                         "".join(
                             traceback.format_exception(
-                                etype=type(ex), value=ex, tb=ex.__traceback__
+                                value=ex, tb=ex.__traceback__
                             )
                         )
                     )
