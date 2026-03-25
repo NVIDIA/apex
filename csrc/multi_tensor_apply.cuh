@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <c10/cuda/CUDAGuard.h>
 
+#include <climits>
+
 // #include <iostream>
 
 // This header is the one-stop shop for all your multi-tensor apply needs.
@@ -21,6 +23,17 @@ struct TensorListMetadata {
   int block_to_chunk[depth_to_max_blocks[n - 1]];  // I fear this needs to be a full int.
   int start_tensor_this_launch;
 };
+
+inline bool tensor_lists_require_64bit_indexing(const std::vector<std::vector<at::Tensor>>& tensor_lists) {
+  for (const auto& tensor_list : tensor_lists) {
+    for (const auto& tensor : tensor_list) {
+      if (tensor.numel() > INT_MAX) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 template <typename T, typename U, typename... ArgTypes>
 __global__ void multi_tensor_apply_kernel(int64_t chunk_size, volatile int* noop_flag, T tl, U callable,
