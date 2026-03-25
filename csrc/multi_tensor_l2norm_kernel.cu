@@ -321,10 +321,9 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(int chunk_size, at::
                               per_tensor ? output_per_tensor.data_ptr<float>() : nullptr, per_tensor,
                               max_chunks_per_tensor);
       } else {
-        multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                              L2NormFunctor<scalar_t_0, int32_t>(), output.data_ptr<float>(),
-                              per_tensor ? output_per_tensor.data_ptr<float>() : nullptr, per_tensor,
-                              max_chunks_per_tensor);
+        multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, L2NormFunctor<scalar_t_0, int32_t>(),
+                              output.data_ptr<float>(), per_tensor ? output_per_tensor.data_ptr<float>() : nullptr,
+                              per_tensor, max_chunks_per_tensor);
       })
 
   AT_CUDA_CHECK(cudaGetLastError());
@@ -428,16 +427,17 @@ void multi_tensor_norm_out_cuda(int chunk_size, at::Tensor noop_flag, std::vecto
   output_per_tensor = at::zeros({ntensors * max_chunks_per_tensor}, float_options);
 
   if (norm_type == 0) {
-    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "multi_tensor_maxnorm_cuda",
-                            if (requires_64bit_indexing) {
-                              multi_tensor_apply<1>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
-                                                    MaxNormFunctor<scalar_t_0, int64_t>(), output.data_ptr<float>(),
-                                                    output_per_tensor.data_ptr<float>(), true, max_chunks_per_tensor);
-                            } else {
-                              multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                                    MaxNormFunctor<scalar_t_0, int32_t>(), output.data_ptr<float>(),
-                                                    output_per_tensor.data_ptr<float>(), true, max_chunks_per_tensor);
-                            })
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "multi_tensor_maxnorm_cuda",
+        if (requires_64bit_indexing) {
+          multi_tensor_apply<1>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                                MaxNormFunctor<scalar_t_0, int64_t>(), output.data_ptr<float>(),
+                                output_per_tensor.data_ptr<float>(), true, max_chunks_per_tensor);
+        } else {
+          multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, MaxNormFunctor<scalar_t_0, int32_t>(),
+                                output.data_ptr<float>(), output_per_tensor.data_ptr<float>(), true,
+                                max_chunks_per_tensor);
+        })
   } else {
     DISPATCH_FLOAT_HALF_AND_BFLOAT(
         tensor_lists[0][0].scalar_type(), 0, "multi_tensor_l2norm_cuda",
@@ -446,9 +446,9 @@ void multi_tensor_norm_out_cuda(int chunk_size, at::Tensor noop_flag, std::vecto
                                 L2NormFunctor<scalar_t_0, int64_t>(), output.data_ptr<float>(),
                                 output_per_tensor.data_ptr<float>(), true, max_chunks_per_tensor);
         } else {
-          multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                L2NormFunctor<scalar_t_0, int32_t>(), output.data_ptr<float>(),
-                                output_per_tensor.data_ptr<float>(), true, max_chunks_per_tensor);
+          multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, L2NormFunctor<scalar_t_0, int32_t>(),
+                                output.data_ptr<float>(), output_per_tensor.data_ptr<float>(), true,
+                                max_chunks_per_tensor);
         })
   }
   AT_CUDA_CHECK(cudaGetLastError());

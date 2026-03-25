@@ -152,10 +152,9 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_mp_cuda(int chunk_size, a
                               per_tensor ? output_per_tensor.data_ptr<float>() : nullptr, per_tensor,
                               max_chunks_per_tensor);
       } else {
-        multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                              L2NormFunctor<scalar_t_0, int32_t>(), output.data_ptr<float>(),
-                              per_tensor ? output_per_tensor.data_ptr<float>() : nullptr, per_tensor,
-                              max_chunks_per_tensor);
+        multi_tensor_apply<1>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, L2NormFunctor<scalar_t_0, int32_t>(),
+                              output.data_ptr<float>(), per_tensor ? output_per_tensor.data_ptr<float>() : nullptr,
+                              per_tensor, max_chunks_per_tensor);
       })
 
   AT_CUDA_CHECK(cudaGetLastError());

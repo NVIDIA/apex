@@ -16,6 +16,7 @@ from torch.testing._internal.common_device_type import largeTensorTest
 INT32_MAX = 2_147_483_647
 LARGE_NUMEL = INT32_MAX + 1
 
+
 @unittest.skipIf(not HAS_APEX, "`apex` is not found.")
 class LargeTensorL2NormTest(unittest.TestCase):
     def setUp(self):
