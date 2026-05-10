@@ -869,30 +869,16 @@ if has_flag("--nccl_p2p", "APEX_NCCL_P2P"):
     if "--nccl_p2p" in sys.argv:
         sys.argv.remove("--nccl_p2p")
     raise_if_cuda_home_none("--nccl_p2p")
-    # Check NCCL version.
-    _nccl_version_getter = load(
-        name="_nccl_version_getter",
-        sources=[
-            "apex/contrib/csrc/nccl_p2p/nccl_version.cpp",
-            "apex/contrib/csrc/nccl_p2p/nccl_version_check.cu",
-        ],
+    ext_modules.append(
+        CUDAExtension(
+            name="nccl_p2p_cuda",
+            sources=[
+                "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
+                "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
+            ],
+            extra_compile_args={"cxx": ["-O3"] + generator_flag},
+        )
     )
-    _available_nccl_version = _nccl_version_getter.get_nccl_version()
-    if _available_nccl_version >= (2, 10):
-        ext_modules.append(
-            CUDAExtension(
-                name="nccl_p2p_cuda",
-                sources=[
-                    "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
-                    "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
-                ],
-                extra_compile_args={"cxx": ["-O3"] + generator_flag},
-            )
-        )
-    else:
-        warnings.warn(
-            f"Skip `--nccl_p2p` as it requires NCCL 2.10.3 or later, but {_available_nccl_version[0]}.{_available_nccl_version[1]}"
-        )
 
 # note (mkozuki): Now `--fast_bottleneck` option (i.e. apex/contrib/bottleneck) depends on `--peer_memory` and `--nccl_p2p`.
 if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
