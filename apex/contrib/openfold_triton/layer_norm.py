@@ -46,7 +46,9 @@ class LayerNormSmallShapeOptImpl(Function):
         x_mean = torch.empty(M, dtype=torch.float32, device=inputs.device)
         y = torch.empty(inputs.shape, dtype=inputs.dtype, device=inputs.device)
 
-        grid = lambda kwargs: (triton.cdiv(kwargs["M"], kwargs["M_BLOCK"]),)
+        def grid(kwargs):
+            return (triton.cdiv(kwargs["M"], kwargs["M_BLOCK"]),)
+
         if inputs.is_contiguous():
             _layer_norm_forward[grid](
                 x_ptr=inputs,
@@ -96,7 +98,9 @@ class LayerNormSmallShapeOptImpl(Function):
 
         # %% Separated kernels, similar to Inductor.
         # 1. dX.
-        grid = lambda kwargs: (triton.cdiv(kwargs["M"], kwargs["M_BLOCK"]),)
+        def grid(kwargs):
+            return (triton.cdiv(kwargs["M"], kwargs["M_BLOCK"]),)
+
         if inputs.is_contiguous():
             _layer_norm_backward_dx[grid](
                 dy_ptr=d_y,
@@ -134,10 +138,13 @@ class LayerNormSmallShapeOptImpl(Function):
         M_BUFSIZE = _M_BUFSIZE_CACHE.get(key, triton.cdiv(M, PARTIAL_REDUCE_MIN))
         dw_partial_buf = torch.empty([N, M_BUFSIZE], dtype=torch.float32, device=d_y.device)
         db_partial_buf = torch.empty([N, M_BUFSIZE], dtype=torch.float32, device=d_y.device)
-        grid = lambda kwargs: (
-            triton.cdiv(M, kwargs["M_PARTIAL_REDUCE"]),
-            triton.cdiv(N, kwargs["N_BLOCK"]),
-        )
+
+        def grid(kwargs):
+            return (
+                triton.cdiv(M, kwargs["M_PARTIAL_REDUCE"]),
+                triton.cdiv(N, kwargs["N_BLOCK"]),
+            )
+
         if inputs.is_contiguous():
             _layer_norm_backward_dw_db_partial[grid](
                 dy_ptr=d_y,
