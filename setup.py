@@ -238,12 +238,13 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                 "csrc/update_scale_hysteresis.cu",
             ],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-lineinfo",
                     "-O3",
                     # '--resource-usage',
                     "--use_fast_math",
+                    "-D_DISABLE_EXTENDED_ALIGNED_STORAGE",
                 ],
             },
         )
@@ -274,9 +275,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         CUDAExtension(
             name="mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
+            libraries=["cublas", "cublasLt"],
             extra_compile_args={
-                "cxx": ["-O3"],
-                "nvcc": ["-O3"],
+                "cxx": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
+                "nvcc": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
             },
         )
     )
@@ -284,9 +286,10 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
         CUDAExtension(
             name="fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
+            libraries=["cublas", "cublasLt"],
             extra_compile_args={
-                "cxx": ["-O3"],
-                "nvcc": ["-O3"],
+                "cxx": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
+                "nvcc": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
             },
         )
     )
@@ -405,8 +408,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                 "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
                 "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
             ],
+            libraries=["cublas", "cublasLt"],
             extra_compile_args={
-                "cxx": ["-O3"],
+                "cxx": ["-O3", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"],
                 "nvcc": [
                     "-O3",
                     "-U__CUDA_NO_HALF_OPERATORS__",
@@ -414,6 +418,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
+                    "-D_DISABLE_EXTENDED_ALIGNED_STORAGE",
                 ],
             },
         )
