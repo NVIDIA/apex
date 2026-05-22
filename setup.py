@@ -531,10 +531,9 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
             + glob.glob("apex/contrib/csrc/group_norm/*.cu"),
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
-                "cxx": ["-O3", "-std=c++17"],
+                "cxx": ["-O3"],
                 "nvcc": [
                     "-O3",
-                    "-std=c++17",
                     "--use_fast_math",
                     "--ftz=false",
                 ],
