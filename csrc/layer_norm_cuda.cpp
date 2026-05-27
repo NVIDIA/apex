@@ -1,7 +1,9 @@
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 #include <cassert>
 #include <optional>
+#include <sstream>
 #include <vector>
 
 namespace {
@@ -249,24 +251,84 @@ std::vector<at::Tensor> rms_norm_gradient_affine(at::Tensor& dout, at::Tensor& i
   return {grad_input, grad_gamma};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward_affine", &layer_norm_affine, "LayerNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
-  m.def("forward", &layer_norm, "LayerNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
-  m.def("backward_affine", &layer_norm_gradient_affine, "LayerNorm backward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &layer_norm_gradient, "LayerNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
+namespace {
+at::Tensor apex_layer_norm_gradient(const at::Tensor& dout, const std::optional<at::Tensor>& mean,
+                                    const at::Tensor& invvar, const at::Tensor& input_or_output,
+                                    at::IntArrayRef normalized_shape, double epsilon, bool memory_efficient) {
+  at::Tensor dout_ = dout;
+  at::Tensor invvar_ = invvar;
+  at::Tensor input_or_output_ = input_or_output;
+  return layer_norm_gradient(dout_, mean, invvar_, input_or_output_, normalized_shape, epsilon, memory_efficient);
+}
 
-  m.def("forward_affine_mixed_dtypes", &layer_norm_affine_mixed_dtypes,
-        "LayerNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation",
-        py::call_guard<py::gil_scoped_release>());
+std::vector<at::Tensor> apex_layer_norm_gradient_affine(const at::Tensor& dout,
+                                                        const std::optional<at::Tensor>& mean,
+                                                        const at::Tensor& invvar,
+                                                        const at::Tensor& input_or_output,
+                                                        at::IntArrayRef normalized_shape, const at::Tensor& gamma,
+                                                        const at::Tensor& beta, double epsilon,
+                                                        bool memory_efficient) {
+  at::Tensor dout_ = dout;
+  at::Tensor invvar_ = invvar;
+  at::Tensor input_or_output_ = input_or_output;
+  at::Tensor gamma_ = gamma;
+  at::Tensor beta_ = beta;
+  return layer_norm_gradient_affine(dout_, mean, invvar_, input_or_output_, normalized_shape, gamma_, beta_, epsilon,
+                                    memory_efficient);
+}
 
-  m.def("rms_forward_affine", &rms_norm_affine, "RMSNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
-  m.def("rms_forward", &rms_norm, "RMSNorm forward (CUDA)", py::call_guard<py::gil_scoped_release>());
-  m.def("rms_backward_affine", &rms_norm_gradient_affine, "RMSNorm backward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("rms_backward", &rms_norm_gradient, "RMSNorm backward (CUDA)", py::call_guard<py::gil_scoped_release>());
+at::Tensor apex_rms_norm_gradient(const at::Tensor& dout, const at::Tensor& invvar,
+                                  const at::Tensor& input_or_output, at::IntArrayRef normalized_shape, double epsilon,
+                                  bool memory_efficient) {
+  at::Tensor dout_ = dout;
+  at::Tensor invvar_ = invvar;
+  at::Tensor input_or_output_ = input_or_output;
+  return rms_norm_gradient(dout_, invvar_, input_or_output_, normalized_shape, epsilon, memory_efficient);
+}
 
-  m.def("rms_forward_affine_mixed_dtypes", &rms_norm_affine_mixed_dtypes,
-        "RMSNorm forward with mixed dtypes (CUDA) compatible with Megatron's implementation",
-        py::call_guard<py::gil_scoped_release>());
+std::vector<at::Tensor> apex_rms_norm_gradient_affine(const at::Tensor& dout, const at::Tensor& invvar,
+                                                      const at::Tensor& input_or_output,
+                                                      at::IntArrayRef normalized_shape, const at::Tensor& gamma,
+                                                      double epsilon, bool memory_efficient) {
+  at::Tensor dout_ = dout;
+  at::Tensor invvar_ = invvar;
+  at::Tensor input_or_output_ = input_or_output;
+  at::Tensor gamma_ = gamma;
+  return rms_norm_gradient_affine(dout_, invvar_, input_or_output_, normalized_shape, gamma_, epsilon,
+                                  memory_efficient);
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fused_layer_norm_forward_affine(Tensor input, int[] normalized_shape, Tensor gamma, Tensor beta, "
+        "float epsilon) -> Tensor[]");
+  m.def("fused_layer_norm_forward(Tensor input, int[] normalized_shape, float epsilon) -> Tensor[]");
+  m.def("fused_layer_norm_backward_affine(Tensor dout, Tensor? mean, Tensor invvar, Tensor input_or_output, "
+        "int[] normalized_shape, Tensor gamma, Tensor beta, float epsilon, bool memory_efficient) -> Tensor[]");
+  m.def("fused_layer_norm_backward(Tensor dout, Tensor? mean, Tensor invvar, Tensor input_or_output, "
+        "int[] normalized_shape, float epsilon, bool memory_efficient) -> Tensor");
+  m.def("fused_layer_norm_forward_affine_mixed_dtypes(Tensor input, int[] normalized_shape, Tensor gamma, Tensor beta, "
+        "float epsilon) -> Tensor[]");
+  m.def("fused_layer_norm_rms_forward_affine(Tensor input, int[] normalized_shape, Tensor gamma, float epsilon) "
+        "-> Tensor[]");
+  m.def("fused_layer_norm_rms_forward(Tensor input, int[] normalized_shape, float epsilon) -> Tensor[]");
+  m.def("fused_layer_norm_rms_backward_affine(Tensor dout, Tensor invvar, Tensor input_or_output, "
+        "int[] normalized_shape, Tensor gamma, float epsilon, bool memory_efficient) -> Tensor[]");
+  m.def("fused_layer_norm_rms_backward(Tensor dout, Tensor invvar, Tensor input_or_output, int[] normalized_shape, "
+        "float epsilon, bool memory_efficient) -> Tensor");
+  m.def("fused_layer_norm_rms_forward_affine_mixed_dtypes(Tensor input, int[] normalized_shape, Tensor gamma, "
+        "float epsilon) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fused_layer_norm_forward_affine", &layer_norm_affine);
+  m.impl("fused_layer_norm_forward", &layer_norm);
+  m.impl("fused_layer_norm_backward_affine", &apex_layer_norm_gradient_affine);
+  m.impl("fused_layer_norm_backward", &apex_layer_norm_gradient);
+  m.impl("fused_layer_norm_forward_affine_mixed_dtypes", &layer_norm_affine_mixed_dtypes);
+  m.impl("fused_layer_norm_rms_forward_affine", &rms_norm_affine);
+  m.impl("fused_layer_norm_rms_forward", &rms_norm);
+  m.impl("fused_layer_norm_rms_backward_affine", &apex_rms_norm_gradient_affine);
+  m.impl("fused_layer_norm_rms_backward", &apex_rms_norm_gradient);
+  m.impl("fused_layer_norm_rms_forward_affine_mixed_dtypes", &rms_norm_affine_mixed_dtypes);
 }

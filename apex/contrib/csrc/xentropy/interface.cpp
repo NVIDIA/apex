@@ -1,4 +1,5 @@
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 #include <string>
 
@@ -38,18 +39,37 @@ at::Tensor softmax_xentropy_backward(const at::Tensor& grad_loss, const at::Tens
   return softmax_xentropy_backward_cuda(grad_loss, logits, max_log_sum_exp, labels, smoothing);
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &softmax_xentropy_forward, "Softmax cross entropy loss with label smoothing forward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &softmax_xentropy_backward, "Softmax cross entropy loss with label smoothing backward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  // ref: https://pybind11.readthedocs.io/en/stable/basics.html#exporting-variables
-  py::object version = py::cast(
+std::vector<at::Tensor> softmax_xentropy_forward_dispatch(const at::Tensor& input, const at::Tensor& labels,
+                                                          double smoothing, bool half_to_float) {
+  return softmax_xentropy_forward(input, labels, static_cast<float>(smoothing), half_to_float);
+}
+
+at::Tensor softmax_xentropy_backward_dispatch(const at::Tensor& grad_loss, const at::Tensor& logits,
+                                              const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
+                                              double smoothing) {
+  return softmax_xentropy_backward(grad_loss, logits, max_log_sum_exp, labels, static_cast<float>(smoothing));
+}
+
+std::string softmax_xentropy_version() {
 #ifdef XENTROPY_VER
-      XENTROPY_VER
+  return XENTROPY_VER;
 #else
-      std::string{}
+  return {};
 #endif
-  );
-  m.attr("__version__") = version;
+}
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("xentropy_forward(Tensor input, Tensor labels, float smoothing, bool half_to_float) -> Tensor[]");
+  m.def("xentropy_backward(Tensor grad_loss, Tensor logits, Tensor max_log_sum_exp, Tensor labels, "
+        "float smoothing) -> Tensor");
+  m.def("xentropy_version() -> str");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("xentropy_forward", &softmax_xentropy_forward_dispatch);
+  m.impl("xentropy_backward", &softmax_xentropy_backward_dispatch);
+}
+
+TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
+  m.impl("xentropy_version", &softmax_xentropy_version);
 }

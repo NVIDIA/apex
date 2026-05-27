@@ -6,7 +6,7 @@ import torch
 SKIP_TEST = None
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    import fast_layer_norm as fln
+    from apex._extensions import fast_layer_norm as fln
 except ImportError as e:
     SKIP_TEST = e
 

@@ -2,10 +2,12 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_fp16.h>
+#if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
+#endif
 #include <cuda_runtime.h>
 #include <math.h>
-#include <torch/extension.h>
+#include <ATen/ATen.h>
 
 #include <iostream>
 #include <vector>
@@ -19,7 +21,7 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace additive_mask_softmax_dropout {
 
-std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor const& input, const half* pad_mask,
+std::vector<at::Tensor> fwd_cuda(bool is_training, int heads, at::Tensor const& input, const half* pad_mask,
                                     float dropout_prob) {
   const int attn_batches = input.size(0);
   const int sequences = attn_batches / heads;
@@ -36,11 +38,11 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor c
   // 3 Intermediate Results + Output (Note: dropout intermediates are generated
   // by ATen library code)
   auto act_options = input.options().requires_grad(false);
-  auto mask_options = act_options.dtype(torch::kUInt8);
+  auto mask_options = act_options.dtype(at::kByte);
 
-  torch::Tensor softmax_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_mask = torch::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
+  at::Tensor softmax_results = at::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  at::Tensor dropout_results = at::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  at::Tensor dropout_mask = at::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)
   void* input_ptr = static_cast<void*>(input.data_ptr());
@@ -71,8 +73,8 @@ std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor c
   return {dropout_results, dropout_mask, softmax_results};
 }
 
-torch::Tensor bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& softmax_results,
-                       torch::Tensor const& dropout_mask, float dropout_prob) {
+at::Tensor bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
+                       at::Tensor const& dropout_mask, float dropout_prob) {
   const int attn_batches = output_grads.size(0);
   const int q_seq_len = output_grads.size(1);
   const int k_seq_len = q_seq_len;
@@ -84,7 +86,7 @@ torch::Tensor bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tens
   cublasSetStream(handle, stream);
 
   // Output Tensor Allocations
-  //  torch::Tensor input_grads         = torch::empty_like(output_grads);
+  //  at::Tensor input_grads         = at::empty_like(output_grads);
 
   // Apply Dropout Mask and Scale by Dropout Probability
   // Softmax Grad

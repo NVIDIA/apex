@@ -1,8 +1,8 @@
 #include <ATen/ATen.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
+#include <torch/library.h>
 
 #include <iostream>
+#include <map>
 #include <vector>
 
 #include "norm_sample.h"
@@ -117,7 +117,39 @@ std::vector<at::Tensor> gbn_backward(const at::Tensor& x, const at::Tensor& dy, 
   return std::vector<at::Tensor>{x_grad, scale_grad, bias_grad};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &gbn_forward, "Group batch norm forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &gbn_backward, "Group batch backward", py::call_guard<py::gil_scoped_release>());
+namespace {
+std::vector<int64_t> to_int_vector(at::IntArrayRef values) {
+  return std::vector<int64_t>(values.begin(), values.end());
+}
+
+at::Tensor apex_cudnn_gbn_forward(const at::Tensor& x, const at::Tensor& scale, const at::Tensor& bias,
+                                  const at::Tensor& running_mean, const at::Tensor& running_var,
+                                  const at::Tensor& minibatch_mean, const at::Tensor& minibatch_inv_var,
+                                  double momentum, double epsilon, int64_t bn_group, int64_t rank_id,
+                                  at::IntArrayRef peer_buffers) {
+  return gbn_forward(x, scale, bias, running_mean, running_var, minibatch_mean, minibatch_inv_var,
+                     static_cast<float>(momentum), static_cast<float>(epsilon), bn_group, static_cast<int>(rank_id),
+                     to_int_vector(peer_buffers));
+}
+
+std::vector<at::Tensor> apex_cudnn_gbn_backward(const at::Tensor& x, const at::Tensor& dy, const at::Tensor& scale,
+                                                const at::Tensor& minibatch_mean,
+                                                const at::Tensor& minibatch_inv_var, double epsilon,
+                                                int64_t bn_group, int64_t rank_id, at::IntArrayRef peer_buffers) {
+  return gbn_backward(x, dy, scale, minibatch_mean, minibatch_inv_var, static_cast<float>(epsilon), bn_group,
+                      static_cast<int>(rank_id), to_int_vector(peer_buffers));
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("cudnn_gbn_forward(Tensor x, Tensor scale, Tensor bias, Tensor running_mean, Tensor running_var, "
+        "Tensor minibatch_mean, Tensor minibatch_inv_var, float momentum, float epsilon, int bn_group, int rank_id, "
+        "int[] peer_buffers) -> Tensor");
+  m.def("cudnn_gbn_backward(Tensor x, Tensor dy, Tensor scale, Tensor minibatch_mean, Tensor minibatch_inv_var, "
+        "float epsilon, int bn_group, int rank_id, int[] peer_buffers) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("cudnn_gbn_forward", &apex_cudnn_gbn_forward);
+  m.impl("cudnn_gbn_backward", &apex_cudnn_gbn_backward);
 }

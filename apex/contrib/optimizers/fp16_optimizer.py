@@ -56,7 +56,7 @@ class FP16_Optimizer(object):
             param_group["params"] = fp32_group
 
         if multi_tensor_applier.available:
-            import amp_C
+            from apex._extensions import amp_C
 
             self.overflow_buf = torch.cuda.IntTensor([0])
             self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm

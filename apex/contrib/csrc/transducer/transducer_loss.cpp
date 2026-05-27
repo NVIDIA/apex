@@ -1,4 +1,5 @@
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 #include <vector>
 
@@ -8,17 +9,17 @@
   CHECK_CUDA(x);       \
   CHECK_CONTIGUOUS(x)
 
-std::vector<torch::Tensor> transducer_loss_cuda_forward(torch::Tensor x, torch::Tensor label, torch::Tensor audLen,
-                                                        torch::Tensor txtLen, torch::Tensor batchOffset, int maxFLen,
+std::vector<at::Tensor> transducer_loss_cuda_forward(at::Tensor x, at::Tensor label, at::Tensor audLen,
+                                                        at::Tensor txtLen, at::Tensor batchOffset, int maxFLen,
                                                         int blankIdx, int opt, bool packedInput);
 
-torch::Tensor transducer_loss_cuda_backward(torch::Tensor x, torch::Tensor lossGrad, torch::Tensor alpha,
-                                            torch::Tensor beta, torch::Tensor audLen, torch::Tensor txtLen,
-                                            torch::Tensor label, torch::Tensor batchOffset, int maxFLen, int blankIdx,
+at::Tensor transducer_loss_cuda_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha,
+                                            at::Tensor beta, at::Tensor audLen, at::Tensor txtLen,
+                                            at::Tensor label, at::Tensor batchOffset, int maxFLen, int blankIdx,
                                             int opt, bool fuseSoftmaxBackward, bool packedInput);
 
-std::vector<torch::Tensor> transducer_loss_forward(torch::Tensor x, torch::Tensor label, torch::Tensor fLen,
-                                                   torch::Tensor yLen, torch::Tensor batchOffset, int maxFLen,
+std::vector<at::Tensor> transducer_loss_forward(at::Tensor x, at::Tensor label, at::Tensor fLen,
+                                                   at::Tensor yLen, at::Tensor batchOffset, int maxFLen,
                                                    int blankIdx, int opt, bool packedInput) {
   CHECK_INPUT(x);
   CHECK_INPUT(label);
@@ -28,9 +29,9 @@ std::vector<torch::Tensor> transducer_loss_forward(torch::Tensor x, torch::Tenso
   return transducer_loss_cuda_forward(x, label, fLen, yLen, batchOffset, maxFLen, blankIdx, opt, packedInput);
 }
 
-torch::Tensor transducer_loss_backward(torch::Tensor x, torch::Tensor lossGrad, torch::Tensor alpha, torch::Tensor beta,
-                                       torch::Tensor fLen, torch::Tensor yLen, torch::Tensor label,
-                                       torch::Tensor batchOffset, int maxFLen, int blankIdx, int opt,
+at::Tensor transducer_loss_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha, at::Tensor beta,
+                                       at::Tensor fLen, at::Tensor yLen, at::Tensor label,
+                                       at::Tensor batchOffset, int maxFLen, int blankIdx, int opt,
                                        bool fuseSoftmaxBackward, bool packedInput) {
   CHECK_INPUT(x);
   CHECK_INPUT(label);
@@ -45,9 +46,33 @@ torch::Tensor transducer_loss_backward(torch::Tensor x, torch::Tensor lossGrad, 
                                        fuseSoftmaxBackward, packedInput);
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &transducer_loss_forward, "transducer loss forward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &transducer_loss_backward, "transducer loss backward (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
+std::vector<at::Tensor> transducer_loss_forward_dispatch(at::Tensor x, at::Tensor label, at::Tensor fLen,
+                                                            at::Tensor yLen, at::Tensor batchOffset,
+                                                            int64_t maxFLen, int64_t blankIdx, int64_t opt,
+                                                            bool packedInput) {
+  return transducer_loss_forward(x, label, fLen, yLen, batchOffset, static_cast<int>(maxFLen),
+                                 static_cast<int>(blankIdx), static_cast<int>(opt), packedInput);
+}
+
+at::Tensor transducer_loss_backward_dispatch(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha,
+                                                at::Tensor beta, at::Tensor fLen, at::Tensor yLen,
+                                                at::Tensor label, at::Tensor batchOffset, int64_t maxFLen,
+                                                int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward,
+                                                bool packedInput) {
+  return transducer_loss_backward(x, lossGrad, alpha, beta, fLen, yLen, label, batchOffset, static_cast<int>(maxFLen),
+                                  static_cast<int>(blankIdx), static_cast<int>(opt), fuseSoftmaxBackward,
+                                  packedInput);
+}
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("transducer_loss_forward(Tensor x, Tensor label, Tensor fLen, Tensor yLen, Tensor batchOffset, int maxFLen, "
+        "int blankIdx, int opt, bool packedInput) -> Tensor[]");
+  m.def("transducer_loss_backward(Tensor x, Tensor lossGrad, Tensor alpha, Tensor beta, Tensor fLen, Tensor yLen, "
+        "Tensor label, Tensor batchOffset, int maxFLen, int blankIdx, int opt, bool fuseSoftmaxBackward, "
+        "bool packedInput) -> Tensor");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("transducer_loss_forward", &transducer_loss_forward_dispatch);
+  m.impl("transducer_loss_backward", &transducer_loss_backward_dispatch);
 }

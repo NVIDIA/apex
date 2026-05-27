@@ -1,8 +1,7 @@
 #include <ATen/ATen.h>
 #include <ATen/cudnn/Handle.h>  // for getcudnnhandle
 #include <cudnn_frontend.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
+#include <torch/library.h>
 
 #include <iostream>
 #include <vector>
@@ -438,7 +437,7 @@ void run_conv_scale_bias_add_activation(int64_t* x_dim_padded, int64_t* pad, int
                                         int64_t* w_dim_padded, int64_t* y_dim_padded, cudnnDataType_t dataType,
                                         at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ,
                                         at::Half* devPtrB, at::Half* devPtrI) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -583,7 +582,7 @@ void run_conv_scale_bias_add_activation(int64_t* x_dim_padded, int64_t* pad, int
 void run_conv_scale_bias(int64_t* x_dim_padded, int64_t* pad, int64_t* convstride, int64_t* dilation,
                          int64_t* w_dim_padded, int64_t* y_dim_padded, cudnnDataType_t dataType, at::Half* devPtrX,
                          at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ, at::Half* devPtrB) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -696,7 +695,7 @@ void run_conv_scale_bias(int64_t* x_dim_padded, int64_t* pad, int64_t* convstrid
 void run_dconv_drelu_dscale(int64_t* x_dim_padded, int64_t* pad, int64_t* convstride, int64_t* dilation,
                             int64_t* w_dim_padded, int64_t* y_dim_padded, cudnnDataType_t dataType, at::Half* devPtrX,
                             at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ, at::Half* devPtrR) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -810,7 +809,7 @@ void run_dconv_drelu_dscale(int64_t* x_dim_padded, int64_t* pad, int64_t* convst
 void run_dconv(int64_t* x_dim_padded, int64_t* pad, int64_t* convstride, int64_t* dilation, int64_t* w_dim_padded,
                int64_t* y_dim_padded, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrY,
                cudnnBackendDescriptorType_t mode) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -905,7 +904,7 @@ void run_dconv(int64_t* x_dim_padded, int64_t* pad, int64_t* convstride, int64_t
 void run_dconv_add(int64_t* x_dim_padded, int64_t* pad, int64_t* convstride, int64_t* dilation, int64_t* w_dim_padded,
                    int64_t* y_dim_padded, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                    at::Half* devPtrY, at::Half* devPtrR) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -1821,7 +1820,7 @@ void run_conv_add_scale_bias_activation(int64_t* x_dim_padded, int64_t* pad, int
                                         int64_t* w_dim_padded, int64_t* y_dim_padded, cudnnDataType_t dataType,
                                         at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ,
                                         at::Half* devPtrB, at::Half* devPtrI) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -1966,7 +1965,7 @@ void run_conv_scale_bias_add_activation_mask(int64_t* x_dim_padded, int64_t* pad
                                              int64_t* threshold_dim, cudnnDataType_t dataType, at::Half* devPtrX,
                                              at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ, at::Half* devPtrB,
                                              at::Half* devPtrI, int* devPtrT, int* devPtrU, int axis) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -2236,7 +2235,7 @@ void run_dconv_add_drelu_dscale(int64_t* x_dim_padded, int64_t* pad, int64_t* co
                                 int64_t* w_dim_padded, int64_t* y_dim_padded, cudnnDataType_t dataType,
                                 at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrY, at::Half* devPtrZ,
                                 at::Half* devPtrR, at::Half* devPtrI) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -2367,7 +2366,7 @@ void run_dconv_drelu_dscale_mask(int64_t* x_dim_padded, int64_t* pad, int64_t* c
                                  int64_t* w_dim_padded, int64_t* y_dim_padded, int64_t* threshold_dim,
                                  cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrY,
                                  at::Half* devPtrZ, at::Half* devPtrR, int* devPtrT, int* devPtrU, int axis) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -3554,43 +3553,202 @@ void bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, std::vector<at
   }
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &bottleneck_forward, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &bottleneck_backward, "Bottleneck block backward", py::call_guard<py::gil_scoped_release>());
-  m.def("forward_init", &bottleneck_forward_init, "Bottleneck block init", py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out1", &bottleneck_forward_out1, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out2", &bottleneck_forward_out2, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out2_mask", &bottleneck_forward_out2_mask, "Bottleneck block forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out2_halo", &bottleneck_forward_out2_halo, "Bottleneck block forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out2_halo_corr", &bottleneck_forward_out2_halo_corr, "Bottleneck block forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_out2_pad", &bottleneck_forward_out2_pad, "Bottleneck block forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_rest", &bottleneck_forward_rest, "Bottleneck block forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward_init", &bottleneck_backward_init, "Bottleneck block backward init",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_grad_out2", &bottleneck_backward_grad_out2, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_grad_out1", &bottleneck_backward_grad_out1, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_grad_out1_mask", &bottleneck_backward_grad_out1_mask, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_grad_out1_halo", &bottleneck_backward_grad_out1_halo, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_grad_out1_halo_corr", &bottleneck_backward_grad_out1_halo_corr, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_wgrad2_pad", &bottleneck_backward_wgrad2_pad, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_wgrad2", &bottleneck_backward_wgrad2, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_wgrad2_halo", &bottleneck_backward_wgrad2_halo, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_wgrad3", &bottleneck_backward_wgrad3, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_wgrad1", &bottleneck_backward_wgrad1, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_rest", &bottleneck_backward_rest, "Bottleneck block backward",
-        py::call_guard<py::gil_scoped_release>());
+namespace {
+int as_int(int64_t value) { return static_cast<int>(value); }
+
+std::vector<at::Tensor> apex_fast_bottleneck_forward(bool explicit_nhwc, int64_t stride_1X1,
+                                                     std::vector<at::Tensor> inputs) {
+  return bottleneck_forward(explicit_nhwc, as_int(stride_1X1), std::move(inputs));
+}
+
+std::vector<at::Tensor> apex_fast_bottleneck_backward(bool explicit_nhwc, int64_t stride_1X1,
+                                                      std::vector<at::Tensor> inputs) {
+  return bottleneck_backward(explicit_nhwc, as_int(stride_1X1), std::move(inputs));
+}
+
+std::vector<at::Tensor> apex_fast_bottleneck_forward_init(bool explicit_nhwc, int64_t stride_1X1,
+                                                          std::vector<at::Tensor> inputs) {
+  return bottleneck_forward_init(explicit_nhwc, as_int(stride_1X1), std::move(inputs));
+}
+
+void apex_fast_bottleneck_forward_out1(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                       std::vector<at::Tensor> outputs) {
+  bottleneck_forward_out1(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs));
+}
+
+void apex_fast_bottleneck_forward_out2(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                       std::vector<at::Tensor> outputs) {
+  bottleneck_forward_out2(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs));
+}
+
+void apex_fast_bottleneck_forward_out2_mask(bool explicit_nhwc, int64_t stride_1X1,
+                                            std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs,
+                                            at::Tensor thresholdTop, at::Tensor thresholdBottom) {
+  bottleneck_forward_out2_mask(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), thresholdTop,
+                               thresholdBottom);
+}
+
+at::Tensor apex_fast_bottleneck_forward_out2_halo(bool explicit_nhwc, at::Tensor fat_halo_y1,
+                                                  std::vector<at::Tensor> inputs) {
+  return bottleneck_forward_out2_halo(explicit_nhwc, fat_halo_y1, std::move(inputs));
+}
+
+at::Tensor apex_fast_bottleneck_forward_out2_halo_corr(bool explicit_nhwc, at::Tensor slim_halo_y1,
+                                                       std::vector<at::Tensor> inputs, at::Tensor w1by3,
+                                                       at::Tensor out2_part_halo) {
+  return bottleneck_forward_out2_halo_corr(explicit_nhwc, slim_halo_y1, std::move(inputs), w1by3, out2_part_halo);
+}
+
+void apex_fast_bottleneck_forward_out2_pad(bool explicit_nhwc, int64_t stride_1X1,
+                                           std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs,
+                                           at::Tensor out1_pad) {
+  bottleneck_forward_out2_pad(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), out1_pad);
+}
+
+void apex_fast_bottleneck_forward_rest(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                       std::vector<at::Tensor> outputs) {
+  bottleneck_forward_rest(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs));
+}
+
+std::vector<at::Tensor> apex_fast_bottleneck_backward_init(bool explicit_nhwc, int64_t stride_1X1,
+                                                           std::vector<at::Tensor> inputs) {
+  return bottleneck_backward_init(explicit_nhwc, as_int(stride_1X1), std::move(inputs));
+}
+
+at::Tensor apex_fast_bottleneck_backward_grad_out2(bool explicit_nhwc, int64_t stride_1X1,
+                                                   std::vector<at::Tensor> inputs,
+                                                   std::vector<at::Tensor> outputs) {
+  return bottleneck_backward_grad_out2(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs));
+}
+
+at::Tensor apex_fast_bottleneck_backward_grad_out1(bool explicit_nhwc, int64_t stride_1X1,
+                                                   std::vector<at::Tensor> inputs,
+                                                   std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
+  return bottleneck_backward_grad_out1(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs),
+                                       grad_out2);
+}
+
+at::Tensor apex_fast_bottleneck_backward_grad_out1_mask(bool explicit_nhwc, int64_t stride_1X1,
+                                                        std::vector<at::Tensor> inputs,
+                                                        std::vector<at::Tensor> outputs, at::Tensor grad_out2,
+                                                        at::Tensor thresholdTop, at::Tensor thresholdBottom) {
+  return bottleneck_backward_grad_out1_mask(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs),
+                                            grad_out2, thresholdTop, thresholdBottom);
+}
+
+at::Tensor apex_fast_bottleneck_backward_grad_out1_halo_corr(
+    bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs, at::Tensor w1by3,
+    std::vector<at::Tensor> outputs, at::Tensor grad_out2_halo, at::Tensor relu1_halo, at::Tensor part_grad_out1) {
+  return bottleneck_backward_grad_out1_halo_corr(explicit_nhwc, as_int(stride_1X1), std::move(inputs), w1by3,
+                                                 std::move(outputs), grad_out2_halo, relu1_halo, part_grad_out1);
+}
+
+at::Tensor apex_fast_bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int64_t stride_1X1,
+                                                        std::vector<at::Tensor> inputs,
+                                                        std::vector<at::Tensor> outputs, at::Tensor grad_out2_halo,
+                                                        at::Tensor relu1_halo) {
+  return bottleneck_backward_grad_out1_halo(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs),
+                                            grad_out2_halo, relu1_halo);
+}
+
+void apex_fast_bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int64_t stride_1X1,
+                                              std::vector<at::Tensor> inputs, std::vector<at::Tensor> outputs,
+                                              at::Tensor input, at::Tensor grad_out2) {
+  bottleneck_backward_wgrad2_pad(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), input,
+                                 grad_out2);
+}
+
+void apex_fast_bottleneck_backward_wgrad2(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                          std::vector<at::Tensor> outputs, at::Tensor grad_out2) {
+  bottleneck_backward_wgrad2(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), grad_out2);
+}
+
+at::Tensor apex_fast_bottleneck_backward_wgrad2_halo(bool explicit_nhwc, int64_t stride_1X1,
+                                                     std::vector<at::Tensor> inputs,
+                                                     std::vector<at::Tensor> outputs, at::Tensor input,
+                                                     at::Tensor grad_out2_halo) {
+  return bottleneck_backward_wgrad2_halo(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs),
+                                         input, grad_out2_halo);
+}
+
+void apex_fast_bottleneck_backward_wgrad3(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                          std::vector<at::Tensor> outputs) {
+  bottleneck_backward_wgrad3(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs));
+}
+
+void apex_fast_bottleneck_backward_wgrad1(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                          std::vector<at::Tensor> outputs, at::Tensor grad_out1) {
+  bottleneck_backward_wgrad1(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), grad_out1);
+}
+
+void apex_fast_bottleneck_backward_rest(bool explicit_nhwc, int64_t stride_1X1, std::vector<at::Tensor> inputs,
+                                        std::vector<at::Tensor> outputs, at::Tensor grad_out2,
+                                        at::Tensor grad_out1) {
+  bottleneck_backward_rest(explicit_nhwc, as_int(stride_1X1), std::move(inputs), std::move(outputs), grad_out2,
+                           grad_out1);
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fast_bottleneck_forward(bool explicit_nhwc, int stride_1X1, Tensor[] inputs) -> Tensor[]");
+  m.def("fast_bottleneck_backward(bool explicit_nhwc, int stride_1X1, Tensor[] inputs) -> Tensor[]");
+  m.def("fast_bottleneck_forward_init(bool explicit_nhwc, int stride_1X1, Tensor[] inputs) -> Tensor[]");
+  m.def("fast_bottleneck_forward_out1(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs) -> ()");
+  m.def("fast_bottleneck_forward_out2(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs) -> ()");
+  m.def("fast_bottleneck_forward_out2_mask(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor thresholdTop, Tensor thresholdBottom) -> ()");
+  m.def("fast_bottleneck_forward_out2_halo(bool explicit_nhwc, Tensor fat_halo_y1, Tensor[] inputs) -> Tensor");
+  m.def("fast_bottleneck_forward_out2_halo_corr(bool explicit_nhwc, Tensor slim_halo_y1, Tensor[] inputs, "
+        "Tensor w1by3, Tensor out2_part_halo) -> Tensor");
+  m.def("fast_bottleneck_forward_out2_pad(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor out1_pad) -> ()");
+  m.def("fast_bottleneck_forward_rest(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs) -> ()");
+  m.def("fast_bottleneck_backward_init(bool explicit_nhwc, int stride_1X1, Tensor[] inputs) -> Tensor[]");
+  m.def("fast_bottleneck_backward_grad_out2(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs) "
+        "-> Tensor");
+  m.def("fast_bottleneck_backward_grad_out1(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor grad_out2) -> Tensor");
+  m.def("fast_bottleneck_backward_grad_out1_mask(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, "
+        "Tensor[] outputs, Tensor grad_out2, Tensor thresholdTop, Tensor thresholdBottom) -> Tensor");
+  m.def("fast_bottleneck_backward_grad_out1_halo(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, "
+        "Tensor[] outputs, Tensor grad_out2_halo, Tensor relu1_halo) -> Tensor");
+  m.def("fast_bottleneck_backward_grad_out1_halo_corr(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, "
+        "Tensor w1by3, Tensor[] outputs, Tensor grad_out2_halo, Tensor relu1_halo, Tensor part_grad_out1) -> Tensor");
+  m.def("fast_bottleneck_backward_wgrad2_pad(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor input, Tensor grad_out2) -> ()");
+  m.def("fast_bottleneck_backward_wgrad2(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor grad_out2) -> ()");
+  m.def("fast_bottleneck_backward_wgrad2_halo(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor input, Tensor grad_out2_halo) -> Tensor");
+  m.def("fast_bottleneck_backward_wgrad3(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs) "
+        "-> ()");
+  m.def("fast_bottleneck_backward_wgrad1(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor grad_out1) -> ()");
+  m.def("fast_bottleneck_backward_rest(bool explicit_nhwc, int stride_1X1, Tensor[] inputs, Tensor[] outputs, "
+        "Tensor grad_out2, Tensor grad_out1) -> ()");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fast_bottleneck_forward", &apex_fast_bottleneck_forward);
+  m.impl("fast_bottleneck_backward", &apex_fast_bottleneck_backward);
+  m.impl("fast_bottleneck_forward_init", &apex_fast_bottleneck_forward_init);
+  m.impl("fast_bottleneck_forward_out1", &apex_fast_bottleneck_forward_out1);
+  m.impl("fast_bottleneck_forward_out2", &apex_fast_bottleneck_forward_out2);
+  m.impl("fast_bottleneck_forward_out2_mask", &apex_fast_bottleneck_forward_out2_mask);
+  m.impl("fast_bottleneck_forward_out2_halo", &apex_fast_bottleneck_forward_out2_halo);
+  m.impl("fast_bottleneck_forward_out2_halo_corr", &apex_fast_bottleneck_forward_out2_halo_corr);
+  m.impl("fast_bottleneck_forward_out2_pad", &apex_fast_bottleneck_forward_out2_pad);
+  m.impl("fast_bottleneck_forward_rest", &apex_fast_bottleneck_forward_rest);
+  m.impl("fast_bottleneck_backward_init", &apex_fast_bottleneck_backward_init);
+  m.impl("fast_bottleneck_backward_grad_out2", &apex_fast_bottleneck_backward_grad_out2);
+  m.impl("fast_bottleneck_backward_grad_out1", &apex_fast_bottleneck_backward_grad_out1);
+  m.impl("fast_bottleneck_backward_grad_out1_mask", &apex_fast_bottleneck_backward_grad_out1_mask);
+  m.impl("fast_bottleneck_backward_grad_out1_halo", &apex_fast_bottleneck_backward_grad_out1_halo);
+  m.impl("fast_bottleneck_backward_grad_out1_halo_corr", &apex_fast_bottleneck_backward_grad_out1_halo_corr);
+  m.impl("fast_bottleneck_backward_wgrad2_pad", &apex_fast_bottleneck_backward_wgrad2_pad);
+  m.impl("fast_bottleneck_backward_wgrad2", &apex_fast_bottleneck_backward_wgrad2);
+  m.impl("fast_bottleneck_backward_wgrad2_halo", &apex_fast_bottleneck_backward_wgrad2_halo);
+  m.impl("fast_bottleneck_backward_wgrad3", &apex_fast_bottleneck_backward_wgrad3);
+  m.impl("fast_bottleneck_backward_wgrad1", &apex_fast_bottleneck_backward_wgrad1);
+  m.impl("fast_bottleneck_backward_rest", &apex_fast_bottleneck_backward_rest);
 }

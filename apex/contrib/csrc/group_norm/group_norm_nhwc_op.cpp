@@ -3,12 +3,19 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <torch/extension.h>
+#include <torch/library.h>
 
 #include "group_norm_nhwc.h"
 #include "group_norm_nhwc_bwd_one_pass.h"
 #include "group_norm_nhwc_fwd_one_pass.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unordered_set>
+#include <vector>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -21,15 +28,16 @@
     }                                                                                               \
   } while (0)
 
-#define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_CHANNELS_LAST(x) TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), #x " must be channels last")
-#define CHECK_INPUT(x) \
-  CHECK_CUDA(x);       \
-  CHECK_CONTIGUOUS(x)
-#define CHECK_NHWC_INPUT(x) \
-  CHECK_CUDA(x);            \
-  CHECK_CHANNELS_LAST(x)
+#define CHECK_TENSOR_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_TENSOR_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_TENSOR_CHANNELS_LAST(x) \
+  TORCH_CHECK(x.is_contiguous(at::MemoryFormat::ChannelsLast), #x " must be channels last")
+#define CHECK_TENSOR_INPUT(x) \
+  CHECK_TENSOR_CUDA(x);       \
+  CHECK_TENSOR_CONTIGUOUS(x)
+#define CHECK_NHWC_TENSOR_INPUT(x) \
+  CHECK_TENSOR_CUDA(x);            \
+  CHECK_TENSOR_CHANNELS_LAST(x)
 
 static bool initialized = false;
 static cudaDeviceProp props;
@@ -39,13 +47,13 @@ const std::unordered_set<int> supported_c_values = {128,  256,  320,  384,  448,
                                                     2048, 2240, 2560, 2688, 3072, 3136, 3584, 4096};
 const std::unordered_set<int> supported_groups_values = {16, 32};
 
-std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch::Tensor weight, torch::Tensor bias,
-                                          float eps, int passes, bool with_swish = false) {
+std::vector<at::Tensor> group_norm_fwd(at::Tensor input, int groups, at::Tensor weight, at::Tensor bias, float eps,
+                                       int passes, bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
   }
-  CHECK_NHWC_INPUT(input);
+  CHECK_NHWC_TENSOR_INPUT(input);
   auto stream = at::cuda::getCurrentCUDAStream();
 
   // Achieve group norm arguments
@@ -83,26 +91,26 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch
   params_fwd.with_swish = with_swish;
 
   PrecisionMode mode;
-  if (input.dtype() == torch::kFloat32) {
-    if (weight.dtype() == torch::kFloat16) {
+  if (input.dtype() == at::kFloat) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::FP32IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::FP32IOBF16W;
     } else {
       mode = PrecisionMode::FP32IOFP32W;
     }
-  } else if (input.dtype() == torch::kBFloat16) {
-    if (weight.dtype() == torch::kFloat16) {
+  } else if (input.dtype() == at::kBFloat16) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::BF16IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::BF16IOBF16W;
     } else {
       mode = PrecisionMode::BF16IOFP32W;
     }
   } else {
-    if (weight.dtype() == torch::kFloat16) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::FP16IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::FP16IOBF16W;
     } else {
       mode = PrecisionMode::FP16IOFP32W;
@@ -126,13 +134,13 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch
   }
 
   // Allocate on the device.
-  auto red_buffer = at::empty({red_buffer_elts}, options.dtype(at::kFloat));
+  auto red_buffer = at::empty({static_cast<int64_t>(red_buffer_elts)}, options.dtype(at::kFloat));
   params_fwd.red_buffer = red_buffer.data_ptr<float>();
 
   // Allocate the buffer if needed.
-  auto barriers = at::zeros({barriers_elts}, options.dtype(at::kInt));
+  auto barriers = at::zeros({static_cast<int64_t>(barriers_elts)}, options.dtype(at::kInt));
   params_fwd.barriers = barriers.data_ptr<int>();
-  auto zeroed_red_buffer = at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
+  auto zeroed_red_buffer = at::zeros({static_cast<int64_t>(zeroed_red_buffer_elts)}, options.dtype(at::kFloat));
   params_fwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
   if (passes == 1) {
@@ -145,14 +153,14 @@ std::vector<torch::Tensor> group_norm_fwd(torch::Tensor input, int groups, torch
   return {output, sums_d};
 }
 
-std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tensor sums, torch::Tensor input,
-                                          int groups, torch::Tensor weight, torch::Tensor bias, float eps, int passes,
-                                          bool with_swish = false) {
+std::vector<at::Tensor> group_norm_bwd(at::Tensor grad_output, at::Tensor sums, at::Tensor input, int groups,
+                                       at::Tensor weight, at::Tensor bias, float eps, int passes,
+                                       bool with_swish = false) {
   if (!initialized) {
     CHECK_CUDA_STATUS(cudaGetDeviceProperties(&props, 0));
     initialized = true;
   }
-  CHECK_NHWC_INPUT(grad_output);
+  CHECK_NHWC_TENSOR_INPUT(grad_output);
   auto stream = at::cuda::getCurrentCUDAStream();
 
   // Achieve group norm arguments
@@ -197,26 +205,26 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tens
   params_bwd.with_swish = with_swish;
 
   PrecisionMode mode;
-  if (input.dtype() == torch::kFloat32) {
-    if (weight.dtype() == torch::kFloat16) {
+  if (input.dtype() == at::kFloat) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::FP32IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::FP32IOBF16W;
     } else {
       mode = PrecisionMode::FP32IOFP32W;
     }
-  } else if (input.dtype() == torch::kBFloat16) {
-    if (weight.dtype() == torch::kFloat16) {
+  } else if (input.dtype() == at::kBFloat16) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::BF16IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::BF16IOBF16W;
     } else {
       mode = PrecisionMode::BF16IOFP32W;
     }
   } else {
-    if (weight.dtype() == torch::kFloat16) {
+    if (weight.dtype() == at::kHalf) {
       mode = PrecisionMode::FP16IOFP16W;
-    } else if (weight.dtype() == torch::kBFloat16) {
+    } else if (weight.dtype() == at::kBFloat16) {
       mode = PrecisionMode::FP16IOBF16W;
     } else {
       mode = PrecisionMode::FP16IOFP32W;
@@ -240,13 +248,13 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tens
   }
 
   // Allocate on the device.
-  auto red_buffer = at::empty({red_buffer_elts}, options.dtype(at::kFloat));
+  auto red_buffer = at::empty({static_cast<int64_t>(red_buffer_elts)}, options.dtype(at::kFloat));
   params_bwd.red_buffer = red_buffer.data_ptr<float>();
 
   // Allocate the buffer if needed.
-  auto barriers = at::zeros({barriers_elts}, options.dtype(at::kInt));
+  auto barriers = at::zeros({static_cast<int64_t>(barriers_elts)}, options.dtype(at::kInt));
   params_bwd.barriers = barriers.data_ptr<int>();
-  auto zeroed_red_buffer = at::zeros({zeroed_red_buffer_elts}, options.dtype(at::kFloat));
+  auto zeroed_red_buffer = at::zeros({static_cast<int64_t>(zeroed_red_buffer_elts)}, options.dtype(at::kFloat));
   params_bwd.zeroed_red_buffer = zeroed_red_buffer.data_ptr<float>();
 
   if (passes == 1) {
@@ -259,7 +267,29 @@ std::vector<torch::Tensor> group_norm_bwd(torch::Tensor grad_output, torch::Tens
   return {grad_input, grad_weight, grad_bias};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &group_norm_fwd, "NHWC group norm forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &group_norm_bwd, "NHWC group norm backward", py::call_guard<py::gil_scoped_release>());
+namespace {
+std::vector<at::Tensor> apex_group_norm_fwd(at::Tensor input, int64_t groups, at::Tensor weight, at::Tensor bias,
+                                            double eps, int64_t passes, bool with_swish) {
+  return group_norm_fwd(input, static_cast<int>(groups), weight, bias, static_cast<float>(eps),
+                        static_cast<int>(passes), with_swish);
+}
+
+std::vector<at::Tensor> apex_group_norm_bwd(at::Tensor grad_output, at::Tensor sums, at::Tensor input, int64_t groups,
+                                            at::Tensor weight, at::Tensor bias, double eps, int64_t passes,
+                                            bool with_swish) {
+  return group_norm_bwd(grad_output, sums, input, static_cast<int>(groups), weight, bias, static_cast<float>(eps),
+                        static_cast<int>(passes), with_swish);
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("group_norm_forward(Tensor input, int groups, Tensor weight, Tensor bias, float eps, int passes, "
+        "bool with_swish) -> Tensor[]");
+  m.def("group_norm_backward(Tensor grad_output, Tensor sums, Tensor input, int groups, Tensor weight, Tensor bias, "
+        "float eps, int passes, bool with_swish) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("group_norm_forward", &apex_group_norm_fwd);
+  m.impl("group_norm_backward", &apex_group_norm_bwd);
 }

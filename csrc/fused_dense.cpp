@@ -1,6 +1,7 @@
 #include <stdio.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
+#include <ATen/ATen.h>
+#include <ATen/Dispatch.h>
+#include <torch/library.h>
 
 #include <vector>
 
@@ -40,7 +41,6 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_forward", [&] {
         scalar_t* w_ptr = weight.data_ptr<scalar_t>();
-        scalar_t* b_ptr = bias.data_ptr<scalar_t>();
         [[maybe_unused]] auto result =
             linear_bias_forward_cuda<scalar_t>(input, w_ptr, bias, in_features, batch_size, out_features, out,
                                                // out.data_ptr<scalar_t>(),
@@ -48,7 +48,7 @@ at::Tensor linear_bias_forward(at::Tensor input, at::Tensor weight, at::Tensor b
                                                (void*)(lt_workspace.data_ptr<scalar_t>()));
       });
 
-  return {out};
+  return out;
 }
 
 std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight, at::Tensor d_output) {
@@ -74,7 +74,6 @@ std::vector<at::Tensor> linear_bias_backward(at::Tensor input, at::Tensor weight
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
         scalar_t* w_ptr = weight.data_ptr<scalar_t>();
-        scalar_t* d_b_ptr = d_bias.data_ptr<scalar_t>();
         [[maybe_unused]] auto result = linear_bias_backward_cuda<scalar_t>(
             input.data_ptr<scalar_t>(), w_ptr, d_output.data_ptr<scalar_t>(), in_features, batch_size, out_features,
             d_weight.data_ptr<scalar_t>(), d_bias.data_ptr<scalar_t>(), d_input.data_ptr<scalar_t>(),
@@ -142,8 +141,6 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
 
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::ScalarType::Half, at::ScalarType::BFloat16, input.scalar_type(), "linear_bias_backward", [&] {
-        // scalar_t* w_ptr = weight.data_ptr<scalar_t>();
-        // scalar_t* d_b_ptr = d_bias.data_ptr<scalar_t>();
         [[maybe_unused]] auto result = linear_gelu_linear_backward_cuda<scalar_t>(
             input.data_ptr<scalar_t>(), gelu_in.data_ptr<scalar_t>(), output1.data_ptr<scalar_t>(),
             weight1.data_ptr<scalar_t>(), weight2.data_ptr<scalar_t>(), d_output1.data_ptr<scalar_t>(),
@@ -157,12 +154,18 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
   return {d_input, d_weight1, d_bias1, d_weight2, d_bias2};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("linear_bias_forward", &linear_bias_forward, "linear bias forward", py::call_guard<py::gil_scoped_release>());
-  m.def("linear_bias_backward", &linear_bias_backward, "linear bias backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("linear_gelu_linear_forward", &linear_gelu_linear_forward, "linear gelu linear forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("linear_gelu_linear_backward", &linear_gelu_linear_backward, "linear gelu linear backward",
-        py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fused_dense_linear_bias_forward(Tensor input, Tensor weight, Tensor bias) -> Tensor");
+  m.def("fused_dense_linear_bias_backward(Tensor input, Tensor weight, Tensor d_output) -> Tensor[]");
+  m.def("fused_dense_linear_gelu_linear_forward(Tensor input, Tensor weight1, Tensor bias1, Tensor weight2, "
+        "Tensor bias2) -> Tensor[]");
+  m.def("fused_dense_linear_gelu_linear_backward(Tensor input, Tensor gelu_in, Tensor output1, Tensor weight1, "
+        "Tensor weight2, Tensor d_output2) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fused_dense_linear_bias_forward", &linear_bias_forward);
+  m.impl("fused_dense_linear_bias_backward", &linear_bias_backward);
+  m.impl("fused_dense_linear_gelu_linear_forward", &linear_gelu_linear_forward);
+  m.impl("fused_dense_linear_gelu_linear_backward", &linear_gelu_linear_backward);
 }

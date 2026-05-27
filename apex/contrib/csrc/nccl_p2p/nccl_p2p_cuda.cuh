@@ -15,7 +15,8 @@
  */
 
 #pragma once
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <vector>
 #ifndef _nccl_p2p_h_
 #define _nccl_p2p_h_
 

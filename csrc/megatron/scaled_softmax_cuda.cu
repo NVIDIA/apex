@@ -18,9 +18,10 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_fp16.h>
+#if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
+#endif
 #include <cuda_runtime.h>
-#include <torch/extension.h>
 
 #include "scaled_masked_softmax.h"
 #include "type_shim.h"
@@ -29,7 +30,7 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace scaled_softmax {
 
-torch::Tensor fwd_cuda(torch::Tensor const& input, float scale_factor) {
+at::Tensor fwd_cuda(at::Tensor const& input, float scale_factor) {
   // input is a 4d tensor with dimensions [batches, attn_heads, seq_len, seq_len]
   const int batches = input.size(0);
   const int attn_heads = input.size(1);
@@ -40,7 +41,7 @@ torch::Tensor fwd_cuda(torch::Tensor const& input, float scale_factor) {
 
   // Output
   auto act_options = input.options().requires_grad(false);
-  torch::Tensor softmax_results = torch::empty({batches, attn_heads, query_seq_len, key_seq_len}, act_options);
+  at::Tensor softmax_results = at::empty({batches, attn_heads, query_seq_len, key_seq_len}, act_options);
 
   // Softmax Intermediate Result Ptr
   void* input_ptr = static_cast<void*>(input.data_ptr());
@@ -54,7 +55,7 @@ torch::Tensor fwd_cuda(torch::Tensor const& input, float scale_factor) {
   return softmax_results;
 }
 
-torch::Tensor bwd_cuda(torch::Tensor const& output_grads_, torch::Tensor const& softmax_results_, float scale_factor) {
+at::Tensor bwd_cuda(at::Tensor const& output_grads_, at::Tensor const& softmax_results_, float scale_factor) {
   auto output_grads = output_grads_.contiguous();
   auto softmax_results = softmax_results_.contiguous();
 

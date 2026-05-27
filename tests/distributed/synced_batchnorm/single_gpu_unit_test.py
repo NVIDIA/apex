@@ -4,7 +4,7 @@ import apex
 
 if True:
     print("using setup tools")
-    import syncbn
+    from apex._extensions import syncbn
 else:
     print("using jit")
     from torch.utils.cpp_extension import load

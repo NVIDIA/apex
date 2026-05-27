@@ -27,7 +27,7 @@
 
 
 import torch
-import fmhalib as mha
+from apex._extensions import fmhalib as mha
 
 
 class FMHAFun(torch.autograd.Function):

@@ -4,8 +4,8 @@ import torch
 from torch import nn
 
 from apex import check_cudnn_version_and_warn
-import fast_bottleneck
-import nccl_p2p_cuda as inc
+from apex._extensions import fast_bottleneck
+from apex._extensions import nccl_p2p_cuda as inc
 
 
 assert check_cudnn_version_and_warn(__name__, 8400)

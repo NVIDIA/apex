@@ -111,7 +111,7 @@ class FusedSGD(Optimizer):
         self.set_grad_none = set_grad_none
 
         if multi_tensor_applier.available:
-            import amp_C
+            from apex._extensions import amp_C
 
             # Skip buffer
             self._dummy_overflow_buf = torch.tensor(

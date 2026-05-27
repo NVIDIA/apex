@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import apex
-import syncbn
+from apex._extensions import syncbn
 import os
 import argparse
 import torch.optim as optim

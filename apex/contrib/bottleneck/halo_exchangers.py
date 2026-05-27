@@ -1,6 +1,6 @@
 import torch
-import nccl_p2p_cuda as inc
-import peer_memory_cuda as pm
+from apex._extensions import nccl_p2p_cuda as inc
+from apex._extensions import peer_memory_cuda as pm
 
 
 # Communication free halo exchanger.

@@ -27,7 +27,7 @@
 
 #include <ATen/Dispatch.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <torch/extension.h>
+#include <ATen/ATen.h>
 
 constexpr int block_size = 512;
 constexpr int ctas_per_sm = 4;

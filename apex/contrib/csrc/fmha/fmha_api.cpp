@@ -26,7 +26,8 @@
  ******************************************************************************/
 
 #include <ATen/cuda/CUDAContext.h>
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 #include "fmha.h"
 
@@ -81,7 +82,6 @@ std::vector<at::Tensor> mha_fwd(
     const at::Tensor& cu_seqlens,  // b+1
     const float p_dropout, const int max_seq_len, const bool is_training, const bool is_nl, const bool zero_tensors,
     c10::optional<at::Generator> gen_) {
-  using namespace torch::indexing;
   auto dprops = at::cuda::getCurrentDeviceProperties();
   TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) || (dprops->major == 9 && dprops->minor == 0) ||
               (dprops->major == 10 && dprops->minor == 0) || (dprops->major == 12 && dprops->minor == 0));
@@ -127,12 +127,12 @@ std::vector<at::Tensor> mha_fwd(
   TORCH_CHECK(head_size == 64);
   auto opts = qkv.options();
 
-  auto ctx = torch::empty({total, num_heads, head_size}, opts);
+  auto ctx = at::empty({total, num_heads, head_size}, opts);
 
-  auto s = torch::empty({batch_size, num_heads, seq_len, seq_len}, opts);
+  auto s = at::empty({batch_size, num_heads, seq_len, seq_len}, opts);
 
   if (zero_tensors) {
-    mha_fill(ctx, cu_seqlens.index({Slice(-1, None)}));
+    mha_fill(ctx, cu_seqlens.slice(0, -1));
   }
 
   auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(gen_, at::cuda::detail::getDefaultCUDAGenerator());
@@ -165,7 +165,6 @@ std::vector<at::Tensor> mha_bwd(
     const float p_dropout,         // probability to drop
     const int max_seq_len,         // max sequence length to choose the kernel
     const bool zero_tensors) {
-  using namespace torch::indexing;
   auto dprops = at::cuda::getCurrentDeviceProperties();
   TORCH_CHECK((dprops->major == 8 && dprops->minor == 0) || (dprops->major == 9 && dprops->minor == 0) ||
               (dprops->major == 10 && dprops->minor == 0) || (dprops->major == 12 && dprops->minor == 0));
@@ -189,10 +188,10 @@ std::vector<at::Tensor> mha_bwd(
 
   auto stream = at::cuda::getCurrentCUDAStream().stream();
 
-  TORCH_CHECK(qkv.dtype() == torch::kFloat16);
-  TORCH_CHECK(dout.dtype() == torch::kFloat16);
-  TORCH_CHECK(softmax.dtype() == torch::kFloat16);
-  TORCH_CHECK(cu_seqlens.dtype() == torch::kInt32);
+  TORCH_CHECK(qkv.dtype() == at::kHalf);
+  TORCH_CHECK(dout.dtype() == at::kHalf);
+  TORCH_CHECK(softmax.dtype() == at::kHalf);
+  TORCH_CHECK(cu_seqlens.dtype() == at::kInt);
 
   TORCH_CHECK(qkv.is_cuda());
   TORCH_CHECK(cu_seqlens.is_cuda());
@@ -213,10 +212,10 @@ std::vector<at::Tensor> mha_bwd(
   TORCH_CHECK(batch_size > 0);
   TORCH_CHECK(head_size == 64);
 
-  auto dqkv = torch::empty_like(qkv);
+  auto dqkv = at::empty_like(qkv);
 
   if (zero_tensors) {
-    mha_fill(dqkv, cu_seqlens.index({Slice(-1, None)}));
+    mha_fill(dqkv, cu_seqlens.slice(0, -1));
   }
 
   Fused_multihead_attention_fprop_params params;
@@ -274,7 +273,7 @@ std::vector<at::Tensor> mha_bwd_nl(
 
   auto opts = qkv.options();
 
-  auto dqkv = torch::empty_like(qkv);
+  auto dqkv = at::empty_like(qkv);
 
   if (zero_tensors) {
     dqkv.zero_();
@@ -286,7 +285,7 @@ std::vector<at::Tensor> mha_bwd_nl(
   } else if (batch_size == 2) {
     num_chunks = 3;
   }
-  auto dkv = torch::empty({total, num_chunks, 2, num_heads, head_size}, opts);
+  auto dkv = at::empty({total, num_chunks, 2, num_heads, head_size}, opts);
 
   Fused_multihead_attention_fprop_params params;
 
@@ -307,10 +306,8 @@ std::vector<at::Tensor> mha_bwd_nl(
 
   // SPLIT-K reduction of num_chunks dK, dV parts
 
-  // The equivalent of the following Pytorch code:
-  // using namespace torch::indexing;
-  // at::Tensor view_out = dqkv.index({Slice(), Slice(1, None, None)});
-  // torch::sum_out(view_out, dkv, 1);
+  // The equivalent Python operation would reduce the split-K chunks into the
+  // K/V gradient slice of dqkv.
 
   const int hidden_size = num_heads * head_size;
   fmha_run_noloop_reduce(dqkv.data_ptr(), dkv.data_ptr(), cu_seqlens.data_ptr<int>(), hidden_size, batch_size, total,
@@ -319,9 +316,40 @@ std::vector<at::Tensor> mha_bwd_nl(
   return {dqkv, softmax, dkv};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.doc() = "Fused Multi-head Self-attention for BERT";
-  m.def("fwd", &mha_fwd, "Forward pass", py::call_guard<py::gil_scoped_release>());
-  m.def("bwd", &mha_bwd, "Backward pass", py::call_guard<py::gil_scoped_release>());
-  m.def("bwd_nl", &mha_bwd_nl, "Backward pass (small-batch)", py::call_guard<py::gil_scoped_release>());
+namespace {
+std::vector<at::Tensor> apex_fmha_fwd(const at::Tensor& qkv, const at::Tensor& cu_seqlens, double p_dropout,
+                                      int64_t max_seq_len, bool is_training, bool is_nl, bool zero_tensors,
+                                      c10::optional<at::Generator> gen) {
+  return mha_fwd(qkv, cu_seqlens, static_cast<float>(p_dropout), static_cast<int>(max_seq_len), is_training, is_nl,
+                 zero_tensors, gen);
+}
+
+std::vector<at::Tensor> apex_fmha_bwd(const at::Tensor& dout, const at::Tensor& qkv, at::Tensor softmax,
+                                      const at::Tensor& cu_seqlens, double p_dropout, int64_t max_seq_len,
+                                      bool zero_tensors) {
+  return mha_bwd(dout, qkv, softmax, cu_seqlens, static_cast<float>(p_dropout), static_cast<int>(max_seq_len),
+                 zero_tensors);
+}
+
+std::vector<at::Tensor> apex_fmha_bwd_nl(const at::Tensor& dout, const at::Tensor& qkv, at::Tensor softmax,
+                                         const at::Tensor& cu_seqlens, double p_dropout, int64_t max_seq_len,
+                                         bool zero_tensors) {
+  return mha_bwd_nl(dout, qkv, softmax, cu_seqlens, static_cast<float>(p_dropout), static_cast<int>(max_seq_len),
+                    zero_tensors);
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fmha_fwd(Tensor qkv, Tensor cu_seqlens, float p_dropout, int max_seq_len, bool is_training, bool is_nl, "
+        "bool zero_tensors, Generator? gen) -> Tensor[]");
+  m.def("fmha_bwd(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, int max_seq_len, "
+        "bool zero_tensors) -> Tensor[]");
+  m.def("fmha_bwd_nl(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, "
+        "int max_seq_len, bool zero_tensors) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fmha_fwd", &apex_fmha_fwd);
+  m.impl("fmha_bwd", &apex_fmha_bwd);
+  m.impl("fmha_bwd_nl", &apex_fmha_bwd_nl);
 }

@@ -15,7 +15,8 @@
  */
 
 #pragma once
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <vector>
 #ifndef _peer_memory_h_
 #define _peer_memory_h_
 

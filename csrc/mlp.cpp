@@ -1,6 +1,7 @@
 #include <stdio.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
+#include <ATen/ATen.h>
+#include <ATen/Dispatch.h>
+#include <torch/library.h>
 
 #include <vector>
 
@@ -106,7 +107,25 @@ std::vector<at::Tensor> mlp_backward(int use_bias, int activation, at::Tensor gr
   return outputs;
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &mlp_forward, "MLP forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &mlp_backward, "MLP backward", py::call_guard<py::gil_scoped_release>());
+namespace {
+std::vector<at::Tensor> apex_mlp_forward(int64_t use_bias, int64_t activation, std::vector<at::Tensor> inputs) {
+  return mlp_forward(static_cast<int>(use_bias), static_cast<int>(activation), std::move(inputs));
+}
+
+std::vector<at::Tensor> apex_mlp_backward(int64_t use_bias, int64_t activation, at::Tensor grad_o,
+                                          std::vector<at::Tensor> fprop_outputs, std::vector<at::Tensor> inputs) {
+  return mlp_backward(static_cast<int>(use_bias), static_cast<int>(activation), grad_o, std::move(fprop_outputs),
+                      std::move(inputs));
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("mlp_forward(int use_bias, int activation, Tensor[] inputs) -> Tensor[]");
+  m.def("mlp_backward(int use_bias, int activation, Tensor grad_o, Tensor[] fprop_outputs, Tensor[] inputs) "
+        "-> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("mlp_forward", &apex_mlp_forward);
+  m.impl("mlp_backward", &apex_mlp_backward);
 }

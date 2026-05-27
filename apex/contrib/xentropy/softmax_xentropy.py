@@ -1,6 +1,6 @@
 import torch
 
-import xentropy_cuda
+from apex._extensions import xentropy_cuda
 
 
 class SoftmaxCrossEntropyLoss(torch.autograd.Function):

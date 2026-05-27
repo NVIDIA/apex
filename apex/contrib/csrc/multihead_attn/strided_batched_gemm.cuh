@@ -1,7 +1,9 @@
 #pragma once
 #include <cuda.h>
 #include <cuda_fp16.h>
+#if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
+#endif
 #include <cuda_runtime.h>
 
 #include <iostream>

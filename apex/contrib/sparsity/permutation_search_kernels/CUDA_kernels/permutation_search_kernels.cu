@@ -1,7 +1,8 @@
-#include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
+#include <torch/csrc/stable/library.h>
+#include <torch/csrc/stable/tensor_inl.h>
+#include <torch/csrc/stable/tensor_struct.h>
+#include <limits>
 #include <stdio.h>
-namespace py = pybind11;
 
 #define gpuErrchk(ans)                    \
   {                                       \
@@ -36,9 +37,27 @@ __device__ float group_2_to_4(float4 vals) {
   return best_sum;
 }
 
-inline float* float_ptr_from_numpy(py::array_t<float>& py_float) { return (float*)py_float.data(); }
+inline void check_cpu_contiguous(torch::stable::Tensor const& tensor, const char* name) {
+  STD_TORCH_CHECK(tensor.is_cpu(), name, " must be a CPU tensor");
+  STD_TORCH_CHECK(tensor.is_contiguous(), name, " must be contiguous");
+}
 
-inline unsigned int* uint_ptr_from_numpy(py::array_t<unsigned int>& py_uint) { return (unsigned int*)py_uint.data(); }
+inline float* float_ptr_from_tensor(torch::stable::Tensor const& tensor, const char* name) {
+  check_cpu_contiguous(tensor, name);
+  STD_TORCH_CHECK(tensor.scalar_type() == torch::headeronly::ScalarType::Float, name, " must have dtype float32");
+  return static_cast<float*>(tensor.mutable_data_ptr());
+}
+
+inline unsigned int* uint_ptr_from_tensor(torch::stable::Tensor const& tensor, const char* name) {
+  check_cpu_contiguous(tensor, name);
+  STD_TORCH_CHECK(tensor.element_size() == sizeof(unsigned int), name, " must have 32-bit elements");
+  return reinterpret_cast<unsigned int*>(tensor.mutable_data_ptr());
+}
+
+inline unsigned int as_uint_arg(int64_t value, const char* name) {
+  STD_TORCH_CHECK(value >= 0 && value <= std::numeric_limits<unsigned int>::max(), name, " is out of range");
+  return static_cast<unsigned int>(value);
+}
 
 /**********************************************************
  *  Check for the best permutation for an entire matrix
@@ -134,67 +153,6 @@ int set_up_check_permutation_memory(float** dmatrix, unsigned int rows, unsigned
   }
 
   return fresh_alloc;
-}
-
-int run_check_permutations(
-    py::array_t<float>& py_matrix, unsigned int rows, unsigned int cols,
-    py::array_t<unsigned int>&
-        py_stripe_groups,  // groups of stripes, group_width = stripes per group, num_groups = groups in the array
-    unsigned int group_width, unsigned int num_groups,
-    py::array_t<unsigned int>& py_permutations,  // array of permutations to try, group_width*4 values per each of
-                                                 // num_permutations permutations
-    unsigned int num_permutations,
-    py::array_t<float>& py_improvement,        // improvment offered by the best permutation
-    py::array_t<unsigned int>& py_permutation  // the best permutation
-) {
-  const unsigned int threads = 32;
-  static float* d_matrix;
-  static unsigned int* d_permutations;
-  static unsigned int* d_stripes;
-  static float* d_results;
-  static float* results;
-
-  float* matrix = float_ptr_from_numpy(py_matrix);
-  unsigned int* stripe_groups = uint_ptr_from_numpy(py_stripe_groups);
-  unsigned int* permutations = uint_ptr_from_numpy(py_permutations);
-  float* improvement = float_ptr_from_numpy(py_improvement);
-  unsigned int* permutation = uint_ptr_from_numpy(py_permutation);
-
-  int fresh_alloc = set_up_check_permutation_memory(&d_matrix, rows, cols, &d_stripes, group_width, num_groups,
-                                                    &d_permutations, num_permutations, &d_results, &results);
-  if (fresh_alloc == 1) {
-    gpuErrchk(cudaMemcpy(d_permutations, permutations, num_permutations * group_width * 4 * sizeof(unsigned int),
-                         cudaMemcpyHostToDevice));
-    gpuErrchk(
-        cudaMemcpy(d_stripes, stripe_groups, group_width * num_groups * sizeof(unsigned int), cudaMemcpyHostToDevice));
-  }
-
-  // initialize results, new matrix
-  gpuErrchk(cudaMemset(d_results, 0, num_permutations * sizeof(float)));
-  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
-
-  // get results for all permutations
-  permute_and_sum_after_2_to_4<<<num_permutations, threads, threads * group_width * 4 * 2 * sizeof(float)>>>(
-      d_matrix, rows, cols, d_stripes, group_width, d_permutations, d_results);
-  gpuErrchk(cudaDeviceSynchronize());
-
-  gpuErrchk(cudaMemcpy(results, d_results, num_permutations * sizeof(float), cudaMemcpyDeviceToHost));
-
-  // find the best permutation - could reduce on GPU
-  unsigned int best_permutation = 0;
-  float best_improvement = 0.0f;
-  for (unsigned int p = 1; p < num_permutations; ++p) {
-    float cur_improvement = results[p] - results[0];
-    if (best_improvement < cur_improvement) {
-      best_permutation = p;
-      best_improvement = cur_improvement;
-    }
-  }
-
-  *improvement = best_improvement;
-  *permutation = best_permutation;
-
-  return 0;
 }
 
 ///////////////////////////////////////////////////////////
@@ -337,28 +295,6 @@ int set_up_sum_after_2_to_4_memory(float** dmatrix, unsigned int rows, unsigned 
   return fresh_allocation;
 }
 
-int run_subset_sum_after_2_to_4(py::array_t<float>& py_matrix, unsigned int rows, unsigned int cols,
-                                unsigned int start_col, unsigned int end_col, unsigned int blocks, unsigned int threads,
-                                py::array_t<float>& py_output) {
-  static float* d_matrix;
-  static float* d_result;
-
-  int fresh_allocation = set_up_sum_after_2_to_4_memory(&d_matrix, rows, cols, &d_result);
-
-  float* matrix = float_ptr_from_numpy(py_matrix);
-  float* output = float_ptr_from_numpy(py_output);
-
-  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
-  gpuErrchk(cudaMemset(d_result, 0, sizeof(float)));
-
-  subset_sum_after_2_to_4<<<blocks, threads>>>(d_matrix, rows, cols, start_col, end_col, d_result);
-  gpuErrchk(cudaDeviceSynchronize());
-
-  gpuErrchk(cudaMemcpy(output, d_result, sizeof(float), cudaMemcpyDeviceToHost));
-
-  return 0;
-}
-
 void set_up_permute_map_memory(float** dmatrix, unsigned int rows, unsigned int cols, unsigned int** dstripes,
                                unsigned int num_groups, unsigned int group_width, unsigned int** dpermutations,
                                unsigned int num_permutations, unsigned int perm_length, float** doutput,
@@ -426,68 +362,6 @@ void set_up_permute_map_memory(float** dmatrix, unsigned int rows, unsigned int 
   setUpNumGroups = num_groups;
   setUpNumPerms = num_permutations;
   setUpPermLength = perm_length;
-}
-
-int run_build_permute_map(py::array_t<float>& py_matrix, unsigned int rows, unsigned int cols,
-                          py::array_t<unsigned int>& py_stripes, unsigned int num_groups, unsigned int group_width,
-                          py::array_t<unsigned int>& py_permutations, unsigned int perm_length,
-                          py::array_t<float>& py_improvements, py::array_t<unsigned int>& py_best_indices) {
-  static float* d_matrix = NULL;
-  static unsigned int* d_stripes = NULL;
-  static unsigned int* d_permutations = NULL;
-  static float* d_output = NULL;
-  static unsigned int* d_indices = NULL;
-  static float* hresult = NULL;
-  static unsigned int* hindices = NULL;
-
-  const unsigned int num_permutations = py_permutations.size() / perm_length;
-
-  const unsigned int MAX_GROUPS_PER_LAUNCH = num_permutations <= 5775 ? 1820 : 40;
-  const unsigned int full_launches = num_groups / MAX_GROUPS_PER_LAUNCH;
-  const unsigned int final_launch = num_groups % MAX_GROUPS_PER_LAUNCH;
-  const unsigned int launches = full_launches + (final_launch != 0 ? 1 : 0);
-
-  set_up_permute_map_memory(&d_matrix, rows, cols, &d_stripes, min(num_groups, MAX_GROUPS_PER_LAUNCH), group_width,
-                            &d_permutations, num_permutations, perm_length, &d_output, &d_indices, &hresult, &hindices);
-
-  float* matrix = float_ptr_from_numpy(py_matrix);
-  unsigned int* stripes = uint_ptr_from_numpy(py_stripes);
-  unsigned int* permutations = uint_ptr_from_numpy(py_permutations);
-  float* improvements = float_ptr_from_numpy(py_improvements);
-  unsigned int* best_indices = uint_ptr_from_numpy(py_best_indices);
-
-  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
-  gpuErrchk(cudaMemcpy(d_permutations, permutations, num_permutations * perm_length * sizeof(unsigned int),
-                       cudaMemcpyHostToDevice));
-
-  unsigned int group_offset = 0;
-  for (unsigned int l = 0; l < launches; ++l) {
-    unsigned int groups_this_launch = (l < full_launches) ? MAX_GROUPS_PER_LAUNCH : final_launch;
-
-    gpuErrchk(cudaMemcpy(d_stripes, &stripes[group_offset * group_width],
-                         groups_this_launch * group_width * sizeof(unsigned int), cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMemset(d_output, 0, groups_this_launch * num_permutations * sizeof(float)));
-    gpuErrchk(cudaMemset(d_indices, 0, groups_this_launch * sizeof(unsigned int)));
-
-    unsigned int shmem = 32 * (32) * sizeof(float);
-    build_permute_map<<<groups_this_launch, 32, shmem>>>(d_matrix, rows, cols, d_stripes, group_width, d_permutations,
-                                                         num_permutations, perm_length, d_output, d_indices);
-    gpuErrchk(cudaDeviceSynchronize());
-
-    gpuErrchk(
-        cudaMemcpy(hresult, d_output, num_permutations * groups_this_launch * sizeof(float), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(hindices, d_indices, groups_this_launch * sizeof(unsigned int), cudaMemcpyDeviceToHost));
-
-    // thread0 stuck the minimum in the first slot of each group
-    for (unsigned int g = 0; g < groups_this_launch; ++g) {
-      improvements[group_offset + g] = hresult[g * num_permutations];
-      best_indices[group_offset + g] = hindices[g];
-    }
-
-    group_offset += groups_this_launch;
-  }
-
-  return 0;
 }
 
 /**********************************************************
@@ -594,17 +468,178 @@ void set_up_swap_map_memory(float** dmatrix, unsigned int rows, unsigned int col
   }
 }
 
-int run_build_swap_map(py::array_t<float>& py_matrix, unsigned int rows, unsigned int cols,
-                       py::array_t<uint32_t>& py_stripe_pairs, py::array_t<float>& py_output) {
+///////////////////////////////////////////////////////////
+
+int64_t apex_permutation_search_check_permutations(
+    torch::stable::Tensor const& matrix_tensor, int64_t rows_arg, int64_t cols_arg,
+    torch::stable::Tensor const& stripe_groups_tensor, int64_t group_width_arg, int64_t num_groups_arg,
+    torch::stable::Tensor const& permutations_tensor, int64_t num_permutations_arg,
+    torch::stable::Tensor const& improvement_tensor, torch::stable::Tensor const& permutation_tensor) {
+  static float* d_matrix;
+  static unsigned int* d_permutations;
+  static unsigned int* d_stripes;
+  static float* d_results;
+  static float* results;
+
+  unsigned int rows = as_uint_arg(rows_arg, "rows");
+  unsigned int cols = as_uint_arg(cols_arg, "cols");
+  unsigned int group_width = as_uint_arg(group_width_arg, "group_width");
+  unsigned int num_groups = as_uint_arg(num_groups_arg, "num_groups");
+  unsigned int num_permutations = as_uint_arg(num_permutations_arg, "num_permutations");
+
+  float* matrix = float_ptr_from_tensor(matrix_tensor, "matrix");
+  unsigned int* stripe_groups = uint_ptr_from_tensor(stripe_groups_tensor, "stripe_groups");
+  unsigned int* permutations = uint_ptr_from_tensor(permutations_tensor, "permutations");
+  float* improvement = float_ptr_from_tensor(improvement_tensor, "improvement");
+  unsigned int* permutation = uint_ptr_from_tensor(permutation_tensor, "permutation");
+
+  int fresh_alloc = set_up_check_permutation_memory(&d_matrix, rows, cols, &d_stripes, group_width, num_groups,
+                                                    &d_permutations, num_permutations, &d_results, &results);
+  if (fresh_alloc == 1) {
+    gpuErrchk(cudaMemcpy(d_permutations, permutations, num_permutations * group_width * 4 * sizeof(unsigned int),
+                         cudaMemcpyHostToDevice));
+    gpuErrchk(
+        cudaMemcpy(d_stripes, stripe_groups, group_width * num_groups * sizeof(unsigned int), cudaMemcpyHostToDevice));
+  }
+
+  gpuErrchk(cudaMemset(d_results, 0, num_permutations * sizeof(float)));
+  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
+
+  permute_and_sum_after_2_to_4<<<num_permutations, 32, 32 * group_width * 4 * 2 * sizeof(float)>>>(
+      d_matrix, rows, cols, d_stripes, group_width, d_permutations, d_results);
+  gpuErrchk(cudaDeviceSynchronize());
+
+  gpuErrchk(cudaMemcpy(results, d_results, num_permutations * sizeof(float), cudaMemcpyDeviceToHost));
+
+  unsigned int best_permutation = 0;
+  float best_improvement = 0.0f;
+  for (unsigned int p = 1; p < num_permutations; ++p) {
+    float cur_improvement = results[p] - results[0];
+    if (best_improvement < cur_improvement) {
+      best_permutation = p;
+      best_improvement = cur_improvement;
+    }
+  }
+
+  *improvement = best_improvement;
+  *permutation = best_permutation;
+  return 0;
+}
+
+int64_t apex_permutation_search_sum_after_2_to_4(torch::stable::Tensor const& matrix_tensor, int64_t rows_arg,
+                                                 int64_t cols_arg, int64_t start_col_arg, int64_t end_col_arg,
+                                                 int64_t blocks_arg, int64_t threads_arg,
+                                                 torch::stable::Tensor const& output_tensor) {
+  static float* d_matrix;
+  static float* d_result;
+
+  unsigned int rows = as_uint_arg(rows_arg, "rows");
+  unsigned int cols = as_uint_arg(cols_arg, "cols");
+  unsigned int start_col = as_uint_arg(start_col_arg, "start_col");
+  unsigned int end_col = as_uint_arg(end_col_arg, "end_col");
+  unsigned int blocks = as_uint_arg(blocks_arg, "blocks");
+  unsigned int threads = as_uint_arg(threads_arg, "threads");
+
+  int fresh_allocation = set_up_sum_after_2_to_4_memory(&d_matrix, rows, cols, &d_result);
+  (void)fresh_allocation;
+
+  float* matrix = float_ptr_from_tensor(matrix_tensor, "matrix");
+  float* output = float_ptr_from_tensor(output_tensor, "output");
+
+  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
+  gpuErrchk(cudaMemset(d_result, 0, sizeof(float)));
+
+  subset_sum_after_2_to_4<<<blocks, threads>>>(d_matrix, rows, cols, start_col, end_col, d_result);
+  gpuErrchk(cudaDeviceSynchronize());
+
+  gpuErrchk(cudaMemcpy(output, d_result, sizeof(float), cudaMemcpyDeviceToHost));
+  return 0;
+}
+
+int64_t apex_permutation_search_build_permute_map(
+    torch::stable::Tensor const& matrix_tensor, int64_t rows_arg, int64_t cols_arg,
+    torch::stable::Tensor const& stripes_tensor, int64_t num_groups_arg, int64_t group_width_arg,
+    torch::stable::Tensor const& permutations_tensor, int64_t perm_length_arg,
+    torch::stable::Tensor const& improvements_tensor, torch::stable::Tensor const& best_indices_tensor) {
+  static float* d_matrix = NULL;
+  static unsigned int* d_stripes = NULL;
+  static unsigned int* d_permutations = NULL;
+  static float* d_output = NULL;
+  static unsigned int* d_indices = NULL;
+  static float* hresult = NULL;
+  static unsigned int* hindices = NULL;
+
+  unsigned int rows = as_uint_arg(rows_arg, "rows");
+  unsigned int cols = as_uint_arg(cols_arg, "cols");
+  unsigned int num_groups = as_uint_arg(num_groups_arg, "num_groups");
+  unsigned int group_width = as_uint_arg(group_width_arg, "group_width");
+  unsigned int perm_length = as_uint_arg(perm_length_arg, "perm_length");
+  STD_TORCH_CHECK(perm_length > 0, "perm_length must be positive");
+  unsigned int num_permutations = as_uint_arg(permutations_tensor.numel() / perm_length, "num_permutations");
+
+  const unsigned int MAX_GROUPS_PER_LAUNCH = num_permutations <= 5775 ? 1820 : 40;
+  const unsigned int full_launches = num_groups / MAX_GROUPS_PER_LAUNCH;
+  const unsigned int final_launch = num_groups % MAX_GROUPS_PER_LAUNCH;
+  const unsigned int launches = full_launches + (final_launch != 0 ? 1 : 0);
+
+  set_up_permute_map_memory(&d_matrix, rows, cols, &d_stripes, min(num_groups, MAX_GROUPS_PER_LAUNCH), group_width,
+                            &d_permutations, num_permutations, perm_length, &d_output, &d_indices, &hresult,
+                            &hindices);
+
+  float* matrix = float_ptr_from_tensor(matrix_tensor, "matrix");
+  unsigned int* stripes = uint_ptr_from_tensor(stripes_tensor, "stripes");
+  unsigned int* permutations = uint_ptr_from_tensor(permutations_tensor, "permutations");
+  float* improvements = float_ptr_from_tensor(improvements_tensor, "improvements");
+  unsigned int* best_indices = uint_ptr_from_tensor(best_indices_tensor, "best_indices");
+
+  gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
+  gpuErrchk(cudaMemcpy(d_permutations, permutations, num_permutations * perm_length * sizeof(unsigned int),
+                       cudaMemcpyHostToDevice));
+
+  unsigned int group_offset = 0;
+  for (unsigned int l = 0; l < launches; ++l) {
+    unsigned int groups_this_launch = (l < full_launches) ? MAX_GROUPS_PER_LAUNCH : final_launch;
+
+    gpuErrchk(cudaMemcpy(d_stripes, &stripes[group_offset * group_width],
+                         groups_this_launch * group_width * sizeof(unsigned int), cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemset(d_output, 0, groups_this_launch * num_permutations * sizeof(float)));
+    gpuErrchk(cudaMemset(d_indices, 0, groups_this_launch * sizeof(unsigned int)));
+
+    unsigned int shmem = 32 * (32) * sizeof(float);
+    build_permute_map<<<groups_this_launch, 32, shmem>>>(d_matrix, rows, cols, d_stripes, group_width, d_permutations,
+                                                         num_permutations, perm_length, d_output, d_indices);
+    gpuErrchk(cudaDeviceSynchronize());
+
+    gpuErrchk(
+        cudaMemcpy(hresult, d_output, num_permutations * groups_this_launch * sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy(hindices, d_indices, groups_this_launch * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+    for (unsigned int g = 0; g < groups_this_launch; ++g) {
+      improvements[group_offset + g] = hresult[g * num_permutations];
+      best_indices[group_offset + g] = hindices[g];
+    }
+
+    group_offset += groups_this_launch;
+  }
+
+  return 0;
+}
+
+int64_t apex_permutation_search_build_swap_map(torch::stable::Tensor const& matrix_tensor, int64_t rows_arg,
+                                               int64_t cols_arg,
+                                               torch::stable::Tensor const& stripe_pairs_tensor,
+                                               torch::stable::Tensor const& output_tensor) {
   static float* d_matrix = NULL;
   static float* d_result = NULL;
   static unsigned int* d_stripe_pairs = NULL;
 
-  float* matrix = float_ptr_from_numpy(py_matrix);                    //(float*)py_matrix.data();
-  unsigned int* stripe_pairs = uint_ptr_from_numpy(py_stripe_pairs);  //(unsigned int*)py_stripe_pairs.data();
-  float* output = float_ptr_from_numpy(py_output);                    //(float*)py_output.data();
+  unsigned int rows = as_uint_arg(rows_arg, "rows");
+  unsigned int cols = as_uint_arg(cols_arg, "cols");
+  unsigned int num_pairs = as_uint_arg(stripe_pairs_tensor.numel() / 2, "num_pairs");
 
-  unsigned int num_pairs = py_stripe_pairs.size() / 2;
+  float* matrix = float_ptr_from_tensor(matrix_tensor, "matrix");
+  unsigned int* stripe_pairs = uint_ptr_from_tensor(stripe_pairs_tensor, "stripe_pairs");
+  float* output = float_ptr_from_tensor(output_tensor, "output");
 
   set_up_swap_map_memory(&d_matrix, rows, cols, &d_stripe_pairs, num_pairs, &d_result);
   gpuErrchk(cudaMemcpy(d_matrix, matrix, rows * cols * sizeof(float), cudaMemcpyHostToDevice));
@@ -616,17 +651,25 @@ int run_build_swap_map(py::array_t<float>& py_matrix, unsigned int rows, unsigne
   gpuErrchk(cudaDeviceSynchronize());
 
   gpuErrchk(cudaMemcpy(output, d_result, num_pairs * 16 * sizeof(float), cudaMemcpyDeviceToHost));
-
   return 0;
 }
-///////////////////////////////////////////////////////////
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("sum_after_2_to_4", &run_subset_sum_after_2_to_4, "matrix sum after applying 2:4 (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("build_permute_map", &run_build_permute_map, "optimize stripe groups (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("check_permutations", &run_check_permutations, "exhaustively check all permutations (CUDA)",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("build_swap_map", &run_build_swap_map, "channel swaps (CUDA)", py::call_guard<py::gil_scoped_release>());
+STABLE_TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("permutation_search_sum_after_2_to_4(Tensor matrix, int rows, int cols, int start_col, int end_col, "
+        "int blocks, int threads, Tensor(a!) output) -> int");
+  m.def("permutation_search_build_permute_map(Tensor matrix, int rows, int cols, Tensor stripes, int num_groups, "
+        "int group_width, Tensor permutations, int perm_length, Tensor(a!) improvements, Tensor(b!) best_indices) "
+        "-> int");
+  m.def("permutation_search_check_permutations(Tensor matrix, int rows, int cols, Tensor stripe_groups, "
+        "int group_width, int num_groups, Tensor permutations, int num_permutations, Tensor(a!) improvement, "
+        "Tensor(b!) permutation) -> int");
+  m.def("permutation_search_build_swap_map(Tensor matrix, int rows, int cols, Tensor stripe_pairs, "
+        "Tensor(a!) output) -> int");
+}
+
+STABLE_TORCH_LIBRARY_IMPL(apex, CPU, m) {
+  m.impl("permutation_search_sum_after_2_to_4", TORCH_BOX(&apex_permutation_search_sum_after_2_to_4));
+  m.impl("permutation_search_build_permute_map", TORCH_BOX(&apex_permutation_search_build_permute_map));
+  m.impl("permutation_search_check_permutations", TORCH_BOX(&apex_permutation_search_check_permutations));
+  m.impl("permutation_search_build_swap_map", TORCH_BOX(&apex_permutation_search_build_swap_map));
 }

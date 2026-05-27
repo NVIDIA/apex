@@ -40,7 +40,7 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
     def forward(ctx, input, weight, bias, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -87,7 +87,7 @@ if supports_custom_op():
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         input_ = input.contiguous()
         weight_ = weight.contiguous()
@@ -204,7 +204,7 @@ class FusedRMSNormAffineFunction(torch.autograd.Function):
     def forward(ctx, input, weight, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -247,7 +247,7 @@ if supports_custom_op():
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         input_ = input.contiguous()
         weight_ = weight.contiguous()
@@ -358,7 +358,7 @@ class FusedLayerNormAffineMixedDtypesFunction(FusedLayerNormAffineFunction):
     def forward(ctx, input, weight, bias, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -380,7 +380,7 @@ class FusedRMSNormAffineMixedDtypesFunction(FusedRMSNormAffineFunction):
     def forward(ctx, input, weight, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -401,7 +401,7 @@ class FusedLayerNormFunction(torch.autograd.Function):
     def forward(ctx, input, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -439,7 +439,7 @@ if supports_custom_op():
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         input_ = input.contiguous()
         output, mean, invvar = fused_layer_norm_cuda.forward(input_, normalized_shape, eps)
@@ -535,7 +535,7 @@ class FusedRMSNormFunction(torch.autograd.Function):
     def forward(ctx, input, normalized_shape, eps, memory_efficient=False):
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
         ctx.normalized_shape = normalized_shape
         ctx.eps = eps
         ctx.memory_efficient = memory_efficient
@@ -573,7 +573,7 @@ if supports_custom_op():
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
-            fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+            fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         input_ = input.contiguous()
         output, invvar = fused_layer_norm_cuda.rms_forward(input_, normalized_shape, eps)
@@ -791,7 +791,7 @@ class FusedLayerNorm(torch.nn.Module):
         super().__init__()
 
         global fused_layer_norm_cuda
-        fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+        fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -908,7 +908,7 @@ class FusedRMSNorm(torch.nn.Module):
         super().__init__()
 
         global fused_layer_norm_cuda
-        fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
+        fused_layer_norm_cuda = importlib.import_module("apex._extensions.fused_layer_norm_cuda")
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)

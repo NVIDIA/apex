@@ -93,7 +93,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
         )
         super(FusedNovoGrad, self).__init__(params, defaults)
         if multi_tensor_applier.available:
-            import amp_C
+            from apex._extensions import amp_C
             # Skip buffer
 
             # Creating the overflow buffer on the same device as the params tensors.

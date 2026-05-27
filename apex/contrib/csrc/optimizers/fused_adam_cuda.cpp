@@ -1,4 +1,5 @@
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 // CUDA forward declaration
 void fused_strided_check_finite(at::Tensor& overflow_flag, at::Tensor& p_copy, int stride, int clear_overflow_first);
@@ -88,18 +89,102 @@ void maybe_cast(at::Tensor& overflow_flag, at::Tensor& p_in, at::Tensor& p_out) 
   maybe_cast_cuda(overflow_flag, p_in, p_out);
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("strided_check_finite", &strided_check_finite, "Strided finite check.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("adam", &adam, "Adam optimized CUDA implementation.", py::call_guard<py::gil_scoped_release>());
-  m.def("reversible_adam", &reversible_adam, "Reversible Adam optimized CUDA implementation.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("adam_mt", &fused_adam_cuda_mt, "Multi tensor Adam optimized CUDA implementation.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("maybe_adam_undo", &maybe_adam_undo, "Undo function for Adam optimized CUDA implementation.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("maybe_cast", &maybe_cast, "Unpack byte tensor containing e5m2 floats.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("maybe_cast_mt", &maybe_cast_cuda_mt, "Unpack byte tensor containing e5m2 floats.",
-        py::call_guard<py::gil_scoped_release>());
+void strided_check_finite_dispatch(const at::Tensor& overflow_flag, const at::Tensor& p_copy, int64_t stride,
+                                   int64_t clear_overflow_first) {
+  at::Tensor overflow_flag_arg = overflow_flag;
+  at::Tensor p_copy_arg = p_copy;
+  strided_check_finite(overflow_flag_arg, p_copy_arg, static_cast<int>(stride), static_cast<int>(clear_overflow_first));
+}
+
+void adam_dispatch(const at::Tensor& p, const at::Tensor& p_copy, const at::Tensor& m, const at::Tensor& v,
+                   const at::Tensor& g, double lr, double beta1, double beta2, double eps, double grad_scale,
+                   int64_t step, int64_t mode, int64_t bias_correction, double decay) {
+  at::Tensor p_arg = p;
+  at::Tensor p_copy_arg = p_copy;
+  at::Tensor m_arg = m;
+  at::Tensor v_arg = v;
+  at::Tensor g_arg = g;
+  adam(p_arg, p_copy_arg, m_arg, v_arg, g_arg, static_cast<float>(lr), static_cast<float>(beta1),
+       static_cast<float>(beta2), static_cast<float>(eps), static_cast<float>(grad_scale), static_cast<int>(step),
+       static_cast<int>(mode), static_cast<int>(bias_correction), static_cast<float>(decay));
+}
+
+void reversible_adam_dispatch(const at::Tensor& p, const at::Tensor& p_copy, const at::Tensor& m, const at::Tensor& v,
+                              const at::Tensor& g, double lr, double beta1, double beta2, double eps,
+                              double grad_scale, int64_t step, int64_t mode, int64_t bias_correction, double decay) {
+  at::Tensor p_arg = p;
+  at::Tensor p_copy_arg = p_copy;
+  at::Tensor m_arg = m;
+  at::Tensor v_arg = v;
+  at::Tensor g_arg = g;
+  reversible_adam(p_arg, p_copy_arg, m_arg, v_arg, g_arg, static_cast<float>(lr), static_cast<float>(beta1),
+                  static_cast<float>(beta2), static_cast<float>(eps), static_cast<float>(grad_scale),
+                  static_cast<int>(step), static_cast<int>(mode), static_cast<int>(bias_correction),
+                  static_cast<float>(decay));
+}
+
+void fused_adam_cuda_mt_dispatch(int64_t chunk_size, at::Tensor overflow_flag,
+                                 std::vector<std::vector<at::Tensor>> tensor_lists, double lr, double beta1,
+                                 double beta2, double eps, double grad_scale, int64_t step, int64_t mode,
+                                 int64_t bias_correction, double decay) {
+  fused_adam_cuda_mt(static_cast<int>(chunk_size), overflow_flag, tensor_lists, static_cast<float>(lr),
+                     static_cast<float>(beta1), static_cast<float>(beta2), static_cast<float>(eps),
+                     static_cast<float>(grad_scale), static_cast<int>(step), static_cast<int>(mode),
+                     static_cast<int>(bias_correction), static_cast<float>(decay));
+}
+
+void maybe_adam_undo_dispatch(const at::Tensor& overflow_flag, const at::Tensor& p, const at::Tensor& m,
+                              const at::Tensor& v, const at::Tensor& g, double lr, double beta1, double beta2,
+                              double eps, double grad_scale, int64_t step, int64_t mode, int64_t bias_correction,
+                              double decay) {
+  at::Tensor overflow_flag_arg = overflow_flag;
+  at::Tensor p_arg = p;
+  at::Tensor m_arg = m;
+  at::Tensor v_arg = v;
+  at::Tensor g_arg = g;
+  maybe_adam_undo(overflow_flag_arg, p_arg, m_arg, v_arg, g_arg, static_cast<float>(lr), static_cast<float>(beta1),
+                  static_cast<float>(beta2), static_cast<float>(eps), static_cast<float>(grad_scale),
+                  static_cast<int>(step), static_cast<int>(mode), static_cast<int>(bias_correction),
+                  static_cast<float>(decay));
+}
+
+void maybe_cast_dispatch(const at::Tensor& overflow_flag, const at::Tensor& p_in, const at::Tensor& p_out) {
+  at::Tensor overflow_flag_arg = overflow_flag;
+  at::Tensor p_in_arg = p_in;
+  at::Tensor p_out_arg = p_out;
+  maybe_cast(overflow_flag_arg, p_in_arg, p_out_arg);
+}
+
+void maybe_cast_cuda_mt_dispatch(int64_t chunk_size, at::Tensor overflow_flag,
+                                 std::vector<std::vector<at::Tensor>> tensor_lists) {
+  maybe_cast_cuda_mt(static_cast<int>(chunk_size), overflow_flag, tensor_lists);
+}
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fused_adam_strided_check_finite(Tensor(a!) overflow_flag, Tensor p_copy, int stride, "
+        "int clear_overflow_first) -> ()");
+  m.def("fused_adam_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
+        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+        "int bias_correction, float decay) -> ()");
+  m.def("fused_adam_reversible_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
+        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+        "int bias_correction, float decay) -> ()");
+  m.def("fused_adam_adam_mt(int chunk_size, Tensor overflow_flag, Tensor[][] tensor_lists, float lr, "
+        "float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, "
+        "float decay) -> ()");
+  m.def("fused_adam_maybe_adam_undo(Tensor overflow_flag, Tensor(a!) p, Tensor(b!) m, Tensor(c!) v, Tensor(d!) g, "
+        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+        "int bias_correction, float decay) -> ()");
+  m.def("fused_adam_maybe_cast(Tensor overflow_flag, Tensor p_in, Tensor(a!) p_out) -> ()");
+  m.def("fused_adam_maybe_cast_mt(int chunk_size, Tensor overflow_flag, Tensor[][] tensor_lists) -> ()");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fused_adam_strided_check_finite", &strided_check_finite_dispatch);
+  m.impl("fused_adam_adam", &adam_dispatch);
+  m.impl("fused_adam_reversible_adam", &reversible_adam_dispatch);
+  m.impl("fused_adam_adam_mt", &fused_adam_cuda_mt_dispatch);
+  m.impl("fused_adam_maybe_adam_undo", &maybe_adam_undo_dispatch);
+  m.impl("fused_adam_maybe_cast", &maybe_cast_dispatch);
+  m.impl("fused_adam_maybe_cast_mt", &maybe_cast_cuda_mt_dispatch);
 }
