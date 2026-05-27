@@ -11,10 +11,15 @@ def forward(input, mask, scale_factor):
 
 
 def backward(output_grads, softmax_results, scale_factor):
-    return torch.ops.apex.scaled_masked_softmax_backward(output_grads, softmax_results, scalar_float(scale_factor))
+    return torch.ops.apex.scaled_masked_softmax_backward(
+        output_grads, softmax_results, scalar_float(scale_factor)
+    )
 
 
 def get_batch_per_block(query_seq_len, key_seq_len, batches, attn_heads):
     return torch.ops.apex.scaled_masked_softmax_get_batch_per_block(
-        scalar_int(query_seq_len), scalar_int(key_seq_len), scalar_int(batches), scalar_int(attn_heads)
+        scalar_int(query_seq_len),
+        scalar_int(key_seq_len),
+        scalar_int(batches),
+        scalar_int(attn_heads),
     )

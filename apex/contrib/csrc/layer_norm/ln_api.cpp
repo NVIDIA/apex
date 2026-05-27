@@ -1,7 +1,7 @@
 #include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <torch/library.h>
 
-#include <ATen/cuda/CUDAContext.h>
 #include "ln.h"
 
 /*
@@ -260,16 +260,17 @@ std::vector<at::Tensor> apex_fast_layer_norm_ln_fwd(const at::Tensor& x, const a
 
 std::vector<at::Tensor> apex_fast_layer_norm_ln_bwd(const at::Tensor& dz, const at::Tensor& x_or_z,
                                                     const c10::optional<at::Tensor>& mu, const at::Tensor& rsigma,
-                                                    const at::Tensor& gamma,
-                                                    const c10::optional<at::Tensor>& beta, bool memory_efficient) {
+                                                    const at::Tensor& gamma, const c10::optional<at::Tensor>& beta,
+                                                    bool memory_efficient) {
   return ln_bwd(dz, x_or_z, mu, rsigma, gamma, beta, memory_efficient);
 }
 }  // namespace
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("fast_layer_norm_ln_fwd(Tensor x, Tensor gamma, Tensor beta, float epsilon) -> Tensor[]");
-  m.def("fast_layer_norm_ln_bwd(Tensor dz, Tensor x_or_z, Tensor? mu, Tensor rsigma, Tensor gamma, Tensor? beta, "
-        "bool memory_efficient) -> Tensor[]");
+  m.def(
+      "fast_layer_norm_ln_bwd(Tensor dz, Tensor x_or_z, Tensor? mu, Tensor rsigma, Tensor gamma, Tensor? beta, "
+      "bool memory_efficient) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

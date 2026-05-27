@@ -134,8 +134,8 @@ at::Tensor bwd_thd(const at::Tensor& output_grads, const at::Tensor& cu_seqlens,
   return bwd_thd_cuda(output_grads, cu_seqlens, freqs);
 }
 
-at::Tensor fwd_2d(const at::Tensor& input, const at::Tensor& cos_h, const at::Tensor& sin_h,
-                  const at::Tensor& cos_w, const at::Tensor& sin_w) {
+at::Tensor fwd_2d(const at::Tensor& input, const at::Tensor& cos_h, const at::Tensor& sin_h, const at::Tensor& cos_w,
+                  const at::Tensor& sin_w) {
   TORCH_CHECK(input.dim() == 5, "expected input to be 5D tensor");
   TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
   TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
@@ -180,7 +180,8 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("fused_rope_forward_thd(Tensor input, Tensor cu_seqlens, Tensor freqs) -> Tensor");
   m.def("fused_rope_backward_thd(Tensor output_grads, Tensor cu_seqlens, Tensor freqs) -> Tensor");
   m.def("fused_rope_forward_2d(Tensor input, Tensor cos_h, Tensor sin_h, Tensor cos_w, Tensor sin_w) -> Tensor");
-  m.def("fused_rope_backward_2d(Tensor output_grads, Tensor cos_h, Tensor sin_h, Tensor cos_w, Tensor sin_w) -> Tensor");
+  m.def(
+      "fused_rope_backward_2d(Tensor output_grads, Tensor cos_h, Tensor sin_h, Tensor cos_w, Tensor sin_w) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

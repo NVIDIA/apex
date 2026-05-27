@@ -66,7 +66,11 @@ def forward_out2_halo_corr(explicit_nhwc, slim_halo_y1, inputs, w1by3, out2_part
 
 def forward_out2_pad(explicit_nhwc, stride_1x1, inputs, outputs, out1_pad):
     return _ops.fast_bottleneck_forward_out2_pad(
-        bool(explicit_nhwc), scalar_int(stride_1x1), _tensor_list(inputs), _tensor_list(outputs), out1_pad
+        bool(explicit_nhwc),
+        scalar_int(stride_1x1),
+        _tensor_list(inputs),
+        _tensor_list(outputs),
+        out1_pad,
     )
 
 
@@ -90,11 +94,17 @@ def backward_grad_out2(explicit_nhwc, stride_1x1, inputs, outputs):
 
 def backward_grad_out1(explicit_nhwc, stride_1x1, inputs, outputs, grad_out2):
     return _ops.fast_bottleneck_backward_grad_out1(
-        bool(explicit_nhwc), scalar_int(stride_1x1), _tensor_list(inputs), _tensor_list(outputs), grad_out2
+        bool(explicit_nhwc),
+        scalar_int(stride_1x1),
+        _tensor_list(inputs),
+        _tensor_list(outputs),
+        grad_out2,
     )
 
 
-def backward_grad_out1_mask(explicit_nhwc, stride_1x1, inputs, outputs, grad_out2, thresholdTop, thresholdBottom):
+def backward_grad_out1_mask(
+    explicit_nhwc, stride_1x1, inputs, outputs, grad_out2, thresholdTop, thresholdBottom
+):
     return _ops.fast_bottleneck_backward_grad_out1_mask(
         bool(explicit_nhwc),
         scalar_int(stride_1x1),
@@ -134,13 +144,22 @@ def backward_grad_out1_halo_corr(
 
 def backward_wgrad2_pad(explicit_nhwc, stride_1x1, inputs, outputs, input, grad_out2):
     return _ops.fast_bottleneck_backward_wgrad2_pad(
-        bool(explicit_nhwc), scalar_int(stride_1x1), _tensor_list(inputs), _tensor_list(outputs), input, grad_out2
+        bool(explicit_nhwc),
+        scalar_int(stride_1x1),
+        _tensor_list(inputs),
+        _tensor_list(outputs),
+        input,
+        grad_out2,
     )
 
 
 def backward_wgrad2(explicit_nhwc, stride_1x1, inputs, outputs, grad_out2):
     return _ops.fast_bottleneck_backward_wgrad2(
-        bool(explicit_nhwc), scalar_int(stride_1x1), _tensor_list(inputs), _tensor_list(outputs), grad_out2
+        bool(explicit_nhwc),
+        scalar_int(stride_1x1),
+        _tensor_list(inputs),
+        _tensor_list(outputs),
+        grad_out2,
     )
 
 
@@ -163,7 +182,11 @@ def backward_wgrad3(explicit_nhwc, stride_1x1, inputs, outputs):
 
 def backward_wgrad1(explicit_nhwc, stride_1x1, inputs, outputs, grad_out1):
     return _ops.fast_bottleneck_backward_wgrad1(
-        bool(explicit_nhwc), scalar_int(stride_1x1), _tensor_list(inputs), _tensor_list(outputs), grad_out1
+        bool(explicit_nhwc),
+        scalar_int(stride_1x1),
+        _tensor_list(inputs),
+        _tensor_list(outputs),
+        grad_out1,
     )
 
 

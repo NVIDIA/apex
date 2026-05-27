@@ -133,20 +133,22 @@ at::Tensor apex_cudnn_gbn_forward(const at::Tensor& x, const at::Tensor& scale, 
 }
 
 std::vector<at::Tensor> apex_cudnn_gbn_backward(const at::Tensor& x, const at::Tensor& dy, const at::Tensor& scale,
-                                                const at::Tensor& minibatch_mean,
-                                                const at::Tensor& minibatch_inv_var, double epsilon,
-                                                int64_t bn_group, int64_t rank_id, at::IntArrayRef peer_buffers) {
+                                                const at::Tensor& minibatch_mean, const at::Tensor& minibatch_inv_var,
+                                                double epsilon, int64_t bn_group, int64_t rank_id,
+                                                at::IntArrayRef peer_buffers) {
   return gbn_backward(x, dy, scale, minibatch_mean, minibatch_inv_var, static_cast<float>(epsilon), bn_group,
                       static_cast<int>(rank_id), to_int_vector(peer_buffers));
 }
 }  // namespace
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("cudnn_gbn_forward(Tensor x, Tensor scale, Tensor bias, Tensor running_mean, Tensor running_var, "
-        "Tensor minibatch_mean, Tensor minibatch_inv_var, float momentum, float epsilon, int bn_group, int rank_id, "
-        "int[] peer_buffers) -> Tensor");
-  m.def("cudnn_gbn_backward(Tensor x, Tensor dy, Tensor scale, Tensor minibatch_mean, Tensor minibatch_inv_var, "
-        "float epsilon, int bn_group, int rank_id, int[] peer_buffers) -> Tensor[]");
+  m.def(
+      "cudnn_gbn_forward(Tensor x, Tensor scale, Tensor bias, Tensor running_mean, Tensor running_var, "
+      "Tensor minibatch_mean, Tensor minibatch_inv_var, float momentum, float epsilon, int bn_group, int rank_id, "
+      "int[] peer_buffers) -> Tensor");
+  m.def(
+      "cudnn_gbn_backward(Tensor x, Tensor dy, Tensor scale, Tensor minibatch_mean, Tensor minibatch_inv_var, "
+      "float epsilon, int bn_group, int rank_id, int[] peer_buffers) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

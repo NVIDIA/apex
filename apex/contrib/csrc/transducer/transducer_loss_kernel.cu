@@ -455,8 +455,8 @@ __global__ void transducer_loss_fused_vec_backward(const scalar_t* x, const scal
 }
 
 std::vector<at::Tensor> transducer_loss_cuda_forward(at::Tensor x, at::Tensor label, at::Tensor audLen,
-                                                        at::Tensor txtLen, at::Tensor batchOffset, int64_t maxFLen,
-                                                        int64_t blankIdx, int64_t opt, bool packedInput) {
+                                                     at::Tensor txtLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                     int64_t blankIdx, int64_t opt, bool packedInput) {
   auto scalarType = x.scalar_type();
   auto tensorOpt = x.options();
   const int batchSize = label.size(0);
@@ -513,10 +513,10 @@ std::vector<at::Tensor> transducer_loss_cuda_forward(at::Tensor x, at::Tensor la
   return {alpha, beta, loss};
 }
 
-at::Tensor transducer_loss_cuda_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha,
-                                            at::Tensor beta, at::Tensor audLen, at::Tensor txtLen,
-                                            at::Tensor label, at::Tensor batchOffset, int64_t maxFLen,
-                                            int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward, bool packedInput) {
+at::Tensor transducer_loss_cuda_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha, at::Tensor beta,
+                                         at::Tensor audLen, at::Tensor txtLen, at::Tensor label, at::Tensor batchOffset,
+                                         int64_t maxFLen, int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward,
+                                         bool packedInput) {
   auto dtype = x.scalar_type();
   at::Tensor xGrad;
   const int batchSize = label.size(0);

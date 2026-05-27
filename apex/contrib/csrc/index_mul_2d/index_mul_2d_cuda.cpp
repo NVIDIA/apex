@@ -82,9 +82,9 @@ void index_mul_2d_float_backward_dispatch(const at::Tensor& grad_in1, const at::
 
 void index_mul_2d_float_backward_backward_dispatch(const at::Tensor& grad_grad_out, const at::Tensor& grad_in1,
                                                    const at::Tensor& grad_in2, const at::Tensor& grad_out,
-                                                   const at::Tensor& grad_grad_in1,
-                                                   const at::Tensor& grad_grad_in2, const at::Tensor& in1,
-                                                   const at::Tensor& in2, const at::Tensor& idx1) {
+                                                   const at::Tensor& grad_grad_in1, const at::Tensor& grad_grad_in2,
+                                                   const at::Tensor& in1, const at::Tensor& in2,
+                                                   const at::Tensor& idx1) {
   at::Tensor grad_grad_out_arg = grad_grad_out;
   at::Tensor grad_in1_arg = grad_in1;
   at::Tensor grad_in2_arg = grad_in2;
@@ -108,9 +108,9 @@ void index_mul_2d_half_backward_dispatch(const at::Tensor& grad_in1, const at::T
 
 void index_mul_2d_half_backward_backward_dispatch(const at::Tensor& grad_grad_out, const at::Tensor& grad_in1,
                                                   const at::Tensor& grad_in2, const at::Tensor& grad_out,
-                                                  const at::Tensor& grad_grad_in1,
-                                                  const at::Tensor& grad_grad_in2, const at::Tensor& in1,
-                                                  const at::Tensor& in2, const at::Tensor& idx1) {
+                                                  const at::Tensor& grad_grad_in1, const at::Tensor& grad_grad_in2,
+                                                  const at::Tensor& in1, const at::Tensor& in2,
+                                                  const at::Tensor& idx1) {
   at::Tensor grad_grad_out_arg = grad_grad_out;
   at::Tensor grad_in1_arg = grad_in1;
   at::Tensor grad_in2_arg = grad_in2;
@@ -120,17 +120,21 @@ void index_mul_2d_half_backward_backward_dispatch(const at::Tensor& grad_grad_ou
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("index_mul_2d_float_forward(Tensor(a!) out, Tensor in1, Tensor in2, Tensor idx1) -> ()");
-  m.def("index_mul_2d_float_backward(Tensor(a!) grad_in1, Tensor(b!) grad_in2, Tensor grad_out, Tensor in1, "
-        "Tensor in2, Tensor idx1) -> ()");
-  m.def("index_mul_2d_float_backward_backward(Tensor(a!) grad_grad_out, Tensor(b!) grad_in1, "
-        "Tensor(c!) grad_in2, Tensor grad_out, Tensor grad_grad_in1, Tensor grad_grad_in2, Tensor in1, "
-        "Tensor in2, Tensor idx1) -> ()");
+  m.def(
+      "index_mul_2d_float_backward(Tensor(a!) grad_in1, Tensor(b!) grad_in2, Tensor grad_out, Tensor in1, "
+      "Tensor in2, Tensor idx1) -> ()");
+  m.def(
+      "index_mul_2d_float_backward_backward(Tensor(a!) grad_grad_out, Tensor(b!) grad_in1, "
+      "Tensor(c!) grad_in2, Tensor grad_out, Tensor grad_grad_in1, Tensor grad_grad_in2, Tensor in1, "
+      "Tensor in2, Tensor idx1) -> ()");
   m.def("index_mul_2d_half_forward(Tensor(a!) out, Tensor in1, Tensor in2, Tensor idx1) -> ()");
-  m.def("index_mul_2d_half_backward(Tensor(a!) grad_in1, Tensor(b!) grad_in2, Tensor grad_out, Tensor in1, "
-        "Tensor in2, Tensor idx1) -> ()");
-  m.def("index_mul_2d_half_backward_backward(Tensor(a!) grad_grad_out, Tensor(b!) grad_in1, "
-        "Tensor(c!) grad_in2, Tensor grad_out, Tensor grad_grad_in1, Tensor grad_grad_in2, Tensor in1, "
-        "Tensor in2, Tensor idx1) -> ()");
+  m.def(
+      "index_mul_2d_half_backward(Tensor(a!) grad_in1, Tensor(b!) grad_in2, Tensor grad_out, Tensor in1, "
+      "Tensor in2, Tensor idx1) -> ()");
+  m.def(
+      "index_mul_2d_half_backward_backward(Tensor(a!) grad_grad_out, Tensor(b!) grad_in1, "
+      "Tensor(c!) grad_in2, Tensor grad_out, Tensor grad_grad_in1, Tensor grad_grad_in2, Tensor in1, "
+      "Tensor in2, Tensor idx1) -> ()");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

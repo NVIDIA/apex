@@ -5,9 +5,9 @@
 #if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
 #endif
+#include <ATen/ATen.h>
 #include <cuda_runtime.h>
 #include <math.h>
-#include <ATen/ATen.h>
 
 #include <iostream>
 #include <vector>
@@ -21,9 +21,9 @@ namespace encdec {
 namespace cublas_gemmex {
 
 std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs_q,
-                                    at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
-                                    at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
-                                    const uint8_t* pad_mask, float dropout_prob) {
+                                 at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
+                                 at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob) {
   const int embed_dim = inputs_q.size(2);
   const int sequences = inputs_q.size(1);
   const int q_seq_len = inputs_q.size(0);
@@ -144,12 +144,11 @@ std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads
 }
 
 std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
-                                    at::Tensor const& dropout_results, at::Tensor const& softmax_results,
-                                    at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
-                                    at::Tensor const& inputs_q, at::Tensor const& inputs_kv,
-                                    at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
-                                    at::Tensor const& output_weights, at::Tensor const& dropout_mask,
-                                    float dropout_prob) {
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+                                 at::Tensor const& inputs_q, at::Tensor const& inputs_kv,
+                                 at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
+                                 at::Tensor const& output_weights, at::Tensor const& dropout_mask, float dropout_prob) {
   const int embed_dim = inputs_q.size(2);
   const int sequences = inputs_q.size(1);
   const int q_seq_len = inputs_q.size(0);

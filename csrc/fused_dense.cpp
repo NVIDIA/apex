@@ -1,6 +1,6 @@
-#include <stdio.h>
 #include <ATen/ATen.h>
 #include <ATen/Dispatch.h>
+#include <stdio.h>
 #include <torch/library.h>
 
 #include <vector>
@@ -157,10 +157,12 @@ std::vector<at::Tensor> linear_gelu_linear_backward(at::Tensor input, at::Tensor
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("fused_dense_linear_bias_forward(Tensor input, Tensor weight, Tensor bias) -> Tensor");
   m.def("fused_dense_linear_bias_backward(Tensor input, Tensor weight, Tensor d_output) -> Tensor[]");
-  m.def("fused_dense_linear_gelu_linear_forward(Tensor input, Tensor weight1, Tensor bias1, Tensor weight2, "
-        "Tensor bias2) -> Tensor[]");
-  m.def("fused_dense_linear_gelu_linear_backward(Tensor input, Tensor gelu_in, Tensor output1, Tensor weight1, "
-        "Tensor weight2, Tensor d_output2) -> Tensor[]");
+  m.def(
+      "fused_dense_linear_gelu_linear_forward(Tensor input, Tensor weight1, Tensor bias1, Tensor weight2, "
+      "Tensor bias2) -> Tensor[]");
+  m.def(
+      "fused_dense_linear_gelu_linear_backward(Tensor input, Tensor gelu_in, Tensor output1, Tensor weight1, "
+      "Tensor weight2, Tensor d_output2) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

@@ -35,8 +35,7 @@ at::Tensor gn(at::Tensor x, at::Tensor w, at::Tensor b, float eps, bool silu, in
   } else {
     throw std::invalid_argument("gn only supports half or bfloat16 input and weight");
   }
-  at::Tensor red_buffer =
-      at::empty({meta.red_buffer_size}, at::TensorOptions().dtype(at::kFloat).device(at::kCUDA));
+  at::Tensor red_buffer = at::empty({meta.red_buffer_size}, at::TensorOptions().dtype(at::kFloat).device(at::kCUDA));
   thread_local at::Tensor barrier;
   if (barrier.size(0) < meta.barrier_size) {
     barrier = at::zeros({meta.barrier_size}, at::TensorOptions().dtype(at::ScalarType::UInt32).device(at::kCUDA));
@@ -83,8 +82,7 @@ auto gn_bwd(at::Tensor grad_output, at::Tensor x, at::Tensor w, at::Tensor b, at
   } else {
     throw std::invalid_argument("gn only supports half or bfloat16 input and weight");
   }
-  at::Tensor red_buffer =
-      at::empty({meta.red_buffer_size}, at::TensorOptions().dtype(at::kFloat).device(at::kCUDA));
+  at::Tensor red_buffer = at::empty({meta.red_buffer_size}, at::TensorOptions().dtype(at::kFloat).device(at::kCUDA));
   thread_local at::Tensor barrier;
   if (barrier.size(0) < meta.barrier_size) {
     barrier = at::zeros({meta.barrier_size}, at::TensorOptions().dtype(at::ScalarType::UInt32).device(at::kCUDA));
@@ -127,10 +125,12 @@ std::vector<at::Tensor> apex_group_norm_v2_gn_bwd(at::Tensor grad_output, at::Te
 }  // namespace
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("group_norm_v2_gn(Tensor x, Tensor w, Tensor b, float eps, bool silu, int num_groups, "
-        "Tensor? mean_var_out, int sm_margin) -> Tensor");
-  m.def("group_norm_v2_gn_bwd(Tensor grad_output, Tensor x, Tensor w, Tensor b, Tensor mean_var, float eps, "
-        "bool silu, int num_groups, int sm_margin) -> Tensor[]");
+  m.def(
+      "group_norm_v2_gn(Tensor x, Tensor w, Tensor b, float eps, bool silu, int num_groups, "
+      "Tensor? mean_var_out, int sm_margin) -> Tensor");
+  m.def(
+      "group_norm_v2_gn_bwd(Tensor grad_output, Tensor x, Tensor w, Tensor b, Tensor mean_var, float eps, "
+      "bool silu, int num_groups, int sm_margin) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

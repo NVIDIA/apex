@@ -41,7 +41,9 @@ def forward(
     )
 
 
-def backward(x, dy, scale, minibatch_mean, minibatch_inv_var, epsilon, bn_group, rank_id, peer_buffers):
+def backward(
+    x, dy, scale, minibatch_mean, minibatch_inv_var, epsilon, bn_group, rank_id, peer_buffers
+):
     return _ops.cudnn_gbn_backward(
         x,
         dy,

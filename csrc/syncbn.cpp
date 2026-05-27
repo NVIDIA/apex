@@ -78,21 +78,27 @@ std::vector<at::Tensor> apex_welford_parallel_CUDA(const at::Tensor mean_feature
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("syncbn_welford_mean_var(Tensor input) -> Tensor[]");
-  m.def("syncbn_welford_parallel(Tensor mean_feature_nodes, Tensor var_biased_feature_nodes, Tensor numel, float eps) "
-        "-> Tensor[]");
+  m.def(
+      "syncbn_welford_parallel(Tensor mean_feature_nodes, Tensor var_biased_feature_nodes, Tensor numel, float eps) "
+      "-> Tensor[]");
   m.def("syncbn_batchnorm_forward(Tensor input, Tensor mean, Tensor inv_std, Tensor? weight, Tensor? shift) -> Tensor");
   m.def("syncbn_reduce_bn(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, Tensor? weight) -> Tensor[]");
-  m.def("syncbn_batchnorm_backward(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, Tensor? weight, "
-        "Tensor sum_dy, Tensor sum_dy_xmu, Tensor count) -> Tensor");
+  m.def(
+      "syncbn_batchnorm_backward(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, Tensor? weight, "
+      "Tensor sum_dy, Tensor sum_dy_xmu, Tensor count) -> Tensor");
   m.def("syncbn_welford_mean_var_c_last(Tensor input) -> Tensor[]");
-  m.def("syncbn_batchnorm_forward_c_last(Tensor input, Tensor? z, Tensor mean, Tensor inv_std, Tensor? weight, "
-        "Tensor? shift, bool fuse_relu) -> Tensor");
-  m.def("syncbn_reduce_bn_c_last(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, Tensor? weight) "
-        "-> Tensor[]");
-  m.def("syncbn_batchnorm_backward_c_last(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, "
-        "Tensor? weight, Tensor sum_dy, Tensor sum_dy_xmu, Tensor count) -> Tensor");
-  m.def("syncbn_relu_bw_c_last(Tensor grad_output, Tensor input, Tensor? z, Tensor mean, Tensor inv_std, "
-        "Tensor? weight, Tensor? shift) -> Tensor");
+  m.def(
+      "syncbn_batchnorm_forward_c_last(Tensor input, Tensor? z, Tensor mean, Tensor inv_std, Tensor? weight, "
+      "Tensor? shift, bool fuse_relu) -> Tensor");
+  m.def(
+      "syncbn_reduce_bn_c_last(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, Tensor? weight) "
+      "-> Tensor[]");
+  m.def(
+      "syncbn_batchnorm_backward_c_last(Tensor grad_output, Tensor input, Tensor mean, Tensor inv_std, "
+      "Tensor? weight, Tensor sum_dy, Tensor sum_dy_xmu, Tensor count) -> Tensor");
+  m.def(
+      "syncbn_relu_bw_c_last(Tensor grad_output, Tensor input, Tensor? z, Tensor mean, Tensor inv_std, "
+      "Tensor? weight, Tensor? shift) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

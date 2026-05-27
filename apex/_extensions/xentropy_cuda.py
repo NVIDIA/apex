@@ -13,4 +13,6 @@ def forward(input, labels, smoothing, half_to_float):
 
 
 def backward(grad_loss, logits, max_log_sum_exp, labels, smoothing):
-    return torch.ops.apex.xentropy_backward(grad_loss, logits, max_log_sum_exp, labels, scalar_float(smoothing))
+    return torch.ops.apex.xentropy_backward(
+        grad_loss, logits, max_log_sum_exp, labels, scalar_float(smoothing)
+    )

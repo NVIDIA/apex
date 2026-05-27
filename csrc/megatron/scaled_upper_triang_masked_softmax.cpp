@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <cuda_fp16.h>
 #include <ATen/ATen.h>
+#include <cuda_fp16.h>
 #include <torch/library.h>
 
 #include <vector>
@@ -56,8 +56,9 @@ at::Tensor bwd(at::Tensor const& output_grads, at::Tensor const& softmax_results
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("scaled_upper_triang_masked_softmax_forward(Tensor input, float scale_factor) -> Tensor");
-  m.def("scaled_upper_triang_masked_softmax_backward(Tensor output_grads, Tensor softmax_results, "
-        "float scale_factor) -> Tensor");
+  m.def(
+      "scaled_upper_triang_masked_softmax_backward(Tensor output_grads, Tensor softmax_results, "
+      "float scale_factor) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

@@ -25,8 +25,8 @@
  *
  ******************************************************************************/
 
-#include <ATen/cuda/CUDAContext.h>
 #include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <torch/library.h>
 
 #include "fmha.h"
@@ -340,12 +340,15 @@ std::vector<at::Tensor> apex_fmha_bwd_nl(const at::Tensor& dout, const at::Tenso
 }  // namespace
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("fmha_fwd(Tensor qkv, Tensor cu_seqlens, float p_dropout, int max_seq_len, bool is_training, bool is_nl, "
-        "bool zero_tensors, Generator? gen) -> Tensor[]");
-  m.def("fmha_bwd(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, int max_seq_len, "
-        "bool zero_tensors) -> Tensor[]");
-  m.def("fmha_bwd_nl(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, "
-        "int max_seq_len, bool zero_tensors) -> Tensor[]");
+  m.def(
+      "fmha_fwd(Tensor qkv, Tensor cu_seqlens, float p_dropout, int max_seq_len, bool is_training, bool is_nl, "
+      "bool zero_tensors, Generator? gen) -> Tensor[]");
+  m.def(
+      "fmha_bwd(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, int max_seq_len, "
+      "bool zero_tensors) -> Tensor[]");
+  m.def(
+      "fmha_bwd_nl(Tensor dout, Tensor qkv, Tensor(a!) softmax, Tensor cu_seqlens, float p_dropout, "
+      "int max_seq_len, bool zero_tensors) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

@@ -11,4 +11,6 @@ def forward(input, scale_factor):
 
 
 def backward(output_grads, softmax_results, scale_factor):
-    return torch.ops.apex.scaled_softmax_backward(output_grads, softmax_results, scalar_float(scale_factor))
+    return torch.ops.apex.scaled_softmax_backward(
+        output_grads, softmax_results, scalar_float(scale_factor)
+    )

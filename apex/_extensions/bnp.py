@@ -73,7 +73,9 @@ def bn_fwd_nhwc(
     )
 
 
-def bn_fwd_eval_nhwc(x, scale, bias, running_mean, running_inv_var, ret_cta, bn_group, momentum, epsilon, fuse_relu):
+def bn_fwd_eval_nhwc(
+    x, scale, bias, running_mean, running_inv_var, ret_cta, bn_group, momentum, epsilon, fuse_relu
+):
     return _ops.bnp_bn_fwd_eval_nhwc(
         x,
         scale,
@@ -192,7 +194,9 @@ def bn_addrelu_fwd_nhwc(
     )
 
 
-def bn_addrelu_fwd_eval_nhwc(x, z, scale, bias, running_mean, running_inv_var, ret_cta, bn_group, momentum, epsilon):
+def bn_addrelu_fwd_eval_nhwc(
+    x, z, scale, bias, running_mean, running_inv_var, ret_cta, bn_group, momentum, epsilon
+):
     return _ops.bnp_bn_addrelu_fwd_eval_nhwc(
         x,
         z,

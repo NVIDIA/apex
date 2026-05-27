@@ -110,8 +110,8 @@ void adam_dispatch(const at::Tensor& p, const at::Tensor& p_copy, const at::Tens
 }
 
 void reversible_adam_dispatch(const at::Tensor& p, const at::Tensor& p_copy, const at::Tensor& m, const at::Tensor& v,
-                              const at::Tensor& g, double lr, double beta1, double beta2, double eps,
-                              double grad_scale, int64_t step, int64_t mode, int64_t bias_correction, double decay) {
+                              const at::Tensor& g, double lr, double beta1, double beta2, double eps, double grad_scale,
+                              int64_t step, int64_t mode, int64_t bias_correction, double decay) {
   at::Tensor p_arg = p;
   at::Tensor p_copy_arg = p_copy;
   at::Tensor m_arg = m;
@@ -161,20 +161,25 @@ void maybe_cast_cuda_mt_dispatch(int64_t chunk_size, at::Tensor overflow_flag,
 }
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("fused_adam_strided_check_finite(Tensor(a!) overflow_flag, Tensor p_copy, int stride, "
-        "int clear_overflow_first) -> ()");
-  m.def("fused_adam_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
-        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
-        "int bias_correction, float decay) -> ()");
-  m.def("fused_adam_reversible_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
-        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
-        "int bias_correction, float decay) -> ()");
-  m.def("fused_adam_adam_mt(int chunk_size, Tensor overflow_flag, Tensor[][] tensor_lists, float lr, "
-        "float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, "
-        "float decay) -> ()");
-  m.def("fused_adam_maybe_adam_undo(Tensor overflow_flag, Tensor(a!) p, Tensor(b!) m, Tensor(c!) v, Tensor(d!) g, "
-        "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
-        "int bias_correction, float decay) -> ()");
+  m.def(
+      "fused_adam_strided_check_finite(Tensor(a!) overflow_flag, Tensor p_copy, int stride, "
+      "int clear_overflow_first) -> ()");
+  m.def(
+      "fused_adam_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
+      "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+      "int bias_correction, float decay) -> ()");
+  m.def(
+      "fused_adam_reversible_adam(Tensor(a!) p, Tensor(b!) p_copy, Tensor(c!) m, Tensor(d!) v, Tensor g, "
+      "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+      "int bias_correction, float decay) -> ()");
+  m.def(
+      "fused_adam_adam_mt(int chunk_size, Tensor overflow_flag, Tensor[][] tensor_lists, float lr, "
+      "float beta1, float beta2, float eps, float grad_scale, int step, int mode, int bias_correction, "
+      "float decay) -> ()");
+  m.def(
+      "fused_adam_maybe_adam_undo(Tensor overflow_flag, Tensor(a!) p, Tensor(b!) m, Tensor(c!) v, Tensor(d!) g, "
+      "float lr, float beta1, float beta2, float eps, float grad_scale, int step, int mode, "
+      "int bias_correction, float decay) -> ()");
   m.def("fused_adam_maybe_cast(Tensor overflow_flag, Tensor p_in, Tensor(a!) p_out) -> ()");
   m.def("fused_adam_maybe_cast_mt(int chunk_size, Tensor overflow_flag, Tensor[][] tensor_lists) -> ()");
 }

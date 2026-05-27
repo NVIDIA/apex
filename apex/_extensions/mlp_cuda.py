@@ -11,4 +11,6 @@ def forward(use_bias, activation, inputs):
 
 
 def backward(use_bias, activation, grad_o, fprop_outputs, inputs):
-    return torch.ops.apex.mlp_backward(use_bias, activation, grad_o, list(fprop_outputs), list(inputs))
+    return torch.ops.apex.mlp_backward(
+        use_bias, activation, grad_o, list(fprop_outputs), list(inputs)
+    )

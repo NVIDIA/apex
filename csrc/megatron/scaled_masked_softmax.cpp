@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <cuda_fp16.h>
 #include <ATen/ATen.h>
+#include <cuda_fp16.h>
 #include <torch/library.h>
 
 #include <vector>
@@ -34,8 +34,9 @@ at::Tensor fwd(at::Tensor const& input, at::Tensor const& mask, double scale_fac
   auto input_arg = input;
   auto mask_arg = mask;
   TORCH_CHECK(input_arg.dim() == 4, "expected 4D tensor");
-  TORCH_CHECK((input_arg.scalar_type() == at::ScalarType::Half) || (input_arg.scalar_type() == at::ScalarType::BFloat16),
-              "Only fp16 and bf16 are supported");
+  TORCH_CHECK(
+      (input_arg.scalar_type() == at::ScalarType::Half) || (input_arg.scalar_type() == at::ScalarType::BFloat16),
+      "Only fp16 and bf16 are supported");
   TORCH_CHECK(mask_arg.dim() == 4, "expected 4D tensor");
   if (!input_arg.is_contiguous()) input_arg = input_arg.contiguous();
   if (!mask_arg.is_contiguous()) mask_arg = mask_arg.contiguous();
@@ -73,8 +74,9 @@ int64_t get_batch_per_block(int64_t query_seq_len, int64_t key_seq_len, int64_t 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("scaled_masked_softmax_forward(Tensor input, Tensor mask, float scale_factor) -> Tensor");
   m.def("scaled_masked_softmax_backward(Tensor output_grads, Tensor softmax_results, float scale_factor) -> Tensor");
-  m.def("scaled_masked_softmax_get_batch_per_block(int query_seq_len, int key_seq_len, int batches, "
-        "int attn_heads) -> int");
+  m.def(
+      "scaled_masked_softmax_get_batch_per_block(int query_seq_len, int key_seq_len, int batches, "
+      "int attn_heads) -> int");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

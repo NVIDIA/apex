@@ -17,7 +17,9 @@ def load_custom_op_library(extension_name, anchor_file):
         key=lambda path: (".cpython-" in path.name, path.name),
     )
     if not candidates:
-        raise ImportError(f"Could not find shared library for {extension_name!r} next to {anchor_file}")
+        raise ImportError(
+            f"Could not find shared library for {extension_name!r} next to {anchor_file}"
+        )
 
     library = str(candidates[0])
     if library not in _loaded_libraries:

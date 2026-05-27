@@ -5,9 +5,9 @@
 #if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
 #endif
+#include <ATen/ATen.h>
 #include <cuda_runtime.h>
 #include <math.h>
-#include <ATen/ATen.h>
 
 #include <iostream>
 #include <vector>
@@ -22,9 +22,9 @@ namespace self_norm_add {
 namespace cublas_gemmex {
 
 std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
-                                    at::Tensor const& lyr_nrm_gamma_weights,
-                                    at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
-                                    at::Tensor const& output_weights, const uint8_t* pad_mask, float dropout_prob) {
+                                 at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob) {
   const int embed_dim = inputs.size(2);
   const int sequences = inputs.size(1);
   const int q_seq_len = inputs.size(0);
@@ -163,13 +163,13 @@ std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads
 }
 
 std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
-                                    at::Tensor const& dropout_results, at::Tensor const& softmax_results,
-                                    at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
-                                    at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar,
-                                    at::Tensor const& inputs, at::Tensor const& lyr_nrm_gamma_weights,
-                                    at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
-                                    at::Tensor const& output_weights, at::Tensor const& dropout_mask,
-                                    at::Tensor const& dropout_add_mask, float dropout_prob) {
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
+                                 at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar,
+                                 at::Tensor const& inputs, at::Tensor const& lyr_nrm_gamma_weights,
+                                 at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
+                                 at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+                                 at::Tensor const& dropout_add_mask, float dropout_prob) {
   const int embed_dim = inputs.size(2);
   const int sequences = inputs.size(1);
   const int q_seq_len = inputs.size(0);

@@ -7,15 +7,15 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/library.h>
 
-#include "group_norm_nhwc.h"
-#include "group_norm_nhwc_bwd_one_pass.h"
-#include "group_norm_nhwc_fwd_one_pass.h"
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <unordered_set>
 #include <vector>
+
+#include "group_norm_nhwc.h"
+#include "group_norm_nhwc_bwd_one_pass.h"
+#include "group_norm_nhwc_fwd_one_pass.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -283,10 +283,12 @@ std::vector<at::Tensor> apex_group_norm_bwd(at::Tensor grad_output, at::Tensor s
 }  // namespace
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("group_norm_forward(Tensor input, int groups, Tensor weight, Tensor bias, float eps, int passes, "
-        "bool with_swish) -> Tensor[]");
-  m.def("group_norm_backward(Tensor grad_output, Tensor sums, Tensor input, int groups, Tensor weight, Tensor bias, "
-        "float eps, int passes, bool with_swish) -> Tensor[]");
+  m.def(
+      "group_norm_forward(Tensor input, int groups, Tensor weight, Tensor bias, float eps, int passes, "
+      "bool with_swish) -> Tensor[]");
+  m.def(
+      "group_norm_backward(Tensor grad_output, Tensor sums, Tensor input, int groups, Tensor weight, Tensor bias, "
+      "float eps, int passes, bool with_swish) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

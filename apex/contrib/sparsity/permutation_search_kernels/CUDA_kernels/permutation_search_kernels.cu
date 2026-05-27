@@ -1,8 +1,9 @@
+#include <stdio.h>
 #include <torch/csrc/stable/library.h>
 #include <torch/csrc/stable/tensor_inl.h>
 #include <torch/csrc/stable/tensor_struct.h>
+
 #include <limits>
-#include <stdio.h>
 
 #define gpuErrchk(ans)                    \
   {                                       \
@@ -470,11 +471,13 @@ void set_up_swap_map_memory(float** dmatrix, unsigned int rows, unsigned int col
 
 ///////////////////////////////////////////////////////////
 
-int64_t apex_permutation_search_check_permutations(
-    torch::stable::Tensor const& matrix_tensor, int64_t rows_arg, int64_t cols_arg,
-    torch::stable::Tensor const& stripe_groups_tensor, int64_t group_width_arg, int64_t num_groups_arg,
-    torch::stable::Tensor const& permutations_tensor, int64_t num_permutations_arg,
-    torch::stable::Tensor const& improvement_tensor, torch::stable::Tensor const& permutation_tensor) {
+int64_t apex_permutation_search_check_permutations(torch::stable::Tensor const& matrix_tensor, int64_t rows_arg,
+                                                   int64_t cols_arg, torch::stable::Tensor const& stripe_groups_tensor,
+                                                   int64_t group_width_arg, int64_t num_groups_arg,
+                                                   torch::stable::Tensor const& permutations_tensor,
+                                                   int64_t num_permutations_arg,
+                                                   torch::stable::Tensor const& improvement_tensor,
+                                                   torch::stable::Tensor const& permutation_tensor) {
   static float* d_matrix;
   static unsigned int* d_permutations;
   static unsigned int* d_stripes;
@@ -556,11 +559,13 @@ int64_t apex_permutation_search_sum_after_2_to_4(torch::stable::Tensor const& ma
   return 0;
 }
 
-int64_t apex_permutation_search_build_permute_map(
-    torch::stable::Tensor const& matrix_tensor, int64_t rows_arg, int64_t cols_arg,
-    torch::stable::Tensor const& stripes_tensor, int64_t num_groups_arg, int64_t group_width_arg,
-    torch::stable::Tensor const& permutations_tensor, int64_t perm_length_arg,
-    torch::stable::Tensor const& improvements_tensor, torch::stable::Tensor const& best_indices_tensor) {
+int64_t apex_permutation_search_build_permute_map(torch::stable::Tensor const& matrix_tensor, int64_t rows_arg,
+                                                  int64_t cols_arg, torch::stable::Tensor const& stripes_tensor,
+                                                  int64_t num_groups_arg, int64_t group_width_arg,
+                                                  torch::stable::Tensor const& permutations_tensor,
+                                                  int64_t perm_length_arg,
+                                                  torch::stable::Tensor const& improvements_tensor,
+                                                  torch::stable::Tensor const& best_indices_tensor) {
   static float* d_matrix = NULL;
   static unsigned int* d_stripes = NULL;
   static unsigned int* d_permutations = NULL;
@@ -583,8 +588,7 @@ int64_t apex_permutation_search_build_permute_map(
   const unsigned int launches = full_launches + (final_launch != 0 ? 1 : 0);
 
   set_up_permute_map_memory(&d_matrix, rows, cols, &d_stripes, min(num_groups, MAX_GROUPS_PER_LAUNCH), group_width,
-                            &d_permutations, num_permutations, perm_length, &d_output, &d_indices, &hresult,
-                            &hindices);
+                            &d_permutations, num_permutations, perm_length, &d_output, &d_indices, &hresult, &hindices);
 
   float* matrix = float_ptr_from_tensor(matrix_tensor, "matrix");
   unsigned int* stripes = uint_ptr_from_tensor(stripes_tensor, "stripes");
@@ -626,8 +630,7 @@ int64_t apex_permutation_search_build_permute_map(
 }
 
 int64_t apex_permutation_search_build_swap_map(torch::stable::Tensor const& matrix_tensor, int64_t rows_arg,
-                                               int64_t cols_arg,
-                                               torch::stable::Tensor const& stripe_pairs_tensor,
+                                               int64_t cols_arg, torch::stable::Tensor const& stripe_pairs_tensor,
                                                torch::stable::Tensor const& output_tensor) {
   static float* d_matrix = NULL;
   static float* d_result = NULL;
@@ -655,16 +658,20 @@ int64_t apex_permutation_search_build_swap_map(torch::stable::Tensor const& matr
 }
 
 STABLE_TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("permutation_search_sum_after_2_to_4(Tensor matrix, int rows, int cols, int start_col, int end_col, "
-        "int blocks, int threads, Tensor(a!) output) -> int");
-  m.def("permutation_search_build_permute_map(Tensor matrix, int rows, int cols, Tensor stripes, int num_groups, "
-        "int group_width, Tensor permutations, int perm_length, Tensor(a!) improvements, Tensor(b!) best_indices) "
-        "-> int");
-  m.def("permutation_search_check_permutations(Tensor matrix, int rows, int cols, Tensor stripe_groups, "
-        "int group_width, int num_groups, Tensor permutations, int num_permutations, Tensor(a!) improvement, "
-        "Tensor(b!) permutation) -> int");
-  m.def("permutation_search_build_swap_map(Tensor matrix, int rows, int cols, Tensor stripe_pairs, "
-        "Tensor(a!) output) -> int");
+  m.def(
+      "permutation_search_sum_after_2_to_4(Tensor matrix, int rows, int cols, int start_col, int end_col, "
+      "int blocks, int threads, Tensor(a!) output) -> int");
+  m.def(
+      "permutation_search_build_permute_map(Tensor matrix, int rows, int cols, Tensor stripes, int num_groups, "
+      "int group_width, Tensor permutations, int perm_length, Tensor(a!) improvements, Tensor(b!) best_indices) "
+      "-> int");
+  m.def(
+      "permutation_search_check_permutations(Tensor matrix, int rows, int cols, Tensor stripe_groups, "
+      "int group_width, int num_groups, Tensor permutations, int num_permutations, Tensor(a!) improvement, "
+      "Tensor(b!) permutation) -> int");
+  m.def(
+      "permutation_search_build_swap_map(Tensor matrix, int rows, int cols, Tensor stripe_pairs, "
+      "Tensor(a!) output) -> int");
 }
 
 STABLE_TORCH_LIBRARY_IMPL(apex, CPU, m) {

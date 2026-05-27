@@ -42,8 +42,9 @@ at::Tensor focal_loss_backward(const at::Tensor& grad_output, const at::Tensor& 
 }
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("focal_loss_forward(Tensor cls_output, Tensor cls_targets_at_level, Tensor num_positives_sum, "
-        "int num_real_classes, float alpha, float gamma, float smoothing_factor) -> Tensor[]");
+  m.def(
+      "focal_loss_forward(Tensor cls_output, Tensor cls_targets_at_level, Tensor num_positives_sum, "
+      "int num_real_classes, float alpha, float gamma, float smoothing_factor) -> Tensor[]");
   m.def("focal_loss_backward(Tensor grad_output, Tensor partial_grad, Tensor num_positives_sum) -> Tensor");
 }
 

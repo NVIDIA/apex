@@ -1,5 +1,5 @@
-#include <ATen/AccumulateType.h>
 #include <ATen/ATen.h>
+#include <ATen/AccumulateType.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -535,10 +535,10 @@ __global__ void transducer_joint_combined_vec_backward(const scalar_t* grad, con
   }
 }
 
-std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g, at::Tensor fLen,
-                                                         at::Tensor gLen, at::Tensor batchOffset,
-                                                         int64_t packedBatch, int64_t opt, bool packOutput, bool relu,
-                                                         bool dropout, double dropoutProb, int64_t tileSize) {
+std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g, at::Tensor fLen, at::Tensor gLen,
+                                                      at::Tensor batchOffset, int64_t packedBatch, int64_t opt,
+                                                      bool packOutput, bool relu, bool dropout, double dropoutProb,
+                                                      int64_t tileSize) {
   auto tensorOpt = f.options();
   auto dtype = f.scalar_type();
   const auto batchSize = f.size(0);
@@ -635,11 +635,10 @@ std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g
             }
           }
 
-          kernel<<<blocks, threads, 0, stream>>>(f.data_ptr<scalar_t>(), g.data_ptr<scalar_t>(), fLen.data_ptr<int>(),
-                                                 gLen.data_ptr<int>(), batchOffsetPtr, maxFLen, maxGLen, hiddenSize,
-                                                 hiddenPerBlock, packOutput, relu, dropout,
-                                                 static_cast<float>(1.0 - dropoutProb),
-                                                 rng_engine_inputs, sum.data_ptr<scalar_t>(), maskPtr);
+          kernel<<<blocks, threads, 0, stream>>>(
+              f.data_ptr<scalar_t>(), g.data_ptr<scalar_t>(), fLen.data_ptr<int>(), gLen.data_ptr<int>(),
+              batchOffsetPtr, maxFLen, maxGLen, hiddenSize, hiddenPerBlock, packOutput, relu, dropout,
+              static_cast<float>(1.0 - dropoutProb), rng_engine_inputs, sum.data_ptr<scalar_t>(), maskPtr);
         }));
   }
 
@@ -650,9 +649,9 @@ std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g
     return {sum};
 }
 
-std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> in, at::Tensor fLen,
-                                                          at::Tensor gLen, at::Tensor batchOffset, int64_t maxFLen,
-                                                          int64_t maxGLen, bool packOutput, double scale) {
+std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> in, at::Tensor fLen, at::Tensor gLen,
+                                                       at::Tensor batchOffset, int64_t maxFLen, int64_t maxGLen,
+                                                       bool packOutput, double scale) {
   auto grad = in[0];
   bool masked = (in.size() == 2);
   uint8_t* maskPtr = masked ? in[1].data_ptr<uint8_t>() : nullptr;

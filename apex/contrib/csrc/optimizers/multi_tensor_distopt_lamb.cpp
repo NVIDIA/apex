@@ -23,8 +23,8 @@ void multi_tensor_lamb_compute_update_term(int64_t chunk_size, at::Tensor noop_f
                                            at::Tensor global_grad_norm, double max_grad_norm) {
   multi_tensor_lamb_compute_update_term_cuda(static_cast<int>(chunk_size), noop_flag, tensor_lists, per_tensor_beta1,
                                              per_tensor_beta2, per_tensor_beta3, per_tensor_bias_correction, step,
-                                             per_tensor_epsilon, static_cast<int>(mode), per_tensor_decay,
-                                             global_scale, global_grad_norm, static_cast<float>(max_grad_norm));
+                                             per_tensor_epsilon, static_cast<int>(mode), per_tensor_decay, global_scale,
+                                             global_grad_norm, static_cast<float>(max_grad_norm));
 }
 
 void multi_tensor_lamb_update_weights(int64_t chunk_size, at::Tensor noop_flag,
@@ -38,13 +38,15 @@ void multi_tensor_lamb_update_weights(int64_t chunk_size, at::Tensor noop_flag,
 }
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("distributed_lamb_compute_update_term(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, "
-        "Tensor per_tensor_beta1, Tensor per_tensor_beta2, Tensor per_tensor_beta3, "
-        "Tensor per_tensor_bias_correction, Tensor step, Tensor per_tensor_epsilon, int mode, "
-        "Tensor per_tensor_decay, Tensor global_scale, Tensor global_grad_norm, float max_grad_norm) -> ()");
-  m.def("distributed_lamb_update_weights(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, "
-        "Tensor per_tensor_param_norm, Tensor per_tensor_update_norm, Tensor update_norm_offset, "
-        "Tensor learning_rate, Tensor per_tensor_decay, Tensor global_grad_norm, bool use_nvlamb) -> ()");
+  m.def(
+      "distributed_lamb_compute_update_term(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, "
+      "Tensor per_tensor_beta1, Tensor per_tensor_beta2, Tensor per_tensor_beta3, "
+      "Tensor per_tensor_bias_correction, Tensor step, Tensor per_tensor_epsilon, int mode, "
+      "Tensor per_tensor_decay, Tensor global_scale, Tensor global_grad_norm, float max_grad_norm) -> ()");
+  m.def(
+      "distributed_lamb_update_weights(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, "
+      "Tensor per_tensor_param_norm, Tensor per_tensor_update_norm, Tensor update_norm_offset, "
+      "Tensor learning_rate, Tensor per_tensor_decay, Tensor global_grad_norm, bool use_nvlamb) -> ()");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

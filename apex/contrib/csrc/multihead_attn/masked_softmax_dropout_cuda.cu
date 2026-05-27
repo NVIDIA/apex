@@ -5,9 +5,9 @@
 #if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
 #endif
+#include <ATen/ATen.h>
 #include <cuda_runtime.h>
 #include <math.h>
-#include <ATen/ATen.h>
 
 #include <iostream>
 #include <vector>
@@ -20,7 +20,7 @@ namespace fused_softmax {
 namespace mask_softmax_dropout {
 
 std::vector<at::Tensor> fwd_cuda(bool is_training, int heads, at::Tensor const& input, const uint8_t* pad_mask,
-                                    float dropout_prob) {
+                                 float dropout_prob) {
   const int attn_batches = input.size(0);
   const int sequences = attn_batches / heads;
   const int q_seq_len = input.size(1);
@@ -72,7 +72,7 @@ std::vector<at::Tensor> fwd_cuda(bool is_training, int heads, at::Tensor const& 
 }
 
 at::Tensor bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
-                       at::Tensor const& dropout_mask, const uint8_t* padding_mask, float dropout_prob) {
+                    at::Tensor const& dropout_mask, const uint8_t* padding_mask, float dropout_prob) {
   const int attn_batches = output_grads.size(0);
   const int q_seq_len = output_grads.size(1);
   const int k_seq_len = q_seq_len;

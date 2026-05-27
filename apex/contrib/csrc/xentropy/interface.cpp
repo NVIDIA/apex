@@ -49,8 +49,9 @@ std::string softmax_xentropy_version() {
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("xentropy_forward(Tensor input, Tensor labels, float smoothing, bool half_to_float) -> Tensor[]");
-  m.def("xentropy_backward(Tensor grad_loss, Tensor logits, Tensor max_log_sum_exp, Tensor labels, "
-        "float smoothing) -> Tensor");
+  m.def(
+      "xentropy_backward(Tensor grad_loss, Tensor logits, Tensor max_log_sum_exp, Tensor labels, "
+      "float smoothing) -> Tensor");
   m.def("xentropy_version() -> str");
 }
 
@@ -59,6 +60,4 @@ TORCH_LIBRARY_IMPL(apex, CUDA, m) {
   m.impl("xentropy_backward", &softmax_xentropy_backward);
 }
 
-TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
-  m.impl("xentropy_version", &softmax_xentropy_version);
-}
+TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) { m.impl("xentropy_version", &softmax_xentropy_version); }

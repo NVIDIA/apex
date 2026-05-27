@@ -29,7 +29,18 @@ def sum_after_2_to_4(matrix, rows, cols, start_col, end_col, blocks, threads, ou
     )
 
 
-def build_permute_map(matrix, rows, cols, stripes, num_groups, group_width, permutations, perm_length, improvements, best_indices):
+def build_permute_map(
+    matrix,
+    rows,
+    cols,
+    stripes,
+    num_groups,
+    group_width,
+    permutations,
+    perm_length,
+    improvements,
+    best_indices,
+):
     return _op("permutation_search_build_permute_map")(
         _as_tensor(matrix),
         scalar_int(rows),
@@ -72,5 +83,9 @@ def check_permutations(
 
 def build_swap_map(matrix, rows, cols, stripe_pairs, output):
     return _op("permutation_search_build_swap_map")(
-        _as_tensor(matrix), scalar_int(rows), scalar_int(cols), _as_tensor(stripe_pairs), _as_tensor(output)
+        _as_tensor(matrix),
+        scalar_int(rows),
+        scalar_int(cols),
+        _as_tensor(stripe_pairs),
+        _as_tensor(output),
     )

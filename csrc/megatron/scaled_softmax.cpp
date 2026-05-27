@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <cuda_fp16.h>
 #include <ATen/ATen.h>
+#include <cuda_fp16.h>
 #include <torch/library.h>
 
 #include <vector>

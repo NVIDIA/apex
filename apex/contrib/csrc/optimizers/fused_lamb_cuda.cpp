@@ -18,11 +18,10 @@ void multi_tensor_lamb(int64_t chunk_size, at::Tensor noop_flag, std::vector<std
 }
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
-  m.def("fused_lamb_lamb(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, float lr, float beta1, "
-        "float beta2, float epsilon, int step, int bias_correction, float weight_decay, int grad_averaging, "
-        "int mode, float global_grad_norm, float max_grad_norm) -> ()");
+  m.def(
+      "fused_lamb_lamb(int chunk_size, Tensor noop_flag, Tensor[][] tensor_lists, float lr, float beta1, "
+      "float beta2, float epsilon, int step, int bias_correction, float weight_decay, int grad_averaging, "
+      "int mode, float global_grad_norm, float max_grad_norm) -> ()");
 }
 
-TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("fused_lamb_lamb", &multi_tensor_lamb);
-}
+TORCH_LIBRARY_IMPL(apex, CUDA, m) { m.impl("fused_lamb_lamb", &multi_tensor_lamb); }

@@ -1,6 +1,6 @@
-#include <stdio.h>
 #include <ATen/ATen.h>
 #include <ATen/Dispatch.h>
+#include <stdio.h>
 #include <torch/library.h>
 
 #include <vector>
@@ -121,8 +121,9 @@ std::vector<at::Tensor> apex_mlp_backward(int64_t use_bias, int64_t activation, 
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("mlp_forward(int use_bias, int activation, Tensor[] inputs) -> Tensor[]");
-  m.def("mlp_backward(int use_bias, int activation, Tensor grad_o, Tensor[] fprop_outputs, Tensor[] inputs) "
-        "-> Tensor[]");
+  m.def(
+      "mlp_backward(int use_bias, int activation, Tensor grad_o, Tensor[] fprop_outputs, Tensor[] inputs) "
+      "-> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {

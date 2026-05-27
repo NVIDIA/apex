@@ -8,7 +8,9 @@ _ops = torch.ops.apex
 
 
 def multi_tensor_scale(chunk_size, noop_flag, tensor_lists, scale):
-    return _ops.amp_multi_tensor_scale(chunk_size, noop_flag, tensor_list_arg(tensor_lists), scalar_float(scale))
+    return _ops.amp_multi_tensor_scale(
+        chunk_size, noop_flag, tensor_list_arg(tensor_lists), scalar_float(scale)
+    )
 
 
 def multi_tensor_sgd(
@@ -51,11 +53,15 @@ def multi_tensor_axpby(chunk_size, noop_flag, tensor_lists, a, b, arg_to_check):
 
 
 def multi_tensor_l2norm(chunk_size, noop_flag, tensor_lists, per_tensor_python=None):
-    return _ops.amp_multi_tensor_l2norm(chunk_size, noop_flag, tensor_list_arg(tensor_lists), per_tensor_python)
+    return _ops.amp_multi_tensor_l2norm(
+        chunk_size, noop_flag, tensor_list_arg(tensor_lists), per_tensor_python
+    )
 
 
 def multi_tensor_l2norm_mp(chunk_size, noop_flag, tensor_lists, per_tensor_python=None):
-    return _ops.amp_multi_tensor_l2norm_mp(chunk_size, noop_flag, tensor_list_arg(tensor_lists), per_tensor_python)
+    return _ops.amp_multi_tensor_l2norm_mp(
+        chunk_size, noop_flag, tensor_list_arg(tensor_lists), per_tensor_python
+    )
 
 
 def multi_tensor_l2norm_scale(chunk_size, noop_flag, tensor_lists, scale, per_tensor_python=None):
@@ -64,7 +70,9 @@ def multi_tensor_l2norm_scale(chunk_size, noop_flag, tensor_lists, scale, per_te
     )
 
 
-def multi_tensor_unscale_l2norm(chunk_size, noop_flag, tensor_lists, inv_scale, per_tensor_python=None):
+def multi_tensor_unscale_l2norm(
+    chunk_size, noop_flag, tensor_lists, inv_scale, per_tensor_python=None
+):
     return _ops.amp_multi_tensor_unscale_l2norm(
         chunk_size, noop_flag, tensor_list_arg(tensor_lists), inv_scale, per_tensor_python
     )

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "peer_memory_cuda.cuh"
 #include <torch/library.h>
+
+#include "peer_memory_cuda.cuh"
 
 namespace {
 std::vector<int64_t> apex_peer_memory_get_raw_peers(at::Tensor ipc_addresses, int64_t peer_rank, int64_t raw) {
@@ -44,8 +45,8 @@ void apex_peer_memory_push_pull_halos_1d(bool diagnostics, bool explicit_nhwc, i
                                          at::Tensor btm_out_transfer, at::Tensor btm_out_halo) {
   apex::contrib::peer_memory::push_pull_halos_1d(diagnostics, explicit_nhwc, static_cast<int>(numSM),
                                                  static_cast<int>(rank), top_zero, top_in_halo, top_in_transfer,
-                                                 top_out_transfer, top_out_halo, btm_zero, btm_in_halo,
-                                                 btm_in_transfer, btm_out_transfer, btm_out_halo);
+                                                 top_out_transfer, top_out_halo, btm_zero, btm_in_halo, btm_in_transfer,
+                                                 btm_out_transfer, btm_out_halo);
 }
 }  // namespace
 
@@ -58,10 +59,11 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("peer_memory_blob_view_half(int raw, int[] shape, bool channels_last) -> Tensor");
   m.def("peer_memory_blob_view_float(int raw, int[] shape, bool channels_last) -> Tensor");
   m.def("peer_memory_blob_view_int(int raw, int[] shape, bool channels_last) -> Tensor");
-  m.def("peer_memory_push_pull_halos_1d(bool diagnostics, bool explicit_nhwc, int numSM, int rank, bool top_zero, "
-        "Tensor(a!) top_in_halo, Tensor(b!) top_in_transfer, Tensor(c!) top_out_transfer, Tensor(d!) top_out_halo, "
-        "bool btm_zero, Tensor(e!) btm_in_halo, Tensor(f!) btm_in_transfer, Tensor(g!) btm_out_transfer, "
-        "Tensor(h!) btm_out_halo) -> ()");
+  m.def(
+      "peer_memory_push_pull_halos_1d(bool diagnostics, bool explicit_nhwc, int numSM, int rank, bool top_zero, "
+      "Tensor(a!) top_in_halo, Tensor(b!) top_in_transfer, Tensor(c!) top_out_transfer, Tensor(d!) top_out_halo, "
+      "bool btm_zero, Tensor(e!) btm_in_halo, Tensor(f!) btm_in_transfer, Tensor(g!) btm_out_transfer, "
+      "Tensor(h!) btm_out_halo) -> ()");
 }
 
 TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
@@ -75,6 +77,4 @@ TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
   m.impl("peer_memory_blob_view_int", &apex_peer_memory_blob_view_int);
 }
 
-TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("peer_memory_push_pull_halos_1d", &apex_peer_memory_push_pull_halos_1d);
-}
+TORCH_LIBRARY_IMPL(apex, CUDA, m) { m.impl("peer_memory_push_pull_halos_1d", &apex_peer_memory_push_pull_halos_1d); }
