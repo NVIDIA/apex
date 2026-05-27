@@ -1,8 +1,7 @@
 #include <ATen/ATen.h>
 #include <ATen/cudnn/Handle.h>  // for getcudnnhandle
 #include <cudnn_frontend.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
+#include <torch/library.h>
 
 #include <iostream>
 #include <vector>
@@ -193,7 +192,7 @@ cudnn_frontend::ExecutionPlan& getOrCreatePlan(cudnnHandle_t handle_, std::strin
 void run_conv_bias(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad, int64_t* convstride,
                    int64_t* dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW, at::Half* devPtrB,
                    at::Half* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -331,7 +330,7 @@ void run_conv_bias(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv
 void run_conv_bias_mask_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad, int64_t* conv_stride,
                              int64_t* conv_dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                              at::Half* devPtrB, int8_t* devPtrM, at::Half* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -530,7 +529,7 @@ void run_conv_bias_mask_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int
 void run_conv_cscale_cbias_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad, int64_t* conv_stride,
                                 int64_t* conv_dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                                 at::Half* devPtrS, at::Half* devPtrB, at::Half* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -732,7 +731,7 @@ void run_conv_cscale_cbias_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, 
 void run_conv_bias_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad, int64_t* conv_stride,
                         int64_t* conv_dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                         at::Half* devPtrB, at::Half* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -896,7 +895,7 @@ void run_conv_bias_relu(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t*
 
 void run_drelu_dscale(int64_t* dy_dim, cudnnDataType_t dataType, at::Half* devPtrDY, at::Half* devPtrR,
                       at::Half* devPtrS, at::Half* devPtrDX) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -1032,7 +1031,7 @@ void run_drelu_dscale(int64_t* dy_dim, cudnnDataType_t dataType, at::Half* devPt
 
 void run_drelu_dbias(int64_t* dy_dim, cudnnDataType_t dataType, at::Half* devPtrDY, at::Half* devPtrR,
                      at::Half* devPtrDR, float* devPtrDB) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -1159,7 +1158,7 @@ void run_drelu_dbias(int64_t* dy_dim, cudnnDataType_t dataType, at::Half* devPtr
 void run_dconv_drelu_dbias(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* pad, int64_t* convstride,
                            int64_t* dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                            at::Half* devPtrR, at::Half* devPtrRg, float* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -1323,7 +1322,7 @@ void run_dconv_drelu_dbias(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64
 void run_dconv(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad, int64_t* conv_stride,
                int64_t* conv_dilation, cudnnDataType_t dataType, at::Half* devPtrX, at::Half* devPtrW,
                at::Half* devPtrY, cudnnBackendDescriptorType_t mode) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
 
   try {
@@ -1427,7 +1426,7 @@ void run_dconv(int64_t* x_dim, int64_t* w_dim, int64_t* y_dim, int64_t* conv_pad
 }
 
 void run_dbias(int64_t* x_dim, cudnnDataType_t dataType, at::Half* devPtrX, float* devPtrY) {
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
   std::stringstream log_buf;
   try {
     int convDim = 2;
@@ -1898,16 +1897,22 @@ std::vector<at::Tensor> conv_bias_backward(std::vector<at::Tensor> inputs, int64
   return outputs;
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &conv_bias_relu_forward, "Fused Conv-Bias-ReLU forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &conv_bias_relu_backward, "Fused Conv-Bias-ReLU backward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_no_relu", &conv_bias_forward, "Fused Conv-Bias forward", py::call_guard<py::gil_scoped_release>());
-  m.def("backward_no_relu", &conv_bias_backward, "Fused Conv-Bias backward", py::call_guard<py::gil_scoped_release>());
-  m.def("forward_mask", &conv_bias_mask_relu_forward, "Fused Conv-Bias-Mask-ReLU forward",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("forward_cscale_cbias_relu", &conv_cscale_cbias_relu_forward, "Fused Conv-(const)Scale-(const)Bias-ReLU",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_cscale_cbias_relu", &conv_cscale_cbias_relu_backward,
-        "Fused Conv-(const)Scale-(const)Bias-ReLU backward", py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fused_conv_bias_relu_forward(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+  m.def("fused_conv_bias_relu_backward(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+  m.def("fused_conv_bias_relu_forward_no_relu(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+  m.def("fused_conv_bias_relu_backward_no_relu(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+  m.def("fused_conv_bias_relu_forward_mask(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+  m.def("fused_conv_bias_relu_forward_cscale_cbias_relu(Tensor[] inputs, int padding, int stride) -> Tensor");
+  m.def("fused_conv_bias_relu_backward_cscale_cbias_relu(Tensor[] inputs, int padding, int stride) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fused_conv_bias_relu_forward", &conv_bias_relu_forward);
+  m.impl("fused_conv_bias_relu_backward", &conv_bias_relu_backward);
+  m.impl("fused_conv_bias_relu_forward_no_relu", &conv_bias_forward);
+  m.impl("fused_conv_bias_relu_backward_no_relu", &conv_bias_backward);
+  m.impl("fused_conv_bias_relu_forward_mask", &conv_bias_mask_relu_forward);
+  m.impl("fused_conv_bias_relu_forward_cscale_cbias_relu", &conv_cscale_cbias_relu_forward);
+  m.impl("fused_conv_bias_relu_backward_cscale_cbias_relu", &conv_cscale_cbias_relu_backward);
 }

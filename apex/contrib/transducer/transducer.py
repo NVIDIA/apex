@@ -1,6 +1,6 @@
 import torch
-import transducer_loss_cuda
-import transducer_joint_cuda
+from apex._extensions import transducer_loss_cuda
+from apex._extensions import transducer_joint_cuda
 
 
 class TransducerJoint(torch.nn.Module):

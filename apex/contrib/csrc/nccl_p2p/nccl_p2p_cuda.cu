@@ -1,6 +1,6 @@
+#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDACachingAllocator.h>
-#include <torch/extension.h>
 
 #include <cassert>
 #include <cstdio>
@@ -84,8 +84,8 @@ class NcclCommWrapper {
     ncclDataType_t ncclType = get_nccl_type(left_output_halo);
     bool left_zero = (left_rank < 0);
     bool right_zero = (right_rank < 0);
-    size_t left_n = torch::numel(left_output_halo);
-    size_t right_n = torch::numel(right_output_halo);
+    size_t left_n = left_output_halo.numel();
+    size_t right_n = right_output_halo.numel();
     assert(left_n > 0 && left_n == right_n);
     if (left_zero) {
       left_input_halo.zero_();
@@ -119,8 +119,8 @@ class NcclCommWrapper {
     // after halo exchange:
     // left_output_halo of rank+1 ends up in right_input_halo of rank
     // right_output_halo of rank-1 ends up in left_input_halo of rank
-    auto right_input_halo = torch::empty_like(left_output_halo);
-    auto left_input_halo = torch::empty_like(right_output_halo);
+    auto right_input_halo = at::empty_like(left_output_halo);
+    auto left_input_halo = at::empty_like(right_output_halo);
     left_right_halo_exchange_inplace(left_rank, right_rank, left_output_halo, right_output_halo, left_input_halo,
                                      right_input_halo);
     return {left_input_halo, right_input_halo};
@@ -161,8 +161,8 @@ namespace nccl_p2p {
 at::Tensor get_unique_nccl_id(int n) {
   ncclUniqueId id;
   ncclGetUniqueId(&id);
-  auto id_tensor = torch::empty({n, (int)sizeof(ncclUniqueId)},
-                                torch::dtype(torch::kUInt8).device(torch::kCPU).requires_grad(false));
+  auto id_tensor = at::empty({n, (int)sizeof(ncclUniqueId)},
+                             at::TensorOptions().dtype(at::kByte).device(at::kCPU).requires_grad(false));
   auto id_ptr = id_tensor.data_ptr<uint8_t>();
   size_t offset = 0;
   for (int i = 0; i < n; ++i) {
@@ -200,7 +200,7 @@ std::vector<at::Tensor> left_right_halo_exchange(int handle, int left_rank, int 
 
 void add_delay(int delay) {
   auto stream = at::cuda::getCurrentCUDAStream();
-  auto t = torch::empty({1}, torch::dtype(torch::kInt32).device(torch::kCUDA));
+  auto t = at::empty({1}, at::TensorOptions().dtype(at::kInt).device(at::kCUDA));
   AddDelay_kernel<<<1, 1, 0, stream>>>(delay, t.data_ptr<int>());
 }
 

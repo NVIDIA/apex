@@ -1,6 +1,7 @@
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <torch/library.h>
 
-#include "ATen/cuda/CUDAContext.h"
 #include "ln.h"
 
 /*
@@ -30,12 +31,12 @@ BwdRegistry BWD_FUNCS;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t get_type_id(torch::Dtype dtype) {
-  if (dtype == torch::kFloat16) {
+uint32_t get_type_id(at::ScalarType dtype) {
+  if (dtype == at::kHalf) {
     return TypeId<fp16>::Value;
-  } else if (dtype == torch::kBFloat16) {
+  } else if (dtype == at::kBFloat16) {
     return TypeId<bf16>::Value;
-  } else if (dtype == torch::kFloat32) {
+  } else if (dtype == at::kFloat) {
     return TypeId<fp32>::Value;
   } else {
     TORCH_CHECK(false, "Type not supported: ", dtype);
@@ -44,7 +45,8 @@ uint32_t get_type_id(torch::Dtype dtype) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint64_t get_key(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype, torch::Dtype ctype, uint64_t hidden_size) {
+uint64_t get_key(at::ScalarType wtype, at::ScalarType itype, at::ScalarType otype, at::ScalarType ctype,
+                 uint64_t hidden_size) {
   using namespace layer_norm;
   uint64_t type_key =
       get_type_id(wtype) | (get_type_id(itype) << 2) | (get_type_id(otype) << 4) | (get_type_id(ctype) << 6);
@@ -56,8 +58,8 @@ uint64_t get_key(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype, tor
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-layer_norm::FwdFunction& get_fwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
-                                          torch::Dtype ctype, uint32_t hidden_size) {
+layer_norm::FwdFunction& get_fwd_launcher(at::ScalarType wtype, at::ScalarType itype, at::ScalarType otype,
+                                          at::ScalarType ctype, uint32_t hidden_size) {
   auto iter = layer_norm::FWD_FUNCS.find(layer_norm::get_key(wtype, itype, otype, ctype, hidden_size));
   if (iter != layer_norm::FWD_FUNCS.end()) {
     return iter->second;
@@ -68,8 +70,8 @@ layer_norm::FwdFunction& get_fwd_launcher(torch::Dtype wtype, torch::Dtype itype
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-layer_norm::BwdFunction& get_bwd_launcher(torch::Dtype wtype, torch::Dtype itype, torch::Dtype otype,
-                                          torch::Dtype ctype, uint32_t hidden_size) {
+layer_norm::BwdFunction& get_bwd_launcher(at::ScalarType wtype, at::ScalarType itype, at::ScalarType otype,
+                                          at::ScalarType ctype, uint32_t hidden_size) {
   auto iter = layer_norm::BWD_FUNCS.find(layer_norm::get_key(wtype, itype, otype, ctype, hidden_size));
   if (iter != layer_norm::BWD_FUNCS.end()) {
     return iter->second;
@@ -87,7 +89,7 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor& x,      // BxSxhidden_size
   auto itype = x.scalar_type();
   auto wtype = gamma.scalar_type();
   auto otype = wtype;
-  auto ctype = torch::kFloat32;
+  auto ctype = at::kFloat;
 
   TORCH_CHECK(beta.scalar_type() == wtype);
 
@@ -110,10 +112,10 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor& x,      // BxSxhidden_size
 
   auto opts = x.options();
 
-  auto z = torch::empty(sizes, opts.dtype(otype));
+  auto z = at::empty(sizes, opts.dtype(otype));
 
-  auto mu = torch::empty({rows}, opts.dtype(ctype));
-  auto rsigma = torch::empty({rows}, opts.dtype(ctype));
+  auto mu = at::empty({rows}, opts.dtype(ctype));
+  auto rsigma = at::empty({rows}, opts.dtype(ctype));
 
   layer_norm::LaunchParams<layer_norm::FwdParams> launch_params;
 
@@ -142,8 +144,8 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor& x,      // BxSxhidden_size
 
   if (launch_params.barrier_size > 0) {
     auto options = x.options();
-    barrier = torch::zeros(launch_params.barrier_size, options.dtype(torch::kInt32));
-    workspace = torch::empty(launch_params.workspace_bytes, options.dtype(torch::kChar));
+    barrier = at::zeros(launch_params.barrier_size, options.dtype(at::kInt));
+    workspace = at::empty(launch_params.workspace_bytes, options.dtype(at::kChar));
     params.workspace = workspace.data_ptr();
     params.barrier = barrier.data_ptr<int>();
   }
@@ -157,15 +159,15 @@ std::vector<at::Tensor> ln_fwd(const at::Tensor& x,      // BxSxhidden_size
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxhidden_size
                                const at::Tensor& x_or_z,                // BxSxhidden_size
-                               c10::optional<const at::Tensor>& mu_,    // BxS, FP32!
+                               const c10::optional<at::Tensor>& mu_,    // BxS, FP32!
                                const at::Tensor& rsigma,                // BxS, FP32!
                                const at::Tensor& gamma,                 // hidden_size
-                               c10::optional<const at::Tensor>& beta_,  // hidden_size
+                               const c10::optional<at::Tensor>& beta_,  // hidden_size
                                bool memory_efficient) {
   auto itype = x_or_z.scalar_type();
   auto wtype = gamma.scalar_type();
   auto otype = wtype;
-  auto ctype = torch::kFloat32;
+  auto ctype = at::kFloat;
 
   TORCH_CHECK(dz.dtype() == otype);
   TORCH_CHECK(rsigma.dtype() == ctype);
@@ -200,9 +202,9 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxh
 
   auto options = x_or_z.options();
 
-  auto dx = torch::empty_like(x_or_z);
-  auto dgamma = torch::empty_like(gamma);
-  auto dbeta = torch::empty_like(gamma);
+  auto dx = at::empty_like(x_or_z);
+  auto dgamma = at::empty_like(gamma);
+  auto dbeta = at::empty_like(gamma);
 
   layer_norm::LaunchParams<layer_norm::BwdParams> launch_params;
   launch_params.stream = at::cuda::getCurrentCUDAStream().stream();
@@ -212,8 +214,8 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxh
 
   launcher(launch_params, true);
 
-  auto dgamma_part = torch::empty({launch_params.params.ctas_per_col, hidden_size}, options.dtype(ctype));
-  auto dbeta_part = torch::empty({launch_params.params.ctas_per_col, hidden_size}, options.dtype(ctype));
+  auto dgamma_part = at::empty({launch_params.params.ctas_per_col, hidden_size}, options.dtype(ctype));
+  auto dbeta_part = at::empty({launch_params.params.ctas_per_col, hidden_size}, options.dtype(ctype));
   at::Tensor workspace, barrier;
 
   layer_norm::BwdParams& params = launch_params.params;
@@ -237,8 +239,8 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxh
 
   if (launch_params.barrier_size > 0) {
     // TODO Any way to avoid this?
-    barrier = torch::zeros(launch_params.barrier_size, options.dtype(torch::kInt32));
-    workspace = torch::empty(launch_params.workspace_bytes, options.dtype(torch::kChar));
+    barrier = at::zeros(launch_params.barrier_size, options.dtype(at::kInt));
+    workspace = at::empty(launch_params.workspace_bytes, options.dtype(at::kChar));
     params.workspace = workspace.data_ptr();
     params.barrier = barrier.data_ptr<int>();
   }
@@ -250,8 +252,30 @@ std::vector<at::Tensor> ln_bwd(const at::Tensor& dz,                    // BxSxh
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.doc() = "CUDA LayerNorm";
-  m.def("ln_fwd", &ln_fwd, "Run LayerNorm forward kernel", py::call_guard<py::gil_scoped_release>());
-  m.def("ln_bwd", &ln_bwd, "Run LayerNorm backward kernel", py::call_guard<py::gil_scoped_release>());
+namespace {
+std::vector<at::Tensor> apex_fast_layer_norm_ln_fwd(const at::Tensor& x, const at::Tensor& gamma,
+                                                    const at::Tensor& beta, double epsilon) {
+  return ln_fwd(x, gamma, beta, static_cast<float>(epsilon));
 }
+
+std::vector<at::Tensor> apex_fast_layer_norm_ln_bwd(const at::Tensor& dz, const at::Tensor& x_or_z,
+                                                    const c10::optional<at::Tensor>& mu, const at::Tensor& rsigma,
+                                                    const at::Tensor& gamma, const c10::optional<at::Tensor>& beta,
+                                                    bool memory_efficient) {
+  return ln_bwd(dz, x_or_z, mu, rsigma, gamma, beta, memory_efficient);
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fast_layer_norm_ln_fwd(Tensor x, Tensor gamma, Tensor beta, float epsilon) -> Tensor[]");
+  m.def(
+      "fast_layer_norm_ln_bwd(Tensor dz, Tensor x_or_z, Tensor? mu, Tensor rsigma, Tensor gamma, Tensor? beta, "
+      "bool memory_efficient) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fast_layer_norm_ln_fwd", &apex_fast_layer_norm_ln_fwd);
+  m.impl("fast_layer_norm_ln_bwd", &apex_fast_layer_norm_ln_bwd);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////

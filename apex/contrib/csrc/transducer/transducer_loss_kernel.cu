@@ -3,7 +3,6 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <torch/extension.h>
 
 #include <vector>
 
@@ -455,9 +454,9 @@ __global__ void transducer_loss_fused_vec_backward(const scalar_t* x, const scal
   }
 }
 
-std::vector<torch::Tensor> transducer_loss_cuda_forward(torch::Tensor x, torch::Tensor label, torch::Tensor audLen,
-                                                        torch::Tensor txtLen, torch::Tensor batchOffset, int maxFLen,
-                                                        int blankIdx, int opt, bool packedInput) {
+std::vector<at::Tensor> transducer_loss_cuda_forward(at::Tensor x, at::Tensor label, at::Tensor audLen,
+                                                     at::Tensor txtLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                     int64_t blankIdx, int64_t opt, bool packedInput) {
   auto scalarType = x.scalar_type();
   auto tensorOpt = x.options();
   const int batchSize = label.size(0);
@@ -470,9 +469,9 @@ std::vector<torch::Tensor> transducer_loss_cuda_forward(torch::Tensor x, torch::
 
   // The data type of alpha and beta will be resolved at dispatch time,
   // hence defined here and assigned later
-  torch::Tensor alpha;
-  torch::Tensor beta;
-  torch::Tensor loss = torch::empty({batchSize}, tensorOpt);
+  at::Tensor alpha;
+  at::Tensor beta;
+  at::Tensor loss = at::empty({batchSize}, tensorOpt);
   const auto deviceProperties = at::cuda::getCurrentDeviceProperties();
   const auto maxThreadPerBlock = deviceProperties->maxThreadsPerBlock;
   const auto maxSmemPerBlock = deviceProperties->sharedMemPerBlock;
@@ -485,8 +484,8 @@ std::vector<torch::Tensor> transducer_loss_cuda_forward(torch::Tensor x, torch::
         using acc_t = at::acc_type<scalar_t, true>;
         auto accType = c10::CppTypeToScalarType<acc_t>::value;
         auto accTensorOpt = tensorOpt.dtype(accType);
-        alpha = torch::empty({batchSize, maxFLen, maxGLen}, accTensorOpt);
-        beta = torch::empty({batchSize, maxFLen, maxGLen}, accTensorOpt);
+        alpha = at::empty({batchSize, maxFLen, maxGLen}, accTensorOpt);
+        beta = at::empty({batchSize, maxFLen, maxGLen}, accTensorOpt);
 
         // decide what kernel to launch based on the problem size
         // if the required SMEM size or number threads exceeds the limit, fall back to the vanilla
@@ -514,12 +513,12 @@ std::vector<torch::Tensor> transducer_loss_cuda_forward(torch::Tensor x, torch::
   return {alpha, beta, loss};
 }
 
-torch::Tensor transducer_loss_cuda_backward(torch::Tensor x, torch::Tensor lossGrad, torch::Tensor alpha,
-                                            torch::Tensor beta, torch::Tensor audLen, torch::Tensor txtLen,
-                                            torch::Tensor label, torch::Tensor batchOffset, int maxFLen, int blankIdx,
-                                            int opt, bool fuseSoftmaxBackward, bool packedInput) {
+at::Tensor transducer_loss_cuda_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha, at::Tensor beta,
+                                         at::Tensor audLen, at::Tensor txtLen, at::Tensor label, at::Tensor batchOffset,
+                                         int64_t maxFLen, int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward,
+                                         bool packedInput) {
   auto dtype = x.scalar_type();
-  torch::Tensor xGrad;
+  at::Tensor xGrad;
   const int batchSize = label.size(0);
   const int maxGLen = label.size(1) + 1;
   const int dictSize = x.size(-1);
@@ -532,7 +531,7 @@ torch::Tensor transducer_loss_cuda_backward(torch::Tensor x, torch::Tensor lossG
   if (fuseSoftmaxBackward) {
     // alloc empty tensors for performance, hence need to ensure zeros are writtern to
     // don't-care region in the kernel.
-    xGrad = torch::empty_like(x);
+    xGrad = at::empty_like(x);
 
     // Would like each thread to work on 4 hidden units
     const int workPerThread = 4;
@@ -566,7 +565,7 @@ torch::Tensor transducer_loss_cuda_backward(torch::Tensor x, torch::Tensor lossG
   } else {
     // for non-fused kernel, the gradients need to be writtern are very sparse, hence initialize
     // the tensor with all zeros.
-    xGrad = torch::zeros_like(x);
+    xGrad = at::zeros_like(x);
     // don't launch more threads than needed.
     const int threads = std::min(maxThreadPerBlock, maxGLen);
     const dim3 blocks(maxFLen, batchSize);

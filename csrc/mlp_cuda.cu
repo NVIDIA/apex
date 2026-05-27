@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <torch/torch.h>
 
 /* Includes, cuda */
 #include <cublas_v2.h>

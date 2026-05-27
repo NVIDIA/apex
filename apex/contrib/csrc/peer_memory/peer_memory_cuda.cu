@@ -1,7 +1,8 @@
+#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <ATen/ops/from_blob.h>
 #include <c10/cuda/CUDACachingAllocator.h>
 #include <cuda_runtime_api.h>
-#include <torch/extension.h>
 
 #include <cassert>
 #include <cstdio>
@@ -51,7 +52,7 @@ at::Tensor blob_view(T* raw_ptr, std::vector<int64_t> shape, const at::TensorOpt
   size *= sizeof(T);
   // TODO: Implement dynamic reuse of pooled peer memory.
   // We provide no deleter function because all peer memory allocations are static in this implementation.
-  return torch::from_blob((void*)raw_ptr, shape, strides, 0L, options);
+  return at::from_blob((void*)raw_ptr, shape, strides, options);
 }
 
 void tensor_shape(at::Tensor t, bool explicit_nhwc, int& N, int& C, int& H, int& W) {
@@ -330,7 +331,7 @@ at::Tensor get_raw_ipc_address(int64_t raw) {
   cudaIpcMemHandle_t mem_handle;
   CUDACHECK(cudaIpcGetMemHandle(&mem_handle, (void*)raw));
   const int n = sizeof(cudaIpcMemHandle_t);
-  auto address_tensor = torch::empty({n}, torch::dtype(torch::kUInt8));
+  auto address_tensor = at::empty({n}, at::TensorOptions().dtype(at::kByte));
   auto address_tensor_p = address_tensor.data_ptr<uint8_t>();
   memcpy(address_tensor_p, (uint8_t*)&mem_handle, n);
   return address_tensor;
@@ -354,15 +355,16 @@ std::vector<int64_t> get_raw_peers(at::Tensor ipc_addresses, int peer_rank, int6
 }
 
 at::Tensor blob_view_half(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
-  return blob_view<at::Half>((at::Half*)raw, shape, torch::dtype(torch::kFloat16).device(torch::kCUDA), channels_last);
+  return blob_view<at::Half>((at::Half*)raw, shape, at::TensorOptions().dtype(at::kHalf).device(at::kCUDA),
+                             channels_last);
 }
 
 at::Tensor blob_view_float(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
-  return blob_view<float>((float*)raw, shape, torch::dtype(torch::kFloat32).device(torch::kCUDA), channels_last);
+  return blob_view<float>((float*)raw, shape, at::TensorOptions().dtype(at::kFloat).device(at::kCUDA), channels_last);
 }
 
 at::Tensor blob_view_int(int64_t raw, std::vector<int64_t> shape, bool channels_last) {
-  return blob_view<int>((int*)raw, shape, torch::dtype(torch::kInt32).device(torch::kCUDA), channels_last);
+  return blob_view<int>((int*)raw, shape, at::TensorOptions().dtype(at::kInt).device(at::kCUDA), channels_last);
 }
 
 void push_pull_halos_1d(

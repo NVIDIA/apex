@@ -21,7 +21,7 @@
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, const bool transpose_output) {
+at::Tensor fwd_cuda(const at::Tensor& input, const at::Tensor& freqs, const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -42,11 +42,11 @@ torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, c
 
   // output
   auto act_options = input.options().requires_grad(false);
-  torch::Tensor output;
+  at::Tensor output;
   if (transpose_output) {
-    output = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+    output = at::empty({b, s, h, d}, act_options).transpose(0, 1);
   } else {
-    output = torch::empty({s, b, h, d}, act_options);
+    output = at::empty({s, b, h, d}, act_options);
   }
   // output strides
   const int o_stride_s = output.stride(0);
@@ -62,7 +62,7 @@ torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, c
   return output;
 }
 
-torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& freqs, const bool transpose_output) {
+at::Tensor bwd_cuda(const at::Tensor& output_grads, const at::Tensor& freqs, const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -82,11 +82,11 @@ torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& f
   const int d2 = freqs.size(3);
 
   auto act_options = output_grads.options().requires_grad(false);
-  torch::Tensor input_grads;
+  at::Tensor input_grads;
   if (transpose_output) {
-    input_grads = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+    input_grads = at::empty({b, s, h, d}, act_options).transpose(0, 1);
   } else {
-    input_grads = torch::empty({s, b, h, d}, act_options);
+    input_grads = at::empty({s, b, h, d}, act_options);
   }
   const int o_stride_s = input_grads.stride(0);
   const int o_stride_b = input_grads.stride(1);
@@ -156,8 +156,8 @@ torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& f
       TORCH_CHECK(false, #NAME, " not supported for '", toString(TYPE1), "' with '", toString(TYPE2), "'");     \
   }
 
-torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& cos, const torch::Tensor& sin,
-                              const bool transpose_output) {
+at::Tensor fwd_cached_cuda(const at::Tensor& input, const at::Tensor& cos, const at::Tensor& sin,
+                           const bool transpose_output) {
   // input sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -178,11 +178,11 @@ torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& c
 
   // output
   auto act_options = input.options().requires_grad(false);
-  torch::Tensor output;
+  at::Tensor output;
   if (transpose_output) {
-    output = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+    output = at::empty({b, s, h, d}, act_options).transpose(0, 1);
   } else {
-    output = torch::empty({s, b, h, d}, act_options);
+    output = at::empty({s, b, h, d}, act_options);
   }
   // output strides
   const int o_stride_s = output.stride(0);
@@ -198,8 +198,8 @@ torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& c
   return output;
 }
 
-torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos, const torch::Tensor& sin,
-                              const bool transpose_output) {
+at::Tensor bwd_cached_cuda(const at::Tensor& output_grads, const at::Tensor& cos, const at::Tensor& sin,
+                           const bool transpose_output) {
   // output_grads sizes: (s, b, h, d)
   // s: sequence length
   // b: batch size
@@ -219,11 +219,11 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Te
   const int d2 = cos.size(3);
 
   auto act_options = output_grads.options().requires_grad(false);
-  torch::Tensor input_grads;
+  at::Tensor input_grads;
   if (transpose_output) {
-    input_grads = torch::empty({b, s, h, d}, act_options).transpose(0, 1);
+    input_grads = at::empty({b, s, h, d}, act_options).transpose(0, 1);
   } else {
-    input_grads = torch::empty({s, b, h, d}, act_options);
+    input_grads = at::empty({s, b, h, d}, act_options);
   }
   const int o_stride_s = input_grads.stride(0);
   const int o_stride_b = input_grads.stride(1);
@@ -238,7 +238,7 @@ torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Te
   return input_grads;
 }
 
-torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
+at::Tensor fwd_thd_cuda(const at::Tensor& input, const at::Tensor& cu_seqlens, const at::Tensor& freqs) {
   // input sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
   // h: head num
@@ -258,7 +258,7 @@ torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_s
 
   // output
   auto act_options = input.options().requires_grad(false);
-  auto output = torch::empty({t, h, d}, act_options);
+  auto output = at::empty({t, h, d}, act_options);
   // output strides
   const int o_stride_t = output.stride(0);
   const int o_stride_h = output.stride(1);
@@ -272,8 +272,7 @@ torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_s
   return output;
 }
 
-torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens,
-                           const torch::Tensor& freqs) {
+at::Tensor bwd_thd_cuda(const at::Tensor& output_grads, const at::Tensor& cu_seqlens, const at::Tensor& freqs) {
   // output_grads sizes: (t, h, d)
   // t: cumulative sum of sequence lengths
   // h: head num
@@ -292,7 +291,7 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tenso
   const int d2 = freqs.size(3);
 
   auto act_options = output_grads.options().requires_grad(false);
-  auto input_grads = torch::empty({t, h, d}, act_options);
+  auto input_grads = at::empty({t, h, d}, act_options);
   const int o_stride_t = input_grads.stride(0);
   const int o_stride_h = input_grads.stride(1);
   const int o_stride_d = input_grads.stride(2);
@@ -305,8 +304,8 @@ torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tenso
   return input_grads;
 }
 
-torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                          const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
+at::Tensor fwd_2d_cuda(const at::Tensor& input, const at::Tensor& cos_h, const at::Tensor& sin_h,
+                       const at::Tensor& cos_w, const at::Tensor& sin_w) {
   // input sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height
@@ -327,7 +326,7 @@ torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h
 
   // output
   auto act_options = input.options().requires_grad(false);
-  auto output = torch::empty({b, ih * iw, h, d}, act_options);
+  auto output = at::empty({b, ih * iw, h, d}, act_options);
   // output strides
   const int o_stride_b = output.stride(0);
   const int o_stride_s = output.stride(1);
@@ -343,8 +342,8 @@ torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h
   return output;
 }
 
-torch::Tensor bwd_2d_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                          const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
+at::Tensor bwd_2d_cuda(const at::Tensor& output_grads, const at::Tensor& cos_h, const at::Tensor& sin_h,
+                       const at::Tensor& cos_w, const at::Tensor& sin_w) {
   // output_grads sizes: (b, ih, iw, h, d)
   // b: batch size
   // ih: image height
@@ -364,7 +363,7 @@ torch::Tensor bwd_2d_cuda(const torch::Tensor& output_grads, const torch::Tensor
   const int stride_d = output_grads.stride(4);
 
   auto act_options = output_grads.options().requires_grad(false);
-  auto input_grads = torch::empty({b, ih * iw, h, d}, act_options);
+  auto input_grads = at::empty({b, ih * iw, h, d}, act_options);
   const int o_stride_b = input_grads.stride(0);
   const int o_stride_s = input_grads.stride(1);
   const int o_stride_h = input_grads.stride(2);

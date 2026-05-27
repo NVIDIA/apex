@@ -4,7 +4,7 @@ import torch
 
 _kernel_import_succeeded = False
 try:
-    import amp_C
+    from apex._extensions import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
 
     _kernel_import_succeeded = True
@@ -73,6 +73,17 @@ def clip_grad_norm_(
             grads_fp16.append(grad)
         else:
             grads_misc.append(grad)
+
+    if grads_fp16:
+        # Preserve PyTorch's current fp16 clipping semantics exactly.  The fused
+        # norm path accumulates and returns fp32, which can perturb the fp16
+        # scale enough to change rounded gradient values.
+        return torch.nn.utils.clip_grad_norm_(
+            parameters,
+            max_norm,
+            norm_type=norm_type,
+            error_if_nonfinite=error_if_nonfinite,
+        )
 
     # Compute gradient L2 norms
     norms = []

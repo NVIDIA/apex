@@ -168,10 +168,13 @@ if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
 if has_flag("--cpp_ext", "APEX_CPP_EXT"):
     if "--cpp_ext" in sys.argv:
         sys.argv.remove("--cpp_ext")
-    ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
+    # apex._extensions.apex_C is a pure Python shim to avoid exposing a C++ ABI
+    # for dense tensor flattening utilities.
 
 
-_, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
+bare_metal_version = None
+if CUDA_HOME is not None:
+    _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
 
 if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
     if "--distributed_adam" in sys.argv:
@@ -179,12 +182,13 @@ if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
     raise_if_cuda_home_none("--distributed_adam")
     ext_modules.append(
         CUDAExtension(
-            name="distributed_adam_cuda",
+            name="_distributed_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_adam.cpp",
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_adam_kernel.cu",
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math"],
@@ -198,12 +202,13 @@ if has_flag("--distributed_lamb", "APEX_DISTRIBUTED_LAMB"):
     raise_if_cuda_home_none("--distributed_lamb")
     ext_modules.append(
         CUDAExtension(
-            name="distributed_lamb_cuda",
+            name="_distributed_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb.cpp",
                 "apex/contrib/csrc/optimizers/multi_tensor_distopt_lamb_kernel.cu",
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math"],
@@ -219,7 +224,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="amp_C",
+            name="_amp_C",
             sources=[
                 "csrc/amp_C_frontend.cpp",
                 "csrc/multi_tensor_sgd_kernel.cu",
@@ -237,6 +242,7 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
                 "csrc/multi_tensor_lamb_mp.cu",
                 "csrc/update_scale_hysteresis.cu",
             ],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": [
@@ -250,8 +256,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
     ext_modules.append(
         CUDAExtension(
-            name="syncbn",
+            name="_syncbn",
             sources=["csrc/syncbn.cpp", "csrc/welford.cu"],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-O3"],
@@ -261,8 +268,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="fused_layer_norm_cuda",
+            name="_fused_layer_norm_cuda",
             sources=["csrc/layer_norm_cuda.cpp", "csrc/layer_norm_cuda_kernel.cu"],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-maxrregcount=50", "-O3", "--use_fast_math"],
@@ -272,8 +280,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="mlp_cuda",
+            name="_mlp_cuda",
             sources=["csrc/mlp.cpp", "csrc/mlp_cuda.cu"],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-O3"],
@@ -282,8 +291,9 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
     )
     ext_modules.append(
         CUDAExtension(
-            name="fused_dense_cuda",
+            name="_fused_dense_cuda",
             sources=["csrc/fused_dense.cpp", "csrc/fused_dense_cuda.cu"],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": ["-O3"],
@@ -293,11 +303,12 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="scaled_upper_triang_masked_softmax_cuda",
+            name="_scaled_upper_triang_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_upper_triang_masked_softmax.cpp",
                 "csrc/megatron/scaled_upper_triang_masked_softmax_cuda.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -314,11 +325,12 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="generic_scaled_masked_softmax_cuda",
+            name="_generic_scaled_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/generic_scaled_masked_softmax.cpp",
                 "csrc/megatron/generic_scaled_masked_softmax_cuda.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -335,11 +347,12 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="scaled_masked_softmax_cuda",
+            name="_scaled_masked_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_masked_softmax.cpp",
                 "csrc/megatron/scaled_masked_softmax_cuda.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -356,11 +369,12 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="scaled_softmax_cuda",
+            name="_scaled_softmax_cuda",
             sources=[
                 "csrc/megatron/scaled_softmax.cpp",
                 "csrc/megatron/scaled_softmax_cuda.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -377,11 +391,12 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="fused_rotary_positional_embedding",
+            name="_fused_rotary_positional_embedding",
             sources=[
                 "csrc/megatron/fused_rotary_positional_embedding.cpp",
                 "csrc/megatron/fused_rotary_positional_embedding_cuda.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -398,13 +413,14 @@ if has_flag("--cuda_ext", "APEX_CUDA_EXT"):
 
     ext_modules.append(
         CUDAExtension(
-            name="fused_weight_gradient_mlp_cuda",
+            name="_fused_weight_gradient_mlp_cuda",
             include_dirs=[os.path.join(this_dir, "csrc")],
             sources=[
                 "csrc/megatron/fused_weight_gradient_dense.cpp",
                 "csrc/megatron/fused_weight_gradient_dense_cuda.cu",
                 "csrc/megatron/fused_weight_gradient_dense_16bit_prec_cuda.cu",
             ],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"],
                 "nvcc": [
@@ -431,7 +447,7 @@ if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
         cc_flag = ["-Xcompiler", "-fPIC", "-shared"]
         ext_modules.append(
             CUDAExtension(
-                name="permutation_search_cuda",
+                name="_permutation_search_cuda",
                 sources=[
                     "apex/contrib/sparsity/permutation_search_kernels/CUDA_kernels/permutation_search_kernels.cu"
                 ],
@@ -446,6 +462,7 @@ if has_flag("--permutation_search", "APEX_PERMUTATION_SEARCH"):
                     )
                 ],
                 extra_compile_args={"cxx": ["-O3"], "nvcc": ["-O3"] + cc_flag},
+                py_limited_api=True,
             )
         )
 
@@ -455,7 +472,7 @@ if has_flag("--bnp", "APEX_BNP"):
     raise_if_cuda_home_none("--bnp")
     ext_modules.append(
         CUDAExtension(
-            name="bnp",
+            name="_bnp",
             sources=[
                 "apex/contrib/csrc/groupbn/batch_norm.cu",
                 "apex/contrib/csrc/groupbn/ipc.cu",
@@ -463,6 +480,7 @@ if has_flag("--bnp", "APEX_BNP"):
                 "apex/contrib/csrc/groupbn/batch_norm_add_relu.cu",
             ],
             include_dirs=[os.path.join(this_dir, "csrc")],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": [],
                 "nvcc": [
@@ -485,7 +503,7 @@ if has_flag("--xentropy", "APEX_XENTROPY"):
     print(f"`--xentropy` setting version of {xentropy_ver}")
     ext_modules.append(
         CUDAExtension(
-            name="xentropy_cuda",
+            name="_xentropy_cuda",
             sources=[
                 "apex/contrib/csrc/xentropy/interface.cpp",
                 "apex/contrib/csrc/xentropy/xentropy_kernel.cu",
@@ -495,6 +513,7 @@ if has_flag("--xentropy", "APEX_XENTROPY"):
                 "cxx": ["-O3"] + [f'-DXENTROPY_VER="{xentropy_ver}"'],
                 "nvcc": ["-O3"],
             },
+            py_limited_api=True,
         )
     )
 
@@ -504,7 +523,7 @@ if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
     raise_if_cuda_home_none("--focal_loss")
     ext_modules.append(
         CUDAExtension(
-            name="focal_loss_cuda",
+            name="_focal_loss_cuda",
             sources=[
                 "apex/contrib/csrc/focal_loss/focal_loss_cuda.cpp",
                 "apex/contrib/csrc/focal_loss/focal_loss_cuda_kernel.cu",
@@ -514,6 +533,7 @@ if has_flag("--focal_loss", "APEX_FOCAL_LOSS"):
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math", "--ftz=false"],
             },
+            py_limited_api=True,
         )
     )
 
@@ -524,7 +544,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
 
     ext_modules.append(
         CUDAExtension(
-            name="group_norm_cuda",
+            name="_group_norm_cuda",
             sources=[
                 "apex/contrib/csrc/group_norm/group_norm_nhwc_op.cpp",
             ]
@@ -538,6 +558,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
                     "--ftz=false",
                 ],
             },
+            py_limited_api=True,
         )
     )
 
@@ -554,7 +575,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
 
         ext_modules.append(
             CUDAExtension(
-                name="group_norm_v2_cuda",
+                name="_group_norm_v2_cuda",
                 sources=[
                     "apex/contrib/csrc/group_norm_v2/gn.cpp",
                     "apex/contrib/csrc/group_norm_v2/gn_cuda.cu",
@@ -574,6 +595,7 @@ if has_flag("--group_norm", "APEX_GROUP_NORM"):
                     ]
                     + arch_flags,
                 },
+                py_limited_api=True,
             )
         )
 
@@ -583,7 +605,7 @@ if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
     raise_if_cuda_home_none("--index_mul_2d")
     ext_modules.append(
         CUDAExtension(
-            name="fused_index_mul_2d",
+            name="_fused_index_mul_2d",
             sources=[
                 "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda.cpp",
                 "apex/contrib/csrc/index_mul_2d/index_mul_2d_cuda_kernel.cu",
@@ -593,6 +615,7 @@ if has_flag("--index_mul_2d", "APEX_INDEX_MUL_2D"):
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math", "--ftz=false"],
             },
+            py_limited_api=True,
         )
     )
 
@@ -602,7 +625,7 @@ if has_flag("--deprecated_fused_adam", "APEX_DEPRECATED_FUSED_ADAM"):
     raise_if_cuda_home_none("--deprecated_fused_adam")
     ext_modules.append(
         CUDAExtension(
-            name="fused_adam_cuda",
+            name="_fused_adam_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_adam_cuda.cpp",
                 "apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu",
@@ -612,6 +635,7 @@ if has_flag("--deprecated_fused_adam", "APEX_DEPRECATED_FUSED_ADAM"):
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
+            py_limited_api=True,
         )
     )
 
@@ -621,7 +645,7 @@ if has_flag("--deprecated_fused_lamb", "APEX_DEPRECATED_FUSED_LAMB"):
     raise_if_cuda_home_none("--deprecated_fused_lamb")
     ext_modules.append(
         CUDAExtension(
-            name="fused_lamb_cuda",
+            name="_fused_lamb_cuda",
             sources=[
                 "apex/contrib/csrc/optimizers/fused_lamb_cuda.cpp",
                 "apex/contrib/csrc/optimizers/fused_lamb_cuda_kernel.cu",
@@ -632,6 +656,7 @@ if has_flag("--deprecated_fused_lamb", "APEX_DEPRECATED_FUSED_LAMB"):
                 "cxx": ["-O3"],
                 "nvcc": ["-O3", "--use_fast_math"],
             },
+            py_limited_api=True,
         )
     )
 
@@ -649,12 +674,13 @@ if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
 
     ext_modules.append(
         CUDAExtension(
-            name="fast_layer_norm",
+            name="_fast_layer_norm",
             sources=[
                 "apex/contrib/csrc/layer_norm/ln_api.cpp",
                 "apex/contrib/csrc/layer_norm/ln_fwd_cuda_kernel.cu",
                 "apex/contrib/csrc/layer_norm/ln_bwd_semi_cuda_kernel.cu",
             ],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"] + generator_flag,
                 "nvcc": [
@@ -701,7 +727,7 @@ if has_flag("--fmha", "APEX_FMHA"):
 
     ext_modules.append(
         CUDAExtension(
-            name="fmhalib",
+            name="_fmhalib",
             sources=[
                 "apex/contrib/csrc/fmha/fmha_api.cpp",
                 "apex/contrib/csrc/fmha/src/fmha_fill.cu",
@@ -732,6 +758,7 @@ if has_flag("--fmha", "APEX_FMHA"):
                 os.path.join(this_dir, "apex/contrib/csrc"),
                 os.path.join(this_dir, "apex/contrib/csrc/fmha/src"),
             ],
+            py_limited_api=True,
         )
     )
 
@@ -752,7 +779,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
     )
     ext_modules.append(
         CUDAExtension(
-            name="fast_multihead_attn",
+            name="_fast_multihead_attn",
             sources=[
                 "apex/contrib/csrc/multihead_attn/multihead_attn_frontend.cpp",
                 "apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu",
@@ -783,6 +810,7 @@ if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
                     "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include",
                 ),
             ],
+            py_limited_api=True,
         )
     )
 
@@ -792,11 +820,12 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
     raise_if_cuda_home_none("--transducer")
     ext_modules.append(
         CUDAExtension(
-            name="transducer_joint_cuda",
+            name="_transducer_joint_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_joint.cpp",
                 "apex/contrib/csrc/transducer/transducer_joint_kernel.cu",
             ],
+            py_limited_api=True,
             extra_compile_args={
                 "cxx": ["-O3"] + generator_flag,
                 "nvcc": ["-O3"] + generator_flag,
@@ -809,11 +838,12 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
     )
     ext_modules.append(
         CUDAExtension(
-            name="transducer_loss_cuda",
+            name="_transducer_loss_cuda",
             sources=[
                 "apex/contrib/csrc/transducer/transducer_loss.cpp",
                 "apex/contrib/csrc/transducer/transducer_loss_kernel.cu",
             ],
+            py_limited_api=True,
             include_dirs=[os.path.join(this_dir, "csrc")],
             extra_compile_args={
                 "cxx": ["-O3"],
@@ -838,12 +868,13 @@ if has_flag("--cudnn_gbn", "APEX_CUDNN_GBN"):
         )
         ext_modules.append(
             CUDAExtension(
-                name="cudnn_gbn_lib",
+                name="_cudnn_gbn_lib",
                 sources=[
                     "apex/contrib/csrc/cudnn_gbn/norm_sample.cpp",
                     "apex/contrib/csrc/cudnn_gbn/cudnn_gbn.cpp",
                 ],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+                py_limited_api=True,
                 extra_compile_args={"cxx": ["-O3", "-g"] + generator_flag},
             )
         )
@@ -854,11 +885,12 @@ if has_flag("--peer_memory", "APEX_PEER_MEMORY"):
     raise_if_cuda_home_none("--peer_memory")
     ext_modules.append(
         CUDAExtension(
-            name="peer_memory_cuda",
+            name="_peer_memory_cuda",
             sources=[
                 "apex/contrib/csrc/peer_memory/peer_memory_cuda.cu",
                 "apex/contrib/csrc/peer_memory/peer_memory.cpp",
             ],
+            py_limited_api=True,
             extra_compile_args={"cxx": ["-O3"] + generator_flag},
         )
     )
@@ -870,11 +902,13 @@ if has_flag("--nccl_p2p", "APEX_NCCL_P2P"):
     raise_if_cuda_home_none("--nccl_p2p")
     ext_modules.append(
         CUDAExtension(
-            name="nccl_p2p_cuda",
+            name="_nccl_p2p_cuda",
             sources=[
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p_cuda.cu",
                 "apex/contrib/csrc/nccl_p2p/nccl_p2p.cpp",
             ],
+            py_limited_api=True,
+            libraries=["nccl"],
             extra_compile_args={"cxx": ["-O3"] + generator_flag},
         )
     )
@@ -896,9 +930,10 @@ if has_flag("--fast_bottleneck", "APEX_FAST_BOTTLENECK"):
         )
         ext_modules.append(
             CUDAExtension(
-                name="fast_bottleneck",
+                name="_fast_bottleneck",
                 sources=["apex/contrib/csrc/bottleneck/bottleneck.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+                py_limited_api=True,
                 extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )
@@ -920,9 +955,10 @@ if has_flag("--fused_conv_bias_relu", "APEX_FUSED_CONV_BIAS_RELU"):
         )
         ext_modules.append(
             CUDAExtension(
-                name="fused_conv_bias_relu",
+                name="_fused_conv_bias_relu",
                 sources=["apex/contrib/csrc/conv_bias_relu/conv_bias_relu.cpp"],
                 include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/cudnn-frontend/include")],
+                py_limited_api=True,
                 extra_compile_args={"cxx": ["-O3"] + generator_flag},
             )
         )

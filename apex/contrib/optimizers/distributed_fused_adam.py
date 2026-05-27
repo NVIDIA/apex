@@ -28,8 +28,8 @@ except ImportError:
     nccl_allocator = None
 
 from apex.multi_tensor_apply import multi_tensor_applier
-import amp_C
-import distributed_adam_cuda
+from apex._extensions import amp_C
+from apex._extensions import distributed_adam_cuda
 
 # Fallback to private functions if using PyTorch <1.13.0
 try:
@@ -126,7 +126,7 @@ else:
 # Import optional CUDA kernels
 _FOUND_DEPRECATED_FUSED_ADAM: bool = False
 try:
-    import fused_adam_cuda
+    from apex._extensions import fused_adam_cuda
 
     _FOUND_DEPRECATED_FUSED_ADAM = True
 except ImportError:

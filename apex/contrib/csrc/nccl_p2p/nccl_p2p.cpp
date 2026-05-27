@@ -14,16 +14,59 @@
  * limitations under the License.
  */
 
+#include <torch/library.h>
+
 #include "nccl_p2p_cuda.cuh"
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("get_unique_nccl_id", &apex::contrib::nccl_p2p::get_unique_nccl_id, "get_unique_nccl_id",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("init_nccl_comm", &apex::contrib::nccl_p2p::init_nccl_comm, "init_nccl_comm",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("left_right_halo_exchange_inplace", &apex::contrib::nccl_p2p::left_right_halo_exchange_inplace,
-        "left_right_halo_exchange_inplace", py::call_guard<py::gil_scoped_release>());
-  m.def("left_right_halo_exchange", &apex::contrib::nccl_p2p::left_right_halo_exchange, "left_right_halo_exchange",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("add_delay", &apex::contrib::nccl_p2p::add_delay, "add_delay", py::call_guard<py::gil_scoped_release>());
+namespace {
+at::Tensor apex_nccl_p2p_get_unique_nccl_id(int64_t n) {
+  return apex::contrib::nccl_p2p::get_unique_nccl_id(static_cast<int>(n));
+}
+
+int64_t apex_nccl_p2p_init_nccl_comm(at::Tensor unique_nccl_id, int64_t my_rank, int64_t num_ranks) {
+  return apex::contrib::nccl_p2p::init_nccl_comm(unique_nccl_id, static_cast<int>(my_rank),
+                                                 static_cast<int>(num_ranks));
+}
+
+void apex_nccl_p2p_left_right_halo_exchange_inplace(int64_t handle, int64_t left_rank, int64_t right_rank,
+                                                    at::Tensor left_output_halo, at::Tensor right_output_halo,
+                                                    at::Tensor left_input_halo, at::Tensor right_input_halo) {
+  apex::contrib::nccl_p2p::left_right_halo_exchange_inplace(static_cast<int>(handle), static_cast<int>(left_rank),
+                                                            static_cast<int>(right_rank), left_output_halo,
+                                                            right_output_halo, left_input_halo, right_input_halo);
+}
+
+std::vector<at::Tensor> apex_nccl_p2p_left_right_halo_exchange(int64_t handle, int64_t left_rank, int64_t right_rank,
+                                                               at::Tensor left_output_halo,
+                                                               at::Tensor right_output_halo) {
+  return apex::contrib::nccl_p2p::left_right_halo_exchange(static_cast<int>(handle), static_cast<int>(left_rank),
+                                                           static_cast<int>(right_rank), left_output_halo,
+                                                           right_output_halo);
+}
+
+void apex_nccl_p2p_add_delay(int64_t delay) { apex::contrib::nccl_p2p::add_delay(static_cast<int>(delay)); }
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("nccl_p2p_get_unique_nccl_id(int n) -> Tensor");
+  m.def("nccl_p2p_init_nccl_comm(Tensor unique_nccl_id, int my_rank, int num_ranks) -> int");
+  m.def(
+      "nccl_p2p_left_right_halo_exchange_inplace(int handle, int left_rank, int right_rank, "
+      "Tensor left_output_halo, Tensor right_output_halo, Tensor(a!) left_input_halo, "
+      "Tensor(b!) right_input_halo) -> ()");
+  m.def(
+      "nccl_p2p_left_right_halo_exchange(int handle, int left_rank, int right_rank, Tensor left_output_halo, "
+      "Tensor right_output_halo) -> Tensor[]");
+  m.def("nccl_p2p_add_delay(int delay) -> ()");
+}
+
+TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
+  m.impl("nccl_p2p_get_unique_nccl_id", &apex_nccl_p2p_get_unique_nccl_id);
+  m.impl("nccl_p2p_init_nccl_comm", &apex_nccl_p2p_init_nccl_comm);
+  m.impl("nccl_p2p_add_delay", &apex_nccl_p2p_add_delay);
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("nccl_p2p_left_right_halo_exchange_inplace", &apex_nccl_p2p_left_right_halo_exchange_inplace);
+  m.impl("nccl_p2p_left_right_halo_exchange", &apex_nccl_p2p_left_right_halo_exchange);
 }

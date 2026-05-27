@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from apex._autocast_utils import _cast_if_autocast_enabled
-import mlp_cuda
+from apex._extensions import mlp_cuda
 
 
 class MlpFunction(torch.autograd.Function):

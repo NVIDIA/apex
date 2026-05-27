@@ -2,8 +2,8 @@ import torch
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.nn import functional as F
 from torch import Tensor
-import peer_memory_cuda as pm
-import cudnn_gbn_lib
+from apex._extensions import peer_memory_cuda as pm
+from apex._extensions import cudnn_gbn_lib
 from torch.cuda.amp import custom_fwd, custom_bwd
 
 

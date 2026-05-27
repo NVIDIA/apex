@@ -1,5 +1,6 @@
+#include <ATen/ATen.h>
 #include <cuda_fp16.h>
-#include <torch/extension.h>
+#include <torch/library.h>
 
 #include <vector>
 
@@ -13,14 +14,14 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace additive_mask_softmax_dropout {
 
-std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor const& input, const half* pad_mask,
-                                    float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool is_training, int heads, at::Tensor const& input, const half* pad_mask,
+                                 float dropout_prob);
 
-torch::Tensor bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& softmax_results,
-                       torch::Tensor const& dropout_mask, float dropout_prob);
+at::Tensor bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
+                    at::Tensor const& dropout_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads, torch::Tensor const& input,
-                               torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool is_training, int heads, at::Tensor const& input,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input.scalar_type() == at::ScalarType::Half, "Only HALF is supported");
   if (use_mask) {
@@ -32,8 +33,8 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads, torch
                   dropout_prob);
 }
 
-torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const& output_grads, torch::Tensor const& softmax_results,
-                  torch::Tensor const& dropout_mask, float dropout_prob) {
+at::Tensor bwd(bool use_mask, int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
+               at::Tensor const& dropout_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
@@ -48,14 +49,14 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const& output_grads, t
 }  // namespace additive_mask_softmax_dropout
 namespace mask_softmax_dropout {
 
-std::vector<torch::Tensor> fwd_cuda(bool is_training, int heads, torch::Tensor const& input, const uint8_t* pad_mask,
-                                    float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool is_training, int heads, at::Tensor const& input, const uint8_t* pad_mask,
+                                 float dropout_prob);
 
-torch::Tensor bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& softmax_results,
-                       torch::Tensor const& dropout_mask, const uint8_t* padding_mask, float dropout_prob);
+at::Tensor bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
+                    at::Tensor const& dropout_mask, const uint8_t* padding_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads, torch::Tensor const& input,
-                               torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool is_training, int heads, at::Tensor const& input,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input.scalar_type() == at::ScalarType::Half, "Only HALF is supported");
 
@@ -68,8 +69,8 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool is_training, int heads, torch
                   dropout_prob);
 }
 
-torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const& output_grads, torch::Tensor const& softmax_results,
-                  torch::Tensor const& dropout_mask, torch::Tensor const& padding_mask, float dropout_prob) {
+at::Tensor bwd(bool use_mask, int heads, at::Tensor const& output_grads, at::Tensor const& softmax_results,
+               at::Tensor const& dropout_mask, at::Tensor const& padding_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(softmax_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_mask.dim() == 3, "expected 3D tensor");
@@ -89,22 +90,21 @@ torch::Tensor bwd(bool use_mask, int heads, torch::Tensor const& output_grads, t
 namespace encdec {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs_q,
-                                    torch::Tensor const& inputs_kv, torch::Tensor const& input_weights_q,
-                                    torch::Tensor const& input_weights_kv, torch::Tensor const& output_weights,
-                                    const uint8_t* pad_mask, float dropout_prob);
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_q_results, torch::Tensor const& input_lin_kv_results,
-                                    torch::Tensor const& inputs_q, torch::Tensor const& inputs_kv,
-                                    torch::Tensor const& input_weights_q, torch::Tensor const& input_weights_kv,
-                                    torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                                    float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs_q,
+                                 at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
+                                 at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+                                 at::Tensor const& inputs_q, at::Tensor const& inputs_kv,
+                                 at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
+                                 at::Tensor const& output_weights, at::Tensor const& dropout_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs_q, torch::Tensor const& inputs_kv,
-                               torch::Tensor const& input_weights_q, torch::Tensor const& input_weights_kv,
-                               torch::Tensor const& output_weights, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs_q,
+                            at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
+                            at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input_weights_q.dim() == 2, "expected 2D tensor");
@@ -126,13 +126,12 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   output_weights, use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                               torch::Tensor const& input_lin_q_results, torch::Tensor const& input_lin_kv_results,
-                               torch::Tensor const& inputs_q, torch::Tensor const& inputs_kv,
-                               torch::Tensor const& input_weights_q, torch::Tensor const& input_weights_kv,
-                               torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                               float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                            at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+                            at::Tensor const& inputs_q, at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
+                            at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                            at::Tensor const& dropout_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -170,28 +169,28 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 namespace encdec_norm_add {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs_q,
-                                    torch::Tensor const& inputs_kv, torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights_q,
-                                    torch::Tensor const& input_weights_kv, torch::Tensor const& output_weights,
-                                    const uint8_t* pad_mask, float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs_q,
+                                 at::Tensor const& inputs_kv, at::Tensor const& lyr_nrm_gamma_weights,
+                                 at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights_q,
+                                 at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob);
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_q_results, torch::Tensor const& input_lin_kv_results,
-                                    torch::Tensor const& lyr_nrm_results, torch::Tensor const& lyr_nrm_mean,
-                                    torch::Tensor const& lyr_nrm_invvar, torch::Tensor const& inputs_q,
-                                    torch::Tensor const& inputs_kv, torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights_q,
-                                    torch::Tensor const& input_weights_kv, torch::Tensor const& output_weights,
-                                    torch::Tensor const& dropout_mask, torch::Tensor const& dropout_add_mask,
-                                    float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+                                 at::Tensor const& lyr_nrm_results, at::Tensor const& lyr_nrm_mean,
+                                 at::Tensor const& lyr_nrm_invvar, at::Tensor const& inputs_q,
+                                 at::Tensor const& inputs_kv, at::Tensor const& lyr_nrm_gamma_weights,
+                                 at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights_q,
+                                 at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                                 at::Tensor const& dropout_mask, at::Tensor const& dropout_add_mask,
+                                 float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs_q, torch::Tensor const& inputs_kv,
-                               torch::Tensor const& lyr_nrm_gamma_weights, torch::Tensor const& lyr_nrm_beta_weights,
-                               torch::Tensor const& input_weights_q, torch::Tensor const& input_weights_kv,
-                               torch::Tensor const& output_weights, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs_q,
+                            at::Tensor const& inputs_kv, at::Tensor const& lyr_nrm_gamma_weights,
+                            at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights_q,
+                            at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(inputs_q.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(inputs_kv.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
@@ -218,16 +217,15 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                               torch::Tensor const& input_lin_q_results, torch::Tensor const& input_lin_kv_results,
-                               torch::Tensor const& lyr_nrm_results, torch::Tensor const& lyr_nrm_mean,
-                               torch::Tensor const& lyr_nrm_invvar, torch::Tensor const& inputs_q,
-                               torch::Tensor const& inputs_kv, torch::Tensor const& lyr_nrm_gamma_weights,
-                               torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights_q,
-                               torch::Tensor const& input_weights_kv, torch::Tensor const& output_weights,
-                               torch::Tensor const& dropout_mask, torch::Tensor const& dropout_add_mask,
-                               float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                            at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+                            at::Tensor const& lyr_nrm_results, at::Tensor const& lyr_nrm_mean,
+                            at::Tensor const& lyr_nrm_invvar, at::Tensor const& inputs_q, at::Tensor const& inputs_kv,
+                            at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                            at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
+                            at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+                            at::Tensor const& dropout_add_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -278,19 +276,19 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 namespace self {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    const uint8_t* pad_mask, float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob);
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_results, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    torch::Tensor const& dropout_mask, float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 at::Tensor const& dropout_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
@@ -308,11 +306,11 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                               torch::Tensor const& input_lin_results, torch::Tensor const& inputs,
-                               torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                               torch::Tensor const& dropout_mask, float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                            at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& dropout_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -342,23 +340,23 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 namespace self_bias {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    torch::Tensor const& input_biases, torch::Tensor const& output_biases,
-                                    const uint8_t* pad_mask, float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 at::Tensor const& input_biases, at::Tensor const& output_biases,
+                                 const uint8_t* pad_mask, float dropout_prob);
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_results, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    // torch::Tensor const& input_biases,
-                                    // torch::Tensor const& output_biases,
-                                    torch::Tensor const& dropout_mask, float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 // at::Tensor const& input_biases,
+                                 // at::Tensor const& output_biases,
+                                 at::Tensor const& dropout_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& input_biases,
-                               torch::Tensor const& output_biases, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& input_biases, at::Tensor const& output_biases, at::Tensor const& pad_mask,
+                            float dropout_prob) {
   TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
@@ -376,11 +374,11 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                               torch::Tensor const& input_lin_results, torch::Tensor const& inputs,
-                               torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                               torch::Tensor const& dropout_mask, float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                            at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& dropout_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -410,25 +408,25 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 namespace self_bias_additive_mask {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    torch::Tensor const& input_biases, torch::Tensor const& output_biases,
-                                    const half* pad_mask, float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 at::Tensor const& input_biases, at::Tensor const& output_biases, const half* pad_mask,
+                                 float dropout_prob);
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results,
-                                    // torch::Tensor const& softmax_results,
-                                    torch::Tensor const& bmm1_results, torch::Tensor const& pad_mask,
-                                    torch::Tensor const& input_lin_results, torch::Tensor const& inputs,
-                                    torch::Tensor const& input_weights, torch::Tensor const& output_weights,
-                                    // torch::Tensor const& input_biases,
-                                    // torch::Tensor const& output_biases,
-                                    torch::Tensor const& dropout_mask, float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results,
+                                 // at::Tensor const& softmax_results,
+                                 at::Tensor const& bmm1_results, at::Tensor const& pad_mask,
+                                 at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 // at::Tensor const& input_biases,
+                                 // at::Tensor const& output_biases,
+                                 at::Tensor const& dropout_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& input_biases,
-                               torch::Tensor const& output_biases, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& input_biases, at::Tensor const& output_biases, at::Tensor const& pad_mask,
+                            float dropout_prob) {
   TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(input_weights.dim() == 2, "expected 2D tensor");
   TORCH_CHECK(output_weights.dim() == 2, "expected 2D tensor");
@@ -447,12 +445,11 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   use_mask ? static_cast<const half*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& bmm1_results,
-                               torch::Tensor const& pad_mask, torch::Tensor const& input_lin_results,
-                               torch::Tensor const& inputs, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                               float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& bmm1_results,
+                            at::Tensor const& pad_mask, at::Tensor const& input_lin_results, at::Tensor const& inputs,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& dropout_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -481,24 +478,24 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 namespace self_norm_add {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs,
-                                    torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                                    torch::Tensor const& output_weights, const uint8_t* pad_mask, float dropout_prob);
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                                 at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob);
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_results, torch::Tensor const& lyr_nrm_results,
-                                    torch::Tensor const& lyr_nrm_mean, torch::Tensor const& lyr_nrm_invvar,
-                                    torch::Tensor const& inputs, torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                                    torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                                    torch::Tensor const& dropout_add_mask, float dropout_prob);
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
+                                 at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar,
+                                 at::Tensor const& inputs, at::Tensor const& lyr_nrm_gamma_weights,
+                                 at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
+                                 at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+                                 at::Tensor const& dropout_add_mask, float dropout_prob);
 
-std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads,
-                               torch::Tensor const& inputs, torch::Tensor const& lyr_nrm_gamma_weights,
-                               torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                            at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& pad_mask, float dropout_prob) {
   TORCH_CHECK(inputs.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(lyr_nrm_gamma_weights.dim() == 1, "expected 1D tensor");
   TORCH_CHECK(lyr_nrm_beta_weights.dim() == 1, "expected 1D tensor");
@@ -520,14 +517,13 @@ std::vector<torch::Tensor> fwd(bool use_mask, bool use_time_mask, bool is_traini
                   output_weights, use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, dropout_prob);
 }
 
-std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                               torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                               torch::Tensor const& input_lin_results, torch::Tensor const& lyr_nrm_results,
-                               torch::Tensor const& lyr_nrm_mean, torch::Tensor const& lyr_nrm_invvar,
-                               torch::Tensor const& inputs, torch::Tensor const& lyr_nrm_gamma_weights,
-                               torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                               torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                               torch::Tensor const& dropout_add_mask, float dropout_prob) {
+std::vector<at::Tensor> bwd(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                            at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                            at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
+                            at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar, at::Tensor const& inputs,
+                            at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                            at::Tensor const& input_weights, at::Tensor const& output_weights,
+                            at::Tensor const& dropout_mask, at::Tensor const& dropout_add_mask, float dropout_prob) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(matmul2_results.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(dropout_results.dim() == 3, "expected 3D tensor");
@@ -569,42 +565,267 @@ std::vector<torch::Tensor> bwd(int heads, torch::Tensor const& output_grads, tor
 }  // end namespace self_norm_add
 }  // end namespace multihead_attn
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("additive_mask_softmax_dropout_forward", &multihead_attn::fused_softmax::additive_mask_softmax_dropout::fwd,
-        "Self Multihead Attention masked softmax dropout -- Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("additive_mask_softmax_dropout_backward", &multihead_attn::fused_softmax::additive_mask_softmax_dropout::bwd,
-        "Self Multihead Attention masked softmax dropout -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("mask_softmax_dropout_forward", &multihead_attn::fused_softmax::mask_softmax_dropout::fwd,
-        "Self Multihead Attention masked softmax dropout -- Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("mask_softmax_dropout_backward", &multihead_attn::fused_softmax::mask_softmax_dropout::bwd,
-        "Self Multihead Attention masked softmax dropout -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_forward", &multihead_attn::encdec::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_backward", &multihead_attn::encdec::cublas_gemmex::bwd,
-        "Encdec Multihead Attention Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_norm_add_forward", &multihead_attn::encdec_norm_add::cublas_gemmex::fwd,
-        "Encdec Multihead Attention Plus Layer Norm and Residual Add Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("encdec_multihead_attn_norm_add_backward", &multihead_attn::encdec_norm_add::cublas_gemmex::bwd,
-        "Encdec Multihead Attention Plus Layer Norm and Residual Add Backward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_forward", &multihead_attn::self::cublas_gemmex::fwd, "Self Multihead Attention Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_backward", &multihead_attn::self::cublas_gemmex::bwd, "Self Multihead Attention Backward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_forward", &multihead_attn::self_bias::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_backward", &multihead_attn::self_bias::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_additive_mask_forward", &multihead_attn::self_bias_additive_mask::cublas_gemmex::fwd,
-        "Self Multihead Attention with Bias -- Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_bias_additive_mask_backward", &multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd,
-        "Self Multihead Attention with Bias -- Backward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_norm_add_forward", &multihead_attn::self_norm_add::cublas_gemmex::fwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Forward.", py::call_guard<py::gil_scoped_release>());
-  m.def("self_attn_norm_add_backward", &multihead_attn::self_norm_add::cublas_gemmex::bwd,
-        "Self Multihead Attention Plus Layer Norm and Residual Add Backward.",
-        py::call_guard<py::gil_scoped_release>());
+namespace {
+int as_int(int64_t value) { return static_cast<int>(value); }
+
+float as_float(double value) { return static_cast<float>(value); }
+
+std::vector<at::Tensor> apex_fast_multihead_attn_additive_mask_softmax_dropout_forward(bool use_mask, bool is_training,
+                                                                                       int64_t heads,
+                                                                                       at::Tensor const& input,
+                                                                                       at::Tensor const& pad_mask,
+                                                                                       double dropout_prob) {
+  return multihead_attn::fused_softmax::additive_mask_softmax_dropout::fwd(use_mask, is_training, as_int(heads), input,
+                                                                           pad_mask, as_float(dropout_prob));
+}
+
+at::Tensor apex_fast_multihead_attn_additive_mask_softmax_dropout_backward(bool use_mask, int64_t heads,
+                                                                           at::Tensor const& output_grads,
+                                                                           at::Tensor const& softmax_results,
+                                                                           at::Tensor const& dropout_mask,
+                                                                           double dropout_prob) {
+  return multihead_attn::fused_softmax::additive_mask_softmax_dropout::bwd(
+      use_mask, as_int(heads), output_grads, softmax_results, dropout_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_mask_softmax_dropout_forward(bool use_mask, bool is_training,
+                                                                              int64_t heads, at::Tensor const& input,
+                                                                              at::Tensor const& pad_mask,
+                                                                              double dropout_prob) {
+  return multihead_attn::fused_softmax::mask_softmax_dropout::fwd(use_mask, is_training, as_int(heads), input, pad_mask,
+                                                                  as_float(dropout_prob));
+}
+
+at::Tensor apex_fast_multihead_attn_mask_softmax_dropout_backward(bool use_mask, int64_t heads,
+                                                                  at::Tensor const& output_grads,
+                                                                  at::Tensor const& softmax_results,
+                                                                  at::Tensor const& dropout_mask,
+                                                                  at::Tensor const& padding_mask, double dropout_prob) {
+  return multihead_attn::fused_softmax::mask_softmax_dropout::bwd(
+      use_mask, as_int(heads), output_grads, softmax_results, dropout_mask, padding_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_encdec_multihead_attn_forward(
+    bool use_mask, bool use_time_mask, bool is_training, int64_t heads, at::Tensor const& inputs_q,
+    at::Tensor const& inputs_kv, at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
+    at::Tensor const& output_weights, at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::encdec::cublas_gemmex::fwd(use_mask, use_time_mask, is_training, as_int(heads), inputs_q,
+                                                    inputs_kv, input_weights_q, input_weights_kv, output_weights,
+                                                    pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_encdec_multihead_attn_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& softmax_results, at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+    at::Tensor const& inputs_q, at::Tensor const& inputs_kv, at::Tensor const& input_weights_q,
+    at::Tensor const& input_weights_kv, at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+    double dropout_prob) {
+  return multihead_attn::encdec::cublas_gemmex::bwd(as_int(heads), output_grads, matmul2_results, dropout_results,
+                                                    softmax_results, input_lin_q_results, input_lin_kv_results,
+                                                    inputs_q, inputs_kv, input_weights_q, input_weights_kv,
+                                                    output_weights, dropout_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_encdec_multihead_attn_norm_add_forward(
+    bool use_mask, bool use_time_mask, bool is_training, int64_t heads, at::Tensor const& inputs_q,
+    at::Tensor const& inputs_kv, at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+    at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv, at::Tensor const& output_weights,
+    at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::encdec_norm_add::cublas_gemmex::fwd(
+      use_mask, use_time_mask, is_training, as_int(heads), inputs_q, inputs_kv, lyr_nrm_gamma_weights,
+      lyr_nrm_beta_weights, input_weights_q, input_weights_kv, output_weights, pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_encdec_multihead_attn_norm_add_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& softmax_results, at::Tensor const& input_lin_q_results, at::Tensor const& input_lin_kv_results,
+    at::Tensor const& lyr_nrm_results, at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar,
+    at::Tensor const& inputs_q, at::Tensor const& inputs_kv, at::Tensor const& lyr_nrm_gamma_weights,
+    at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights_q, at::Tensor const& input_weights_kv,
+    at::Tensor const& output_weights, at::Tensor const& dropout_mask, at::Tensor const& dropout_add_mask,
+    double dropout_prob) {
+  return multihead_attn::encdec_norm_add::cublas_gemmex::bwd(
+      as_int(heads), output_grads, matmul2_results, dropout_results, softmax_results, input_lin_q_results,
+      input_lin_kv_results, lyr_nrm_results, lyr_nrm_mean, lyr_nrm_invvar, inputs_q, inputs_kv, lyr_nrm_gamma_weights,
+      lyr_nrm_beta_weights, input_weights_q, input_weights_kv, output_weights, dropout_mask, dropout_add_mask,
+      as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_forward(bool use_mask, bool use_time_mask, bool is_training,
+                                                                   int64_t heads, at::Tensor const& inputs,
+                                                                   at::Tensor const& input_weights,
+                                                                   at::Tensor const& output_weights,
+                                                                   at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::self::cublas_gemmex::fwd(use_mask, use_time_mask, is_training, as_int(heads), inputs,
+                                                  input_weights, output_weights, pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& softmax_results, at::Tensor const& input_lin_results, at::Tensor const& inputs,
+    at::Tensor const& input_weights, at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+    double dropout_prob) {
+  return multihead_attn::self::cublas_gemmex::bwd(as_int(heads), output_grads, matmul2_results, dropout_results,
+                                                  softmax_results, input_lin_results, inputs, input_weights,
+                                                  output_weights, dropout_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_bias_forward(
+    bool use_mask, bool use_time_mask, bool is_training, int64_t heads, at::Tensor const& inputs,
+    at::Tensor const& input_weights, at::Tensor const& output_weights, at::Tensor const& input_biases,
+    at::Tensor const& output_biases, at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::self_bias::cublas_gemmex::fwd(use_mask, use_time_mask, is_training, as_int(heads), inputs,
+                                                       input_weights, output_weights, input_biases, output_biases,
+                                                       pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_bias_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& softmax_results, at::Tensor const& input_lin_results, at::Tensor const& inputs,
+    at::Tensor const& input_weights, at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+    double dropout_prob) {
+  return multihead_attn::self_bias::cublas_gemmex::bwd(as_int(heads), output_grads, matmul2_results, dropout_results,
+                                                       softmax_results, input_lin_results, inputs, input_weights,
+                                                       output_weights, dropout_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_bias_additive_mask_forward(
+    bool use_mask, bool use_time_mask, bool is_training, int64_t heads, at::Tensor const& inputs,
+    at::Tensor const& input_weights, at::Tensor const& output_weights, at::Tensor const& input_biases,
+    at::Tensor const& output_biases, at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::self_bias_additive_mask::cublas_gemmex::fwd(
+      use_mask, use_time_mask, is_training, as_int(heads), inputs, input_weights, output_weights, input_biases,
+      output_biases, pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_bias_additive_mask_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& bmm1_results, at::Tensor const& pad_mask, at::Tensor const& input_lin_results,
+    at::Tensor const& inputs, at::Tensor const& input_weights, at::Tensor const& output_weights,
+    at::Tensor const& dropout_mask, double dropout_prob) {
+  return multihead_attn::self_bias_additive_mask::cublas_gemmex::bwd(
+      as_int(heads), output_grads, matmul2_results, dropout_results, bmm1_results, pad_mask, input_lin_results, inputs,
+      input_weights, output_weights, dropout_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_norm_add_forward(
+    bool use_mask, bool use_time_mask, bool is_training, int64_t heads, at::Tensor const& inputs,
+    at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
+    at::Tensor const& output_weights, at::Tensor const& pad_mask, double dropout_prob) {
+  return multihead_attn::self_norm_add::cublas_gemmex::fwd(use_mask, use_time_mask, is_training, as_int(heads), inputs,
+                                                           lyr_nrm_gamma_weights, lyr_nrm_beta_weights, input_weights,
+                                                           output_weights, pad_mask, as_float(dropout_prob));
+}
+
+std::vector<at::Tensor> apex_fast_multihead_attn_self_attn_norm_add_backward(
+    int64_t heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results, at::Tensor const& dropout_results,
+    at::Tensor const& softmax_results, at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
+    at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar, at::Tensor const& inputs,
+    at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
+    at::Tensor const& output_weights, at::Tensor const& dropout_mask, at::Tensor const& dropout_add_mask,
+    double dropout_prob) {
+  return multihead_attn::self_norm_add::cublas_gemmex::bwd(
+      as_int(heads), output_grads, matmul2_results, dropout_results, softmax_results, input_lin_results,
+      lyr_nrm_results, lyr_nrm_mean, lyr_nrm_invvar, inputs, lyr_nrm_gamma_weights, lyr_nrm_beta_weights, input_weights,
+      output_weights, dropout_mask, dropout_add_mask, as_float(dropout_prob));
+}
+}  // namespace
+
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def(
+      "fast_multihead_attn_additive_mask_softmax_dropout_forward(bool use_mask, bool is_training, int heads, "
+      "Tensor input, Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_additive_mask_softmax_dropout_backward(bool use_mask, int heads, Tensor output_grads, "
+      "Tensor softmax_results, Tensor dropout_mask, float dropout_prob) -> Tensor");
+  m.def(
+      "fast_multihead_attn_mask_softmax_dropout_forward(bool use_mask, bool is_training, int heads, Tensor input, "
+      "Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_mask_softmax_dropout_backward(bool use_mask, int heads, Tensor output_grads, "
+      "Tensor softmax_results, Tensor dropout_mask, Tensor padding_mask, float dropout_prob) -> Tensor");
+  m.def(
+      "fast_multihead_attn_encdec_multihead_attn_forward(bool use_mask, bool use_time_mask, bool is_training, "
+      "int heads, Tensor inputs_q, Tensor inputs_kv, Tensor input_weights_q, Tensor input_weights_kv, "
+      "Tensor output_weights, Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_encdec_multihead_attn_backward(int heads, Tensor output_grads, Tensor matmul2_results, "
+      "Tensor dropout_results, Tensor softmax_results, Tensor input_lin_q_results, Tensor input_lin_kv_results, "
+      "Tensor inputs_q, Tensor inputs_kv, Tensor input_weights_q, Tensor input_weights_kv, Tensor output_weights, "
+      "Tensor dropout_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_encdec_multihead_attn_norm_add_forward(bool use_mask, bool use_time_mask, "
+      "bool is_training, int heads, Tensor inputs_q, Tensor inputs_kv, Tensor lyr_nrm_gamma_weights, "
+      "Tensor lyr_nrm_beta_weights, Tensor input_weights_q, Tensor input_weights_kv, Tensor output_weights, "
+      "Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_encdec_multihead_attn_norm_add_backward(int heads, Tensor output_grads, "
+      "Tensor matmul2_results, Tensor dropout_results, Tensor softmax_results, Tensor input_lin_q_results, "
+      "Tensor input_lin_kv_results, Tensor lyr_nrm_results, Tensor lyr_nrm_mean, Tensor lyr_nrm_invvar, "
+      "Tensor inputs_q, Tensor inputs_kv, Tensor lyr_nrm_gamma_weights, Tensor lyr_nrm_beta_weights, "
+      "Tensor input_weights_q, Tensor input_weights_kv, Tensor output_weights, Tensor dropout_mask, "
+      "Tensor dropout_add_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_forward(bool use_mask, bool use_time_mask, bool is_training, int heads, "
+      "Tensor inputs, Tensor input_weights, Tensor output_weights, Tensor pad_mask, float dropout_prob) "
+      "-> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_backward(int heads, Tensor output_grads, Tensor matmul2_results, "
+      "Tensor dropout_results, Tensor softmax_results, Tensor input_lin_results, Tensor inputs, "
+      "Tensor input_weights, Tensor output_weights, Tensor dropout_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_bias_forward(bool use_mask, bool use_time_mask, bool is_training, int heads, "
+      "Tensor inputs, Tensor input_weights, Tensor output_weights, Tensor input_biases, Tensor output_biases, "
+      "Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_bias_backward(int heads, Tensor output_grads, Tensor matmul2_results, "
+      "Tensor dropout_results, Tensor softmax_results, Tensor input_lin_results, Tensor inputs, "
+      "Tensor input_weights, Tensor output_weights, Tensor dropout_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_bias_additive_mask_forward(bool use_mask, bool use_time_mask, "
+      "bool is_training, int heads, Tensor inputs, Tensor input_weights, Tensor output_weights, "
+      "Tensor input_biases, Tensor output_biases, Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_bias_additive_mask_backward(int heads, Tensor output_grads, "
+      "Tensor matmul2_results, Tensor dropout_results, Tensor bmm1_results, Tensor pad_mask, "
+      "Tensor input_lin_results, Tensor inputs, Tensor input_weights, Tensor output_weights, Tensor dropout_mask, "
+      "float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_norm_add_forward(bool use_mask, bool use_time_mask, bool is_training, "
+      "int heads, Tensor inputs, Tensor lyr_nrm_gamma_weights, Tensor lyr_nrm_beta_weights, "
+      "Tensor input_weights, Tensor output_weights, Tensor pad_mask, float dropout_prob) -> Tensor[]");
+  m.def(
+      "fast_multihead_attn_self_attn_norm_add_backward(int heads, Tensor output_grads, Tensor matmul2_results, "
+      "Tensor dropout_results, Tensor softmax_results, Tensor input_lin_results, Tensor lyr_nrm_results, "
+      "Tensor lyr_nrm_mean, Tensor lyr_nrm_invvar, Tensor inputs, Tensor lyr_nrm_gamma_weights, "
+      "Tensor lyr_nrm_beta_weights, Tensor input_weights, Tensor output_weights, Tensor dropout_mask, "
+      "Tensor dropout_add_mask, float dropout_prob) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fast_multihead_attn_additive_mask_softmax_dropout_forward",
+         &apex_fast_multihead_attn_additive_mask_softmax_dropout_forward);
+  m.impl("fast_multihead_attn_additive_mask_softmax_dropout_backward",
+         &apex_fast_multihead_attn_additive_mask_softmax_dropout_backward);
+  m.impl("fast_multihead_attn_mask_softmax_dropout_forward", &apex_fast_multihead_attn_mask_softmax_dropout_forward);
+  m.impl("fast_multihead_attn_mask_softmax_dropout_backward", &apex_fast_multihead_attn_mask_softmax_dropout_backward);
+  m.impl("fast_multihead_attn_encdec_multihead_attn_forward", &apex_fast_multihead_attn_encdec_multihead_attn_forward);
+  m.impl("fast_multihead_attn_encdec_multihead_attn_backward",
+         &apex_fast_multihead_attn_encdec_multihead_attn_backward);
+  m.impl("fast_multihead_attn_encdec_multihead_attn_norm_add_forward",
+         &apex_fast_multihead_attn_encdec_multihead_attn_norm_add_forward);
+  m.impl("fast_multihead_attn_encdec_multihead_attn_norm_add_backward",
+         &apex_fast_multihead_attn_encdec_multihead_attn_norm_add_backward);
+  m.impl("fast_multihead_attn_self_attn_forward", &apex_fast_multihead_attn_self_attn_forward);
+  m.impl("fast_multihead_attn_self_attn_backward", &apex_fast_multihead_attn_self_attn_backward);
+  m.impl("fast_multihead_attn_self_attn_bias_forward", &apex_fast_multihead_attn_self_attn_bias_forward);
+  m.impl("fast_multihead_attn_self_attn_bias_backward", &apex_fast_multihead_attn_self_attn_bias_backward);
+  m.impl("fast_multihead_attn_self_attn_bias_additive_mask_forward",
+         &apex_fast_multihead_attn_self_attn_bias_additive_mask_forward);
+  m.impl("fast_multihead_attn_self_attn_bias_additive_mask_backward",
+         &apex_fast_multihead_attn_self_attn_bias_additive_mask_backward);
+  m.impl("fast_multihead_attn_self_attn_norm_add_forward", &apex_fast_multihead_attn_self_attn_norm_add_forward);
+  m.impl("fast_multihead_attn_self_attn_norm_add_backward", &apex_fast_multihead_attn_self_attn_norm_add_backward);
 }
 
 #undef CHECK_CUDA

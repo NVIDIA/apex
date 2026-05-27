@@ -2,10 +2,12 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_fp16.h>
+#if __has_include(<cuda_profiler_api.h>)
 #include <cuda_profiler_api.h>
+#endif
+#include <ATen/ATen.h>
 #include <cuda_runtime.h>
 #include <math.h>
-#include <torch/extension.h>
 
 #include <iostream>
 #include <vector>
@@ -19,10 +21,10 @@ namespace multihead_attn {
 namespace self_norm_add {
 namespace cublas_gemmex {
 
-std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, torch::Tensor const& inputs,
-                                    torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                                    torch::Tensor const& output_weights, const uint8_t* pad_mask, float dropout_prob) {
+std::vector<at::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int heads, at::Tensor const& inputs,
+                                 at::Tensor const& lyr_nrm_gamma_weights, at::Tensor const& lyr_nrm_beta_weights,
+                                 at::Tensor const& input_weights, at::Tensor const& output_weights,
+                                 const uint8_t* pad_mask, float dropout_prob) {
   const int embed_dim = inputs.size(2);
   const int sequences = inputs.size(1);
   const int q_seq_len = inputs.size(0);
@@ -48,21 +50,21 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int he
   // 3 Intermediate Results + Output (Note: dropout intermediates are generated
   // by ATen library code)
   auto act_options = inputs.options().requires_grad(false);
-  auto lyr_nrm_options = act_options.dtype(torch::kFloat32);
-  auto mask_options = act_options.dtype(torch::kUInt8);
+  auto lyr_nrm_options = act_options.dtype(at::kFloat);
+  auto mask_options = act_options.dtype(at::kByte);
 
-  torch::Tensor lyr_nrm_mean = torch::empty({batches}, lyr_nrm_options);
-  torch::Tensor lyr_nrm_invvar = torch::empty({batches}, lyr_nrm_options);
-  torch::Tensor lyr_nrm_results = torch::empty_like(inputs, act_options);
+  at::Tensor lyr_nrm_mean = at::empty({batches}, lyr_nrm_options);
+  at::Tensor lyr_nrm_invvar = at::empty({batches}, lyr_nrm_options);
+  at::Tensor lyr_nrm_results = at::empty_like(inputs, act_options);
 
-  torch::Tensor input_lin_results = torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
-  torch::Tensor softmax_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_results = torch::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
-  torch::Tensor dropout_mask = torch::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
-  torch::Tensor matmul2_results = torch::empty({q_seq_len, attn_batches, head_dim}, act_options);
-  torch::Tensor output_lin_results = torch::empty_like(inputs, act_options);
-  torch::Tensor dropout_add_mask = torch::empty_like(inputs, mask_options);
-  torch::Tensor outputs = torch::empty_like(inputs, act_options);
+  at::Tensor input_lin_results = at::empty({q_seq_len, sequences, output_lin_dim}, act_options);
+  at::Tensor softmax_results = at::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  at::Tensor dropout_results = at::empty({attn_batches, q_seq_len, k_seq_len}, act_options);
+  at::Tensor dropout_mask = at::empty({attn_batches, q_seq_len, k_seq_len}, mask_options);
+  at::Tensor matmul2_results = at::empty({q_seq_len, attn_batches, head_dim}, act_options);
+  at::Tensor output_lin_results = at::empty_like(inputs, act_options);
+  at::Tensor dropout_add_mask = at::empty_like(inputs, mask_options);
+  at::Tensor outputs = at::empty_like(inputs, act_options);
 
   // Input Linear Results Pointers to Q, K, and V of interviewed activations
   void* q_lin_results_ptr = static_cast<void*>(input_lin_results.data_ptr());
@@ -160,14 +162,14 @@ std::vector<torch::Tensor> fwd_cuda(bool use_time_mask, bool is_training, int he
           dropout_results, dropout_mask, matmul2_results, dropout_add_mask,  outputs};
 }
 
-std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads, torch::Tensor const& matmul2_results,
-                                    torch::Tensor const& dropout_results, torch::Tensor const& softmax_results,
-                                    torch::Tensor const& input_lin_results, torch::Tensor const& lyr_nrm_results,
-                                    torch::Tensor const& lyr_nrm_mean, torch::Tensor const& lyr_nrm_invvar,
-                                    torch::Tensor const& inputs, torch::Tensor const& lyr_nrm_gamma_weights,
-                                    torch::Tensor const& lyr_nrm_beta_weights, torch::Tensor const& input_weights,
-                                    torch::Tensor const& output_weights, torch::Tensor const& dropout_mask,
-                                    torch::Tensor const& dropout_add_mask, float dropout_prob) {
+std::vector<at::Tensor> bwd_cuda(int heads, at::Tensor const& output_grads, at::Tensor const& matmul2_results,
+                                 at::Tensor const& dropout_results, at::Tensor const& softmax_results,
+                                 at::Tensor const& input_lin_results, at::Tensor const& lyr_nrm_results,
+                                 at::Tensor const& lyr_nrm_mean, at::Tensor const& lyr_nrm_invvar,
+                                 at::Tensor const& inputs, at::Tensor const& lyr_nrm_gamma_weights,
+                                 at::Tensor const& lyr_nrm_beta_weights, at::Tensor const& input_weights,
+                                 at::Tensor const& output_weights, at::Tensor const& dropout_mask,
+                                 at::Tensor const& dropout_add_mask, float dropout_prob) {
   const int embed_dim = inputs.size(2);
   const int sequences = inputs.size(1);
   const int q_seq_len = inputs.size(0);
@@ -191,17 +193,17 @@ std::vector<torch::Tensor> bwd_cuda(int heads, torch::Tensor const& output_grads
   cublasSetStream(handle, stream);
 
   // Output Tensor Allocations
-  torch::Tensor input_grads = torch::empty_like(inputs);
-  torch::Tensor lyr_nrm_gamma_grads = torch::empty_like(lyr_nrm_gamma_weights);
-  torch::Tensor lyr_nrm_beta_grads = torch::empty_like(lyr_nrm_beta_weights);
-  torch::Tensor input_weight_grads = torch::empty_like(input_weights);
-  torch::Tensor output_weight_grads = torch::empty_like(output_weights);
+  at::Tensor input_grads = at::empty_like(inputs);
+  at::Tensor lyr_nrm_gamma_grads = at::empty_like(lyr_nrm_gamma_weights);
+  at::Tensor lyr_nrm_beta_grads = at::empty_like(lyr_nrm_beta_weights);
+  at::Tensor input_weight_grads = at::empty_like(input_weights);
+  at::Tensor output_weight_grads = at::empty_like(output_weights);
   // Intermediate Tensor Allocations
-  torch::Tensor dropout_add_grads = torch::empty_like(output_grads);
-  torch::Tensor output_lin_grads = torch::empty_like(matmul2_results);
-  torch::Tensor matmul2_grads = torch::empty_like(dropout_results);
-  torch::Tensor input_lin_output_grads = torch::empty_like(input_lin_results);
-  torch::Tensor input_lin_grads = torch::empty_like(inputs);
+  at::Tensor dropout_add_grads = at::empty_like(output_grads);
+  at::Tensor output_lin_grads = at::empty_like(matmul2_results);
+  at::Tensor matmul2_grads = at::empty_like(dropout_results);
+  at::Tensor input_lin_output_grads = at::empty_like(input_lin_results);
+  at::Tensor input_lin_grads = at::empty_like(inputs);
 
   auto q_lin_results_ptr = static_cast<half*>(input_lin_results.data_ptr());
   auto k_lin_results_ptr = static_cast<half*>(input_lin_results.data_ptr()) + head_dim;

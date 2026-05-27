@@ -88,7 +88,7 @@ class FusedLAMB(torch.optim.Optimizer):
         )
         super(FusedLAMB, self).__init__(params, defaults)
         if multi_tensor_applier.available:
-            import amp_C
+            from apex._extensions import amp_C
 
             self.multi_tensor_l2norm = amp_C.multi_tensor_l2norm
             # Skip buffer

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+#include <ATen/ATen.h>
 #include <cuda_fp16.h>
-#include <torch/extension.h>
+#include <torch/library.h>
 
 #include <vector>
 
@@ -23,54 +24,67 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace scaled_masked_softmax {
 
-torch::Tensor fwd_cuda(torch::Tensor const& input, torch::Tensor const& mask, float scale_factor);
+at::Tensor fwd_cuda(at::Tensor const& input, at::Tensor const& mask, float scale_factor);
 
-torch::Tensor bwd_cuda(torch::Tensor const& output_grads, torch::Tensor const& softmax_results, float scale_factor);
+at::Tensor bwd_cuda(at::Tensor const& output_grads, at::Tensor const& softmax_results, float scale_factor);
 
 int get_batch_per_block_cuda(int query_seq_len, int key_seq_len, int batches, int attn_heads);
 
-torch::Tensor fwd(torch::Tensor& input, torch::Tensor& mask, float scale_factor) {
-  TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
-  TORCH_CHECK((input.scalar_type() == at::ScalarType::Half) || (input.scalar_type() == at::ScalarType::BFloat16),
-              "Only fp16 and bf16 are supported");
-  TORCH_CHECK(mask.dim() == 4, "expected 4D tensor");
-  if (!input.is_contiguous()) input = input.contiguous();
-  if (!mask.is_contiguous()) mask = mask.contiguous();
-
-  return fwd_cuda(input, mask, scale_factor);
-}
-
-torch::Tensor bwd(torch::Tensor& output_grads, torch::Tensor& softmax_results, float scale_factor) {
-  TORCH_CHECK(output_grads.dim() == 4, "expected 3D tensor");
-  TORCH_CHECK(softmax_results.dim() == 4, "expected 3D tensor");
-
+at::Tensor fwd(at::Tensor const& input, at::Tensor const& mask, double scale_factor) {
+  auto input_arg = input;
+  auto mask_arg = mask;
+  TORCH_CHECK(input_arg.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(
-      (output_grads.scalar_type() == at::ScalarType::Half) || (output_grads.scalar_type() == at::ScalarType::BFloat16),
+      (input_arg.scalar_type() == at::ScalarType::Half) || (input_arg.scalar_type() == at::ScalarType::BFloat16),
       "Only fp16 and bf16 are supported");
-  TORCH_CHECK((softmax_results.scalar_type() == at::ScalarType::Half) ||
-                  (softmax_results.scalar_type() == at::ScalarType::BFloat16),
-              "Only fp16 and bf16 are supported");
-  if (!output_grads.is_contiguous()) output_grads = output_grads.contiguous();
-  if (!softmax_results.is_contiguous()) softmax_results = softmax_results.contiguous();
+  TORCH_CHECK(mask_arg.dim() == 4, "expected 4D tensor");
+  if (!input_arg.is_contiguous()) input_arg = input_arg.contiguous();
+  if (!mask_arg.is_contiguous()) mask_arg = mask_arg.contiguous();
 
-  return bwd_cuda(output_grads, softmax_results, scale_factor);
+  return fwd_cuda(input_arg, mask_arg, static_cast<float>(scale_factor));
 }
 
-int get_batch_per_block(int query_seq_len, int key_seq_len, int batches, int attn_heads) {
-  return get_batch_per_block_cuda(query_seq_len, key_seq_len, batches, attn_heads);
+at::Tensor bwd(at::Tensor const& output_grads, at::Tensor const& softmax_results, double scale_factor) {
+  auto output_grads_arg = output_grads;
+  auto softmax_results_arg = softmax_results;
+  TORCH_CHECK(output_grads_arg.dim() == 4, "expected 3D tensor");
+  TORCH_CHECK(softmax_results_arg.dim() == 4, "expected 3D tensor");
+
+  TORCH_CHECK((output_grads_arg.scalar_type() == at::ScalarType::Half) ||
+                  (output_grads_arg.scalar_type() == at::ScalarType::BFloat16),
+              "Only fp16 and bf16 are supported");
+  TORCH_CHECK((softmax_results_arg.scalar_type() == at::ScalarType::Half) ||
+                  (softmax_results_arg.scalar_type() == at::ScalarType::BFloat16),
+              "Only fp16 and bf16 are supported");
+  if (!output_grads_arg.is_contiguous()) output_grads_arg = output_grads_arg.contiguous();
+  if (!softmax_results_arg.is_contiguous()) softmax_results_arg = softmax_results_arg.contiguous();
+
+  return bwd_cuda(output_grads_arg, softmax_results_arg, static_cast<float>(scale_factor));
+}
+
+int64_t get_batch_per_block(int64_t query_seq_len, int64_t key_seq_len, int64_t batches, int64_t attn_heads) {
+  return get_batch_per_block_cuda(static_cast<int>(query_seq_len), static_cast<int>(key_seq_len),
+                                  static_cast<int>(batches), static_cast<int>(attn_heads));
 }
 
 }  // end namespace scaled_masked_softmax
 }  // end namespace fused_softmax
 }  // end namespace multihead_attn
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &multihead_attn::fused_softmax::scaled_masked_softmax::fwd,
-        "Self Multihead Attention scaled, time masked softmax -- Forward.", py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("scaled_masked_softmax_forward(Tensor input, Tensor mask, float scale_factor) -> Tensor");
+  m.def("scaled_masked_softmax_backward(Tensor output_grads, Tensor softmax_results, float scale_factor) -> Tensor");
+  m.def(
+      "scaled_masked_softmax_get_batch_per_block(int query_seq_len, int key_seq_len, int batches, "
+      "int attn_heads) -> int");
+}
 
-  m.def("backward", &multihead_attn::fused_softmax::scaled_masked_softmax::bwd,
-        "Self Multihead Attention scaled, time masked softmax -- Backward.", py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("scaled_masked_softmax_forward", &multihead_attn::fused_softmax::scaled_masked_softmax::fwd);
+  m.impl("scaled_masked_softmax_backward", &multihead_attn::fused_softmax::scaled_masked_softmax::bwd);
+}
 
-  m.def("get_batch_per_block", &multihead_attn::fused_softmax::scaled_masked_softmax::get_batch_per_block,
-        "Return Batch per block size.", py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {
+  m.impl("scaled_masked_softmax_get_batch_per_block",
+         &multihead_attn::fused_softmax::scaled_masked_softmax::get_batch_per_block);
 }

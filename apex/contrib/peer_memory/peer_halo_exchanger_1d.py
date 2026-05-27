@@ -1,5 +1,5 @@
 import torch
-import peer_memory_cuda as pm
+from apex._extensions import peer_memory_cuda as pm
 
 
 class PeerHaloExchanger1d:

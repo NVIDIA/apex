@@ -1,6 +1,6 @@
 try:
     import torch
-    import focal_loss_cuda
+    from apex._extensions import focal_loss_cuda
     from .focal_loss import focal_loss
 
     del torch

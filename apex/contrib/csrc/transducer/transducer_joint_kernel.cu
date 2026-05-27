@@ -1,8 +1,8 @@
+#include <ATen/ATen.h>
 #include <ATen/AccumulateType.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
-#include <torch/extension.h>
 
 #ifdef OLD_GENERATOR_PATH
 #include <ATen/CUDAGeneratorImpl.h>
@@ -179,7 +179,7 @@ __global__ void transducer_joint_forward(const scalar_t* f, const scalar_t* g, c
     }
   } else if (packOutput == false and t < maxFLen and u < maxGLen) {
 // Need to write finite data to don't-care region because we instantiate the result tensor
-// with torch::empty for performance reasons. Even though it is don't-care region, the
+// with at::empty for performance reasons. Even though it is don't-care region, the
 // contents need to be finite, otherwise could lead to NaN in WGRAD.
 // In packing mode, this write is no longer necessary as we remove the don't-care region
 // from the output.
@@ -535,10 +535,10 @@ __global__ void transducer_joint_combined_vec_backward(const scalar_t* grad, con
   }
 }
 
-std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch::Tensor g, torch::Tensor fLen,
-                                                         torch::Tensor gLen, torch::Tensor batchOffset,
-                                                         int64_t packedBatch, int opt, bool packOutput, bool relu,
-                                                         bool dropout, float dropoutProb, int tileSize) {
+std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g, at::Tensor fLen, at::Tensor gLen,
+                                                      at::Tensor batchOffset, int64_t packedBatch, int64_t opt,
+                                                      bool packOutput, bool relu, bool dropout, double dropoutProb,
+                                                      int64_t tileSize) {
   auto tensorOpt = f.options();
   auto dtype = f.scalar_type();
   const auto batchSize = f.size(0);
@@ -548,16 +548,16 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
   bool masked = dropout or relu;
 
   int64_t* batchOffsetPtr = nullptr;
-  torch::Tensor sum, mask;
-  auto maskOpt = tensorOpt.dtype(torch::kUInt8);
+  at::Tensor sum, mask;
+  auto maskOpt = tensorOpt.dtype(at::kByte);
   if (!packOutput) {
-    sum = torch::empty({batchSize, maxFLen, maxGLen, hiddenSize}, tensorOpt);
+    sum = at::empty({batchSize, maxFLen, maxGLen, hiddenSize}, tensorOpt);
     batchOffsetPtr = nullptr;
-    if (masked) mask = torch::empty({batchSize, maxFLen, maxGLen, hiddenSize}, maskOpt);
+    if (masked) mask = at::empty({batchSize, maxFLen, maxGLen, hiddenSize}, maskOpt);
   } else {
-    sum = torch::empty({packedBatch, hiddenSize}, tensorOpt);
+    sum = at::empty({packedBatch, hiddenSize}, tensorOpt);
     batchOffsetPtr = batchOffset.data_ptr<int64_t>();
-    if (masked) mask = torch::empty({packedBatch, hiddenSize}, maskOpt);
+    if (masked) mask = at::empty({packedBatch, hiddenSize}, maskOpt);
   }
   uint8_t* maskPtr = masked ? mask.data_ptr<uint8_t>() : nullptr;
 
@@ -635,10 +635,10 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
             }
           }
 
-          kernel<<<blocks, threads, 0, stream>>>(f.data_ptr<scalar_t>(), g.data_ptr<scalar_t>(), fLen.data_ptr<int>(),
-                                                 gLen.data_ptr<int>(), batchOffsetPtr, maxFLen, maxGLen, hiddenSize,
-                                                 hiddenPerBlock, packOutput, relu, dropout, 1.0f - dropoutProb,
-                                                 rng_engine_inputs, sum.data_ptr<scalar_t>(), maskPtr);
+          kernel<<<blocks, threads, 0, stream>>>(
+              f.data_ptr<scalar_t>(), g.data_ptr<scalar_t>(), fLen.data_ptr<int>(), gLen.data_ptr<int>(),
+              batchOffsetPtr, maxFLen, maxGLen, hiddenSize, hiddenPerBlock, packOutput, relu, dropout,
+              static_cast<float>(1.0 - dropoutProb), rng_engine_inputs, sum.data_ptr<scalar_t>(), maskPtr);
         }));
   }
 
@@ -649,9 +649,9 @@ std::vector<torch::Tensor> transducer_joint_cuda_forward(torch::Tensor f, torch:
     return {sum};
 }
 
-std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Tensor> in, torch::Tensor fLen,
-                                                          torch::Tensor gLen, torch::Tensor batchOffset, int maxFLen,
-                                                          int maxGLen, bool packOutput, float scale) {
+std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> in, at::Tensor fLen, at::Tensor gLen,
+                                                       at::Tensor batchOffset, int64_t maxFLen, int64_t maxGLen,
+                                                       bool packOutput, double scale) {
   auto grad = in[0];
   bool masked = (in.size() == 2);
   uint8_t* maskPtr = masked ? in[1].data_ptr<uint8_t>() : nullptr;
@@ -664,8 +664,8 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
   const auto deviceProperties = at::cuda::getCurrentDeviceProperties();
   const int maxNumWarp = deviceProperties->maxThreadsPerBlock / C10_WARP_SIZE;
 
-  torch::Tensor fGrad = torch::empty({batchSize, maxFLen, hiddenSize}, tensorOpt);
-  torch::Tensor gGrad = torch::empty({batchSize, maxGLen, hiddenSize}, tensorOpt);
+  at::Tensor fGrad = at::empty({batchSize, maxFLen, hiddenSize}, tensorOpt);
+  at::Tensor gGrad = at::empty({batchSize, maxGLen, hiddenSize}, tensorOpt);
 
   int64_t* batchOffsetPtr = (!packOutput) ? nullptr : batchOffset.data_ptr<int64_t>();
 
@@ -703,6 +703,8 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
                         (reinterpret_cast<uint64_t>(fGradPtr) % vecAlignment == 0) and
                         (reinterpret_cast<uint64_t>(gGradPtr) % vecAlignment == 0);
 
+        const float scale_arg = static_cast<float>(scale);
+
         if (vectFactor > 1 and hiddenSize % vectFactor == 0 and memAlign) {
           // If vectorization helps and the alignment requirement is met, use the vectorized
           // kernel. For simplicity, hiddenSize needs to be a multiple vecFactor.
@@ -711,12 +713,12 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
           if (masked) {
             transducer_joint_combined_vec_backward<scalar_t, acc_t, vec_t, vectFactor, OffsetCalBwd, true>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           } else {
             transducer_joint_combined_vec_backward<scalar_t, acc_t, vec_t, vectFactor, OffsetCalBwd, false>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           }
         } else {
@@ -724,12 +726,12 @@ std::vector<torch::Tensor> transducer_joint_cuda_backward(std::vector<torch::Ten
           if (masked) {
             transducer_joint_combined_backward<scalar_t, acc_t, OffsetCalBwd, true>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           } else {
             transducer_joint_combined_backward<scalar_t, acc_t, OffsetCalBwd, false>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           }
         }

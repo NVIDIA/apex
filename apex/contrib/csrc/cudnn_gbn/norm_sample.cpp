@@ -22,10 +22,9 @@
 
 #include "norm_sample.h"
 
+#include <ATen/ATen.h>
 #include <ATen/cudnn/Handle.h>  // for getcudnnhandle
 #include <cudnn_frontend.h>
-#include <torch/extension.h>
-#include <torch/torch.h>
 
 #include "cudnn_backend.h"
 
@@ -74,7 +73,7 @@ void generateStrides(const int64_t* dimA, int64_t* strideA, int64_t nbDims, cudn
 cudnn_frontend::ExecutionPlan run_batch_norm_forward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
                                                      int64_t* peerDims, cudnnDataType_t data_type) {
   // get the cudnn handle
-  cudnnHandle_t handle = torch::native::getCudnnHandle();
+  cudnnHandle_t handle = at::native::getCudnnHandle();
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -225,7 +224,7 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void* xDevPt
                                 const std::vector<void*>& peer_devPtrs, double epsilon_val,
                                 double exponential_decay_factor, size_t peer_size, int rank_id) {
   // get handle
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
 
   // get stream
   cudaStream_t stream;
@@ -275,7 +274,7 @@ void execute_batch_norm_forward(cudnn_frontend::ExecutionPlan plan, void* xDevPt
 cudnn_frontend::ExecutionPlan run_batch_norm_backward(int64_t* tensorDims, int64_t* perChannelSum, int64_t* epsilon,
                                                       int64_t* peerDims, cudnnDataType_t data_type) {
   // get cudnn handle
-  cudnnHandle_t handle = torch::native::getCudnnHandle();
+  cudnnHandle_t handle = at::native::getCudnnHandle();
 
   // Creates the necessary tensor descriptors
   int64_t tensor_stride[4];
@@ -406,7 +405,7 @@ void execute_batch_norm_backward(cudnn_frontend::ExecutionPlan plan, void* xDevP
                                  const std::vector<void*>& peer_devPtrs, void* dxDevPtr, void* dscaledevPtr,
                                  void* dbiasdevPtr, double epsilon_val, size_t peer_size, int rank_id) {
   // get handle
-  cudnnHandle_t handle_ = torch::native::getCudnnHandle();
+  cudnnHandle_t handle_ = at::native::getCudnnHandle();
 
   // get stream
   cudaStream_t stream;

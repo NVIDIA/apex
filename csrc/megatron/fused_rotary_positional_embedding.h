@@ -18,9 +18,9 @@
 
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAException.h>
 #include <c10/macros/Macros.h>
 #include <cuda_runtime.h>
-#include <torch/extension.h>
 
 namespace {
 

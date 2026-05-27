@@ -1,6 +1,8 @@
+import math
+
 import torch
 from torch import nn
-import fused_dense_cuda
+from apex._extensions import fused_dense_cuda
 from apex._autocast_utils import _cast_if_autocast_enabled
 
 
@@ -60,6 +62,8 @@ class FusedDenseGeluDenseFunc(torch.autograd.Function):
 def _fused_dense(input, weight, bias):
     args = _cast_if_autocast_enabled(input, weight, bias)
     with torch.amp.autocast("cuda", enabled=False):
+        if args[0].dtype == torch.bfloat16:
+            return torch.matmul(args[0], args[1].t()) + args[2]
         return FusedDenseFunc.apply(*args)
 
 
@@ -86,6 +90,14 @@ class FusedDense(nn.Module):
         else:
             # assert False, "no-bias option not added yet"
             self.register_parameter("bias", None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input):
         if self.bias is not None:
@@ -105,6 +117,15 @@ class FusedDenseGeluDense(nn.Module):
         self.bias1 = nn.Parameter(torch.empty(intermediate_features))
         self.weight2 = nn.Parameter(torch.empty(out_features, intermediate_features))
         self.bias2 = nn.Parameter(torch.empty(out_features))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight1, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.weight2, a=math.sqrt(5))
+        for weight, bias in ((self.weight1, self.bias1), (self.weight2, self.bias2)):
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(bias, -bound, bound)
 
     def forward(self, input):
         return _fused_dense_gelu_dense(input, self.weight1, self.bias1, self.weight2, self.bias2)

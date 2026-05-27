@@ -10,8 +10,8 @@ import functools
 import os
 import torch
 import torch.nn.init as init
-import group_norm_cuda
-import group_norm_v2_cuda
+from apex._extensions import group_norm_cuda
+from apex._extensions import group_norm_v2_cuda
 
 from torch import Tensor
 from torch.nn.parameter import Parameter

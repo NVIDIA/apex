@@ -14,32 +14,32 @@
  * limitations under the License.
  */
 
-#include <torch/extension.h>
+#include <ATen/ATen.h>
+#include <torch/library.h>
 
 namespace fused_rope {
 
-torch::Tensor fwd_cuda(const torch::Tensor& input, const torch::Tensor& freqs, const bool transpose_output);
+at::Tensor fwd_cuda(const at::Tensor& input, const at::Tensor& freqs, const bool transpose_output);
 
-torch::Tensor bwd_cuda(const torch::Tensor& output_grads, const torch::Tensor& freqs, const bool transpose_output);
+at::Tensor bwd_cuda(const at::Tensor& output_grads, const at::Tensor& freqs, const bool transpose_output);
 
-torch::Tensor fwd_cached_cuda(const torch::Tensor& input, const torch::Tensor& cos, const torch::Tensor& sin,
-                              const bool transpose_output);
+at::Tensor fwd_cached_cuda(const at::Tensor& input, const at::Tensor& cos, const at::Tensor& sin,
+                           const bool transpose_output);
 
-torch::Tensor bwd_cached_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos, const torch::Tensor& sin,
-                              const bool transpose_output);
+at::Tensor bwd_cached_cuda(const at::Tensor& output_grads, const at::Tensor& cos, const at::Tensor& sin,
+                           const bool transpose_output);
 
-torch::Tensor fwd_thd_cuda(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs);
+at::Tensor fwd_thd_cuda(const at::Tensor& input, const at::Tensor& cu_seqlens, const at::Tensor& freqs);
 
-torch::Tensor bwd_thd_cuda(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens,
-                           const torch::Tensor& freqs);
+at::Tensor bwd_thd_cuda(const at::Tensor& output_grads, const at::Tensor& cu_seqlens, const at::Tensor& freqs);
 
-torch::Tensor fwd_2d_cuda(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                          const torch::Tensor& cos_w, const torch::Tensor& sin_w);
+at::Tensor fwd_2d_cuda(const at::Tensor& input, const at::Tensor& cos_h, const at::Tensor& sin_h,
+                       const at::Tensor& cos_w, const at::Tensor& sin_w);
 
-torch::Tensor bwd_2d_cuda(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                          const torch::Tensor& cos_w, const torch::Tensor& sin_w);
+at::Tensor bwd_2d_cuda(const at::Tensor& output_grads, const at::Tensor& cos_h, const at::Tensor& sin_h,
+                       const at::Tensor& cos_w, const at::Tensor& sin_w);
 
-torch::Tensor fwd(const at::Tensor& input, const at::Tensor& freqs, const bool transpose_output) {
+at::Tensor fwd(const at::Tensor& input, const at::Tensor& freqs, const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(input.size(0) == freqs.size(0), "expected input and freqs tensor have the same sequence length");
@@ -53,7 +53,7 @@ torch::Tensor fwd(const at::Tensor& input, const at::Tensor& freqs, const bool t
   return fwd_cuda(input, freqs, transpose_output);
 }
 
-torch::Tensor bwd(const torch::Tensor& output_grads, const at::Tensor& freqs, const bool transpose_output) {
+at::Tensor bwd(const at::Tensor& output_grads, const at::Tensor& freqs, const bool transpose_output) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(output_grads.size(0) == freqs.size(0),
@@ -68,8 +68,8 @@ torch::Tensor bwd(const torch::Tensor& output_grads, const at::Tensor& freqs, co
   return bwd_cuda(output_grads, freqs, transpose_output);
 }
 
-torch::Tensor fwd_cached(const at::Tensor& input, const at::Tensor& cos, const at::Tensor& sin,
-                         const bool transpose_output) {
+at::Tensor fwd_cached(const at::Tensor& input, const at::Tensor& cos, const at::Tensor& sin,
+                      const bool transpose_output) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
@@ -86,8 +86,8 @@ torch::Tensor fwd_cached(const at::Tensor& input, const at::Tensor& cos, const a
   return fwd_cached_cuda(input, cos, sin, transpose_output);
 }
 
-torch::Tensor bwd_cached(const torch::Tensor& output_grads, const at::Tensor& cos, const at::Tensor& sin,
-                         const bool transpose_output) {
+at::Tensor bwd_cached(const at::Tensor& output_grads, const at::Tensor& cos, const at::Tensor& sin,
+                      const bool transpose_output) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(cos.dim() == 4, "expected 4D tensor");
   TORCH_CHECK(sin.dim() == 4, "expected 4D tensor");
@@ -106,7 +106,7 @@ torch::Tensor bwd_cached(const torch::Tensor& output_grads, const at::Tensor& co
   return bwd_cached_cuda(output_grads, cos, sin, transpose_output);
 }
 
-torch::Tensor fwd_thd(const torch::Tensor& input, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
+at::Tensor fwd_thd(const at::Tensor& input, const at::Tensor& cu_seqlens, const at::Tensor& freqs) {
   TORCH_CHECK(input.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
@@ -120,7 +120,7 @@ torch::Tensor fwd_thd(const torch::Tensor& input, const torch::Tensor& cu_seqlen
   return fwd_thd_cuda(input, cu_seqlens, freqs);
 }
 
-torch::Tensor bwd_thd(const torch::Tensor& output_grads, const torch::Tensor& cu_seqlens, const torch::Tensor& freqs) {
+at::Tensor bwd_thd(const at::Tensor& output_grads, const at::Tensor& cu_seqlens, const at::Tensor& freqs) {
   TORCH_CHECK(output_grads.dim() == 3, "expected 3D tensor");
   TORCH_CHECK(cu_seqlens.dim() == 1, "expected 1D tensor");
   TORCH_CHECK(freqs.dim() == 4, "expected 4D tensor");
@@ -134,8 +134,8 @@ torch::Tensor bwd_thd(const torch::Tensor& output_grads, const torch::Tensor& cu
   return bwd_thd_cuda(output_grads, cu_seqlens, freqs);
 }
 
-torch::Tensor fwd_2d(const torch::Tensor& input, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                     const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
+at::Tensor fwd_2d(const at::Tensor& input, const at::Tensor& cos_h, const at::Tensor& sin_h, const at::Tensor& cos_w,
+                  const at::Tensor& sin_w) {
   TORCH_CHECK(input.dim() == 5, "expected input to be 5D tensor");
   TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
   TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
@@ -151,8 +151,8 @@ torch::Tensor fwd_2d(const torch::Tensor& input, const torch::Tensor& cos_h, con
   return fwd_2d_cuda(input, cos_h, sin_h, cos_w, sin_w);
 }
 
-torch::Tensor bwd_2d(const torch::Tensor& output_grads, const torch::Tensor& cos_h, const torch::Tensor& sin_h,
-                     const torch::Tensor& cos_w, const torch::Tensor& sin_w) {
+at::Tensor bwd_2d(const at::Tensor& output_grads, const at::Tensor& cos_h, const at::Tensor& sin_h,
+                  const at::Tensor& cos_w, const at::Tensor& sin_w) {
   TORCH_CHECK(output_grads.dim() == 5, "expected output_grads to be 5D tensor");
   TORCH_CHECK(cos_h.dim() == 4, "expected cos_h to be 4D tensor");
   TORCH_CHECK(sin_h.dim() == 4, "expected sin_h to be 4D tensor");
@@ -172,24 +172,25 @@ torch::Tensor bwd_2d(const torch::Tensor& output_grads, const torch::Tensor& cos
 
 }  // end namespace fused_rope
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &fused_rope::fwd, "Fused Rotary Positional Embedding -- Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward", &fused_rope::bwd, "Fused Rotary Positional Embedding -- Backward.",
-        py::call_guard<py::gil_scoped_release>());
-  // cache sin/cos
-  m.def("forward_cached", &fused_rope::fwd_cached, "Fused Rotary Positional Embedding Cached -- Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_cached", &fused_rope::bwd_cached, "Fused Rotary Positional Embedding Cached -- Backward.",
-        py::call_guard<py::gil_scoped_release>());
-  // thd
-  m.def("forward_thd", &fused_rope::fwd_thd, "Fused Rotary Positional Embedding for thd layout -- Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_thd", &fused_rope::bwd_thd, "Fused Rotary Positional Embedding for thd layout -- Backward.",
-        py::call_guard<py::gil_scoped_release>());
-  // 2d
-  m.def("forward_2d", &fused_rope::fwd_2d, "2D Fused Rotary Positional Embedding -- Forward.",
-        py::call_guard<py::gil_scoped_release>());
-  m.def("backward_2d", &fused_rope::bwd_2d, "2D Fused Rotary Positional Embedding -- Backward.",
-        py::call_guard<py::gil_scoped_release>());
+TORCH_LIBRARY_FRAGMENT(apex, m) {
+  m.def("fused_rope_forward(Tensor input, Tensor freqs, bool transpose_output) -> Tensor");
+  m.def("fused_rope_backward(Tensor output_grads, Tensor freqs, bool transpose_output) -> Tensor");
+  m.def("fused_rope_forward_cached(Tensor input, Tensor cos, Tensor sin, bool transpose_output) -> Tensor");
+  m.def("fused_rope_backward_cached(Tensor output_grads, Tensor cos, Tensor sin, bool transpose_output) -> Tensor");
+  m.def("fused_rope_forward_thd(Tensor input, Tensor cu_seqlens, Tensor freqs) -> Tensor");
+  m.def("fused_rope_backward_thd(Tensor output_grads, Tensor cu_seqlens, Tensor freqs) -> Tensor");
+  m.def("fused_rope_forward_2d(Tensor input, Tensor cos_h, Tensor sin_h, Tensor cos_w, Tensor sin_w) -> Tensor");
+  m.def(
+      "fused_rope_backward_2d(Tensor output_grads, Tensor cos_h, Tensor sin_h, Tensor cos_w, Tensor sin_w) -> Tensor");
+}
+
+TORCH_LIBRARY_IMPL(apex, CUDA, m) {
+  m.impl("fused_rope_forward", &fused_rope::fwd);
+  m.impl("fused_rope_backward", &fused_rope::bwd);
+  m.impl("fused_rope_forward_cached", &fused_rope::fwd_cached);
+  m.impl("fused_rope_backward_cached", &fused_rope::bwd_cached);
+  m.impl("fused_rope_forward_thd", &fused_rope::fwd_thd);
+  m.impl("fused_rope_backward_thd", &fused_rope::bwd_thd);
+  m.impl("fused_rope_forward_2d", &fused_rope::fwd_2d);
+  m.impl("fused_rope_backward_2d", &fused_rope::bwd_2d);
 }

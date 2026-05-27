@@ -1,6 +1,6 @@
 import torch
 
-import fast_multihead_attn
+from apex._extensions import fast_multihead_attn
 
 
 class FastEncdecAttnFunc(torch.autograd.Function):
