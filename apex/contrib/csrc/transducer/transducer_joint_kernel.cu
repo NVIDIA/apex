@@ -537,8 +537,8 @@ __global__ void transducer_joint_combined_vec_backward(const scalar_t* grad, con
 
 std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g, at::Tensor fLen,
                                                          at::Tensor gLen, at::Tensor batchOffset,
-                                                         int64_t packedBatch, int opt, bool packOutput, bool relu,
-                                                         bool dropout, float dropoutProb, int tileSize) {
+                                                         int64_t packedBatch, int64_t opt, bool packOutput, bool relu,
+                                                         bool dropout, double dropoutProb, int64_t tileSize) {
   auto tensorOpt = f.options();
   auto dtype = f.scalar_type();
   const auto batchSize = f.size(0);
@@ -637,7 +637,8 @@ std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g
 
           kernel<<<blocks, threads, 0, stream>>>(f.data_ptr<scalar_t>(), g.data_ptr<scalar_t>(), fLen.data_ptr<int>(),
                                                  gLen.data_ptr<int>(), batchOffsetPtr, maxFLen, maxGLen, hiddenSize,
-                                                 hiddenPerBlock, packOutput, relu, dropout, 1.0f - dropoutProb,
+                                                 hiddenPerBlock, packOutput, relu, dropout,
+                                                 static_cast<float>(1.0 - dropoutProb),
                                                  rng_engine_inputs, sum.data_ptr<scalar_t>(), maskPtr);
         }));
   }
@@ -650,8 +651,8 @@ std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g
 }
 
 std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> in, at::Tensor fLen,
-                                                          at::Tensor gLen, at::Tensor batchOffset, int maxFLen,
-                                                          int maxGLen, bool packOutput, float scale) {
+                                                          at::Tensor gLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                          int64_t maxGLen, bool packOutput, double scale) {
   auto grad = in[0];
   bool masked = (in.size() == 2);
   uint8_t* maskPtr = masked ? in[1].data_ptr<uint8_t>() : nullptr;
@@ -703,6 +704,8 @@ std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> i
                         (reinterpret_cast<uint64_t>(fGradPtr) % vecAlignment == 0) and
                         (reinterpret_cast<uint64_t>(gGradPtr) % vecAlignment == 0);
 
+        const float scale_arg = static_cast<float>(scale);
+
         if (vectFactor > 1 and hiddenSize % vectFactor == 0 and memAlign) {
           // If vectorization helps and the alignment requirement is met, use the vectorized
           // kernel. For simplicity, hiddenSize needs to be a multiple vecFactor.
@@ -711,12 +714,12 @@ std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> i
           if (masked) {
             transducer_joint_combined_vec_backward<scalar_t, acc_t, vec_t, vectFactor, OffsetCalBwd, true>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           } else {
             transducer_joint_combined_vec_backward<scalar_t, acc_t, vec_t, vectFactor, OffsetCalBwd, false>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           }
         } else {
@@ -724,12 +727,12 @@ std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> i
           if (masked) {
             transducer_joint_combined_backward<scalar_t, acc_t, OffsetCalBwd, true>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           } else {
             transducer_joint_combined_backward<scalar_t, acc_t, OffsetCalBwd, false>
                 <<<blocks, threads, smemSize * sizeof(acc_t)>>>(gradPtr, maskPtr, fLenPtr, gLenPtr, batchOffsetPtr,
-                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale,
+                                                                maxFLen, maxGLen, hiddenSize, packOutput, scale_arg,
                                                                 fGradPtr, gGradPtr);
           }
         }

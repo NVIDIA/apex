@@ -9,17 +9,17 @@
 
 std::vector<at::Tensor> transducer_joint_cuda_forward(at::Tensor f, at::Tensor g, at::Tensor fLen,
                                                          at::Tensor gLen, at::Tensor batchOffset,
-                                                         int64_t packedBatch, int opt, bool packOutput, bool relu,
-                                                         bool dropout, float dropoutProb, int tileSize);
+                                                         int64_t packedBatch, int64_t opt, bool packOutput, bool relu,
+                                                         bool dropout, double dropoutProb, int64_t tileSize);
 
 std::vector<at::Tensor> transducer_joint_cuda_backward(std::vector<at::Tensor> in, at::Tensor fLen,
-                                                          at::Tensor gLen, at::Tensor batchOffset, int maxFLen,
-                                                          int maxGLen, bool packOutput, float scale);
+                                                          at::Tensor gLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                          int64_t maxGLen, bool packOutput, double scale);
 
 std::vector<at::Tensor> transducer_joint_forward(at::Tensor f, at::Tensor g, at::Tensor fLen,
                                                     at::Tensor gLen, at::Tensor batchOffset, int64_t packedBatch,
-                                                    int opt, bool packOutput, bool relu, bool dropout,
-                                                    float dropoutProb, int tileSize) {
+                                                    int64_t opt, bool packOutput, bool relu, bool dropout,
+                                                    double dropoutProb, int64_t tileSize) {
   CHECK_INPUT(f);
   CHECK_INPUT(g);
   CHECK_INPUT(fLen);
@@ -30,8 +30,8 @@ std::vector<at::Tensor> transducer_joint_forward(at::Tensor f, at::Tensor g, at:
 }
 
 std::vector<at::Tensor> transducer_joint_backward(std::vector<at::Tensor> in, at::Tensor fLen,
-                                                     at::Tensor gLen, at::Tensor batchOffset, int maxFLen,
-                                                     int maxGLen, bool packOutput, float scale) {
+                                                     at::Tensor gLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                     int64_t maxGLen, bool packOutput, double scale) {
   for (auto t : in) {
     CHECK_INPUT(t);
   }
@@ -39,23 +39,6 @@ std::vector<at::Tensor> transducer_joint_backward(std::vector<at::Tensor> in, at
   CHECK_INPUT(gLen);
   if (packOutput) CHECK_INPUT(batchOffset);
   return transducer_joint_cuda_backward(in, fLen, gLen, batchOffset, maxFLen, maxGLen, packOutput, scale);
-}
-
-std::vector<at::Tensor> transducer_joint_forward_dispatch(at::Tensor f, at::Tensor g, at::Tensor fLen,
-                                                             at::Tensor gLen, at::Tensor batchOffset,
-                                                             int64_t packedBatch, int64_t opt, bool packOutput,
-                                                             bool relu, bool dropout, double dropoutProb,
-                                                             int64_t tileSize) {
-  return transducer_joint_forward(f, g, fLen, gLen, batchOffset, packedBatch, static_cast<int>(opt), packOutput, relu,
-                                  dropout, static_cast<float>(dropoutProb), static_cast<int>(tileSize));
-}
-
-std::vector<at::Tensor> transducer_joint_backward_dispatch(std::vector<at::Tensor> in, at::Tensor fLen,
-                                                              at::Tensor gLen, at::Tensor batchOffset,
-                                                              int64_t maxFLen, int64_t maxGLen, bool packOutput,
-                                                              double scale) {
-  return transducer_joint_backward(in, fLen, gLen, batchOffset, static_cast<int>(maxFLen), static_cast<int>(maxGLen),
-                                   packOutput, static_cast<float>(scale));
 }
 
 TORCH_LIBRARY_FRAGMENT(apex, m) {
@@ -66,6 +49,6 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("transducer_joint_forward", &transducer_joint_forward_dispatch);
-  m.impl("transducer_joint_backward", &transducer_joint_backward_dispatch);
+  m.impl("transducer_joint_forward", &transducer_joint_forward);
+  m.impl("transducer_joint_backward", &transducer_joint_backward);
 }

@@ -10,17 +10,17 @@
   CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> transducer_loss_cuda_forward(at::Tensor x, at::Tensor label, at::Tensor audLen,
-                                                        at::Tensor txtLen, at::Tensor batchOffset, int maxFLen,
-                                                        int blankIdx, int opt, bool packedInput);
+                                                        at::Tensor txtLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                        int64_t blankIdx, int64_t opt, bool packedInput);
 
 at::Tensor transducer_loss_cuda_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha,
                                             at::Tensor beta, at::Tensor audLen, at::Tensor txtLen,
-                                            at::Tensor label, at::Tensor batchOffset, int maxFLen, int blankIdx,
-                                            int opt, bool fuseSoftmaxBackward, bool packedInput);
+                                            at::Tensor label, at::Tensor batchOffset, int64_t maxFLen,
+                                            int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward, bool packedInput);
 
 std::vector<at::Tensor> transducer_loss_forward(at::Tensor x, at::Tensor label, at::Tensor fLen,
-                                                   at::Tensor yLen, at::Tensor batchOffset, int maxFLen,
-                                                   int blankIdx, int opt, bool packedInput) {
+                                                   at::Tensor yLen, at::Tensor batchOffset, int64_t maxFLen,
+                                                   int64_t blankIdx, int64_t opt, bool packedInput) {
   CHECK_INPUT(x);
   CHECK_INPUT(label);
   CHECK_INPUT(fLen);
@@ -31,7 +31,7 @@ std::vector<at::Tensor> transducer_loss_forward(at::Tensor x, at::Tensor label, 
 
 at::Tensor transducer_loss_backward(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha, at::Tensor beta,
                                        at::Tensor fLen, at::Tensor yLen, at::Tensor label,
-                                       at::Tensor batchOffset, int maxFLen, int blankIdx, int opt,
+                                       at::Tensor batchOffset, int64_t maxFLen, int64_t blankIdx, int64_t opt,
                                        bool fuseSoftmaxBackward, bool packedInput) {
   CHECK_INPUT(x);
   CHECK_INPUT(label);
@@ -46,24 +46,6 @@ at::Tensor transducer_loss_backward(at::Tensor x, at::Tensor lossGrad, at::Tenso
                                        fuseSoftmaxBackward, packedInput);
 }
 
-std::vector<at::Tensor> transducer_loss_forward_dispatch(at::Tensor x, at::Tensor label, at::Tensor fLen,
-                                                            at::Tensor yLen, at::Tensor batchOffset,
-                                                            int64_t maxFLen, int64_t blankIdx, int64_t opt,
-                                                            bool packedInput) {
-  return transducer_loss_forward(x, label, fLen, yLen, batchOffset, static_cast<int>(maxFLen),
-                                 static_cast<int>(blankIdx), static_cast<int>(opt), packedInput);
-}
-
-at::Tensor transducer_loss_backward_dispatch(at::Tensor x, at::Tensor lossGrad, at::Tensor alpha,
-                                                at::Tensor beta, at::Tensor fLen, at::Tensor yLen,
-                                                at::Tensor label, at::Tensor batchOffset, int64_t maxFLen,
-                                                int64_t blankIdx, int64_t opt, bool fuseSoftmaxBackward,
-                                                bool packedInput) {
-  return transducer_loss_backward(x, lossGrad, alpha, beta, fLen, yLen, label, batchOffset, static_cast<int>(maxFLen),
-                                  static_cast<int>(blankIdx), static_cast<int>(opt), fuseSoftmaxBackward,
-                                  packedInput);
-}
-
 TORCH_LIBRARY_FRAGMENT(apex, m) {
   m.def("transducer_loss_forward(Tensor x, Tensor label, Tensor fLen, Tensor yLen, Tensor batchOffset, int maxFLen, "
         "int blankIdx, int opt, bool packedInput) -> Tensor[]");
@@ -73,6 +55,6 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("transducer_loss_forward", &transducer_loss_forward_dispatch);
-  m.impl("transducer_loss_backward", &transducer_loss_backward_dispatch);
+  m.impl("transducer_loss_forward", &transducer_loss_forward);
+  m.impl("transducer_loss_backward", &transducer_loss_backward);
 }
