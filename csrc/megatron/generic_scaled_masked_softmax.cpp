@@ -28,16 +28,16 @@ at::Tensor fwd_cuda(at::Tensor const& input, at::Tensor const& mask, float scale
 
 at::Tensor bwd_cuda(at::Tensor const& output_grads, at::Tensor const& softmax_results, float scale_factor);
 
-at::Tensor fwd(at::Tensor const& input, at::Tensor const& mask, float scale_factor) {
+at::Tensor fwd(at::Tensor const& input, at::Tensor const& mask, double scale_factor) {
   TORCH_CHECK(input.dim() == 4, "expected 4D tensor");
   TORCH_CHECK((input.scalar_type() == at::ScalarType::Half) || (input.scalar_type() == at::ScalarType::BFloat16),
               "Only fp16 and bf16 are supported");
   TORCH_CHECK(mask.dim() == 4, "expected 4D tensor");
 
-  return fwd_cuda(input, mask, scale_factor);
+  return fwd_cuda(input, mask, static_cast<float>(scale_factor));
 }
 
-at::Tensor bwd(at::Tensor const& output_grads, at::Tensor const& softmax_results, float scale_factor) {
+at::Tensor bwd(at::Tensor const& output_grads, at::Tensor const& softmax_results, double scale_factor) {
   TORCH_CHECK(output_grads.dim() == 4, "expected 3D tensor");
   TORCH_CHECK(softmax_results.dim() == 4, "expected 3D tensor");
 
@@ -48,15 +48,7 @@ at::Tensor bwd(at::Tensor const& output_grads, at::Tensor const& softmax_results
                   (softmax_results.scalar_type() == at::ScalarType::BFloat16),
               "Only fp16 and bf16 are supported");
 
-  return bwd_cuda(output_grads, softmax_results, scale_factor);
-}
-
-at::Tensor fwd_dispatch(at::Tensor const& input, at::Tensor const& mask, double scale_factor) {
-  return fwd(input, mask, static_cast<float>(scale_factor));
-}
-
-at::Tensor bwd_dispatch(at::Tensor const& output_grads, at::Tensor const& softmax_results, double scale_factor) {
-  return bwd(output_grads, softmax_results, static_cast<float>(scale_factor));
+  return bwd_cuda(output_grads, softmax_results, static_cast<float>(scale_factor));
 }
 
 }  // end namespace generic_scaled_masked_softmax
@@ -71,7 +63,7 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {
   m.impl("generic_scaled_masked_softmax_forward",
-         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::fwd_dispatch);
+         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::fwd);
   m.impl("generic_scaled_masked_softmax_backward",
-         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::bwd_dispatch);
+         &multihead_attn::fused_softmax::generic_scaled_masked_softmax::bwd);
 }

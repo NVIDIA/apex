@@ -21,33 +21,22 @@ at::Tensor softmax_xentropy_backward_cuda(const at::Tensor& grad_loss, const at:
   CHECK_CONTIGUOUS(x)
 
 std::vector<at::Tensor> softmax_xentropy_forward(const at::Tensor& input, const at::Tensor& labels,
-                                                 const float smoothing, const bool half_to_float) {
+                                                 const double smoothing, const bool half_to_float) {
   CHECK_CUDA(input);
   CHECK_INPUT(labels);
 
-  return softmax_xentropy_cuda(input, labels, smoothing, half_to_float);
+  return softmax_xentropy_cuda(input, labels, static_cast<float>(smoothing), half_to_float);
 }
 
 at::Tensor softmax_xentropy_backward(const at::Tensor& grad_loss, const at::Tensor& logits,
                                      const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
-                                     const float smoothing) {
+                                     const double smoothing) {
   CHECK_CUDA(grad_loss);
   CHECK_CUDA(logits);
   CHECK_INPUT(max_log_sum_exp);
   CHECK_INPUT(labels);
 
-  return softmax_xentropy_backward_cuda(grad_loss, logits, max_log_sum_exp, labels, smoothing);
-}
-
-std::vector<at::Tensor> softmax_xentropy_forward_dispatch(const at::Tensor& input, const at::Tensor& labels,
-                                                          double smoothing, bool half_to_float) {
-  return softmax_xentropy_forward(input, labels, static_cast<float>(smoothing), half_to_float);
-}
-
-at::Tensor softmax_xentropy_backward_dispatch(const at::Tensor& grad_loss, const at::Tensor& logits,
-                                              const at::Tensor& max_log_sum_exp, const at::Tensor& labels,
-                                              double smoothing) {
-  return softmax_xentropy_backward(grad_loss, logits, max_log_sum_exp, labels, static_cast<float>(smoothing));
+  return softmax_xentropy_backward_cuda(grad_loss, logits, max_log_sum_exp, labels, static_cast<float>(smoothing));
 }
 
 std::string softmax_xentropy_version() {
@@ -66,8 +55,8 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("xentropy_forward", &softmax_xentropy_forward_dispatch);
-  m.impl("xentropy_backward", &softmax_xentropy_backward_dispatch);
+  m.impl("xentropy_forward", &softmax_xentropy_forward);
+  m.impl("xentropy_backward", &softmax_xentropy_backward);
 }
 
 TORCH_LIBRARY_IMPL(apex, CompositeExplicitAutograd, m) {

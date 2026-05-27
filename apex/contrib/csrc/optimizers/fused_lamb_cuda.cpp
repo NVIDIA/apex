@@ -6,11 +6,10 @@ void multi_tensor_lamb_cuda(int chunk_size, at::Tensor noop_flag, std::vector<st
                             const int bias_correction, const float weight_decay, const int grad_averaging,
                             const int mode, const float global_grad_norm, const float max_grad_norm);
 
-void multi_tensor_lamb_dispatch(int64_t chunk_size, at::Tensor noop_flag,
-                                std::vector<std::vector<at::Tensor>> tensor_lists, double lr, double beta1,
-                                double beta2, double epsilon, int64_t step, int64_t bias_correction,
-                                double weight_decay, int64_t grad_averaging, int64_t mode, double global_grad_norm,
-                                double max_grad_norm) {
+void multi_tensor_lamb(int64_t chunk_size, at::Tensor noop_flag, std::vector<std::vector<at::Tensor>> tensor_lists,
+                       double lr, double beta1, double beta2, double epsilon, int64_t step, int64_t bias_correction,
+                       double weight_decay, int64_t grad_averaging, int64_t mode, double global_grad_norm,
+                       double max_grad_norm) {
   multi_tensor_lamb_cuda(static_cast<int>(chunk_size), noop_flag, tensor_lists, static_cast<float>(lr),
                          static_cast<float>(beta1), static_cast<float>(beta2), static_cast<float>(epsilon),
                          static_cast<int>(step), static_cast<int>(bias_correction), static_cast<float>(weight_decay),
@@ -25,5 +24,5 @@ TORCH_LIBRARY_FRAGMENT(apex, m) {
 }
 
 TORCH_LIBRARY_IMPL(apex, CUDA, m) {
-  m.impl("fused_lamb_lamb", &multi_tensor_lamb_dispatch);
+  m.impl("fused_lamb_lamb", &multi_tensor_lamb);
 }
