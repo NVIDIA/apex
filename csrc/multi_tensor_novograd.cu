@@ -23,9 +23,9 @@ void multi_tensor_norm_out_cuda(int chunk_size, at::Tensor noop_flag, std::vecto
 
 using MATH_T = float;
 
-template <typename T>
+template <typename T, typename index_t>
 struct NovoGradFunctor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<3>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<3>& tl,
                                              const float beta1, const float beta2, const float beta3,
                                              const float beta1_correction, const float beta2_correction,
                                              const float epsilon, const float lr, momentMode_t m_mode,
@@ -34,10 +34,10 @@ struct NovoGradFunctor {
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     float grad_norm = per_tensor_grad_norm[tensor_num];
 
@@ -53,13 +53,13 @@ struct NovoGradFunctor {
     n -= chunk_idx * chunk_size;
 
     // see note in multi_tensor_scale_kernel.cu
-    for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+    for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
       MATH_T r_g[ILP];
       MATH_T r_p[ILP];
       MATH_T r_m[ILP];
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           r_g[ii] = g[i];
           r_p[ii] = p[i];
@@ -90,7 +90,7 @@ struct NovoGradFunctor {
       }
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           p[i] = r_p[ii];
           m[i] = r_m[ii];
@@ -126,14 +126,36 @@ void multi_tensor_novograd_cuda(int chunk_size, at::Tensor noop_flag, std::vecto
   // L-inf: gn = a * gn + b * n
   multi_tensor_norm_out_cuda(chunk_size, noop_flag, grad_list, grad_norms, beta2, (1.0f - beta2), norm_type);
 
-  // Assume single type across p,g,m1,m2 now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF(
-      tensor_lists[0][0].scalar_type(), 0, "novograd",
-      multi_tensor_apply<3>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, NovoGradFunctor<scalar_t_0>(), beta1,
-                            beta2,
-                            beta3,  // 1-beta1 or 1 depends on averaging mode
-                            bias_correction1, bias_correction2, epsilon, lr, (momentMode_t)moment_mode, weight_decay,
-                            grad_norms.data_ptr<float>());)
+  bool requires_64bit_indexing = false;
+  for (auto it = tensor_lists.begin(); it != tensor_lists.end(); it++) {
+    for (auto it2 = it->begin(); it2 != it->end(); it2++) {
+      if (it2->numel() >= INT_MAX) {
+        requires_64bit_indexing = true;
+        break;
+      }
+    }
+    if (requires_64bit_indexing) break;
+  }
+
+  if (requires_64bit_indexing) {
+    // Assume single type across p,g,m1,m2 now
+    DISPATCH_DOUBLE_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "novograd",
+        multi_tensor_apply<3>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                              NovoGradFunctor<scalar_t_0, int64_t>(), beta1, beta2,
+                              beta3,  // 1-beta1 or 1 depends on averaging mode
+                              bias_correction1, bias_correction2, epsilon, lr, (momentMode_t)moment_mode, weight_decay,
+                              grad_norms.data_ptr<float>());)
+  } else {
+    // Assume single type across p,g,m1,m2 now
+    DISPATCH_DOUBLE_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "novograd",
+        multi_tensor_apply<3>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, NovoGradFunctor<scalar_t_0, int32_t>(),
+                              beta1, beta2,
+                              beta3,  // 1-beta1 or 1 depends on averaging mode
+                              bias_correction1, bias_correction2, epsilon, lr, (momentMode_t)moment_mode, weight_decay,
+                              grad_norms.data_ptr<float>());)
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
 }

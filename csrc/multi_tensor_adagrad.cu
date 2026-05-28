@@ -21,14 +21,14 @@ typedef enum {
 
 using MATH_T = float;
 
-template <typename T>
+template <typename T, typename index_t>
 struct AdagradFunctor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<3>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<3>& tl,
                                              const float epsilon, const float lr, adagradMode_t mode,
                                              const float weight_decay) {
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     T* g = (T*)tl.addresses[0][tensor_loc];
     g += chunk_idx * chunk_size;
@@ -42,13 +42,13 @@ struct AdagradFunctor {
     n -= chunk_idx * chunk_size;
 
     // see note in multi_tensor_scale_kernel.cu
-    for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+    for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
       MATH_T r_g[ILP];
       MATH_T r_p[ILP];
       MATH_T r_h[ILP];
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           r_g[ii] = g[i];
           r_p[ii] = p[i];
@@ -72,7 +72,7 @@ struct AdagradFunctor {
       }
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           p[i] = r_p[ii];
           h[i] = r_h[ii];
@@ -86,11 +86,30 @@ void multi_tensor_adagrad_cuda(int chunk_size, at::Tensor noop_flag, std::vector
                                const float lr, const float epsilon, const int mode, const float weight_decay) {
   using namespace at;
 
-  // Assume single type across p,g,h now
-  DISPATCH_DOUBLE_FLOAT_AND_HALF(
-      tensor_lists[0][0].scalar_type(), 0, "adagrad",
-      multi_tensor_apply<3>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, AdagradFunctor<scalar_t_0>(), epsilon, lr,
-                            (adagradMode_t)mode, weight_decay);)
+  bool requires_64bit_indexing = false;
+  for (auto it = tensor_lists.begin(); it != tensor_lists.end(); it++) {
+    for (auto it2 = it->begin(); it2 != it->end(); it2++) {
+      if (it2->numel() >= INT_MAX) {
+        requires_64bit_indexing = true;
+        break;
+      }
+    }
+    if (requires_64bit_indexing) break;
+  }
+
+  if (requires_64bit_indexing) {
+    // Assume single type across p,g,h now
+    DISPATCH_DOUBLE_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "adagrad",
+        multi_tensor_apply<3>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                              AdagradFunctor<scalar_t_0, int64_t>(), epsilon, lr, (adagradMode_t)mode, weight_decay);)
+  } else {
+    // Assume single type across p,g,h now
+    DISPATCH_DOUBLE_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "adagrad",
+        multi_tensor_apply<3>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists, AdagradFunctor<scalar_t_0, int32_t>(),
+                              epsilon, lr, (adagradMode_t)mode, weight_decay);)
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
 }

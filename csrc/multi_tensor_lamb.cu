@@ -35,9 +35,9 @@ std::tuple<at::Tensor, at::Tensor> multi_tensor_l2norm_cuda(int chunk_size, at::
 
 using MATH_T = float;
 
-template <typename T>
+template <typename T, typename index_t>
 struct LAMBStage1Functor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<4>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<4>& tl,
                                              const float beta1, const float beta2, const float beta3,
                                              const float beta1_correction, const float beta2_correction,
                                              const float epsilon, adamMode_t mode, const float decay,
@@ -46,9 +46,9 @@ struct LAMBStage1Functor {
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     float clipped_global_grad_norm =
         (*global_grad_norm) > max_global_grad_norm ? (*global_grad_norm) / max_global_grad_norm : 1.0f;
@@ -77,7 +77,7 @@ struct LAMBStage1Functor {
       T l_p[ILP];
       T l_m[ILP];
       T l_v[ILP];
-      for (int i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
+      for (index_t i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
         // load
         load_store(l_g, g, 0, i_start);
         if (decay != 0) load_store(l_p, p, 0, i_start);
@@ -130,14 +130,14 @@ struct LAMBStage1Functor {
       }
     } else {
       // see note in multi_tensor_scale_kernel.cu
-      for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+      for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
         MATH_T r_g[ILP];
         MATH_T r_p[ILP];
         MATH_T r_m[ILP];
         MATH_T r_v[ILP];
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
-          int i = i_start + threadIdx.x + ii * blockDim.x;
+          index_t i = i_start + threadIdx.x + ii * blockDim.x;
           if (i < n && i < chunk_size) {
             r_g[ii] = g[i];
             // special ?optimization? for lamb stage 1
@@ -179,7 +179,7 @@ struct LAMBStage1Functor {
         }
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
-          int i = i_start + threadIdx.x + ii * blockDim.x;
+          index_t i = i_start + threadIdx.x + ii * blockDim.x;
           if (i < n && i < chunk_size) {
             g[i] = r_p[ii];
             m[i] = r_m[ii];
@@ -193,19 +193,19 @@ struct LAMBStage1Functor {
 
 // Step 2 reads in 'update' value and per-tensor param_norm and update_norm.
 // It computes new parameter value.
-template <typename T>
+template <typename T, typename index_t>
 struct LAMBStage2Functor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<2>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<2>& tl,
                                              const float* per_tensor_param_norm, const float* per_tensor_update_norm,
                                              const float learning_rate, const float decay, bool use_nvlamb) {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     MATH_T ratio = learning_rate;
     // nvlamb: apply adaptive learning rate to all parameters
@@ -228,7 +228,7 @@ struct LAMBStage2Functor {
     if (n % ILP == 0 && chunk_size % ILP == 0 && is_aligned(p) && is_aligned(update)) {
       T r_p[ILP];
       T r_update[ILP];
-      for (int i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
+      for (index_t i_start = threadIdx.x; i_start * ILP < n && i_start * ILP < chunk_size; i_start += blockDim.x) {
         // load
         load_store(r_p, p, 0, i_start);
         load_store(r_update, update, 0, i_start);
@@ -239,12 +239,12 @@ struct LAMBStage2Functor {
         load_store(p, r_p, i_start, 0);
       }
     } else {
-      for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+      for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
         MATH_T r_p[ILP];
         MATH_T r_update[ILP];
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
-          int i = i_start + threadIdx.x + ii * blockDim.x;
+          index_t i = i_start + threadIdx.x + ii * blockDim.x;
           if (i < n && i < chunk_size) {
             r_p[ii] = p[i];
             r_update[ii] = update[i];
@@ -256,7 +256,7 @@ struct LAMBStage2Functor {
         }
 #pragma unroll
         for (int ii = 0; ii < ILP; ii++) {
-          int i = i_start + threadIdx.x + ii * blockDim.x;
+          index_t i = i_start + threadIdx.x + ii * blockDim.x;
           if (i < n && i < chunk_size) {
             p[i] = r_p[ii];
           }
@@ -294,26 +294,60 @@ void multi_tensor_lamb_cuda(int chunk_size, at::Tensor noop_flag, std::vector<st
   // Compute per tensor param norm
   auto param_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, param_list, true);
 
-  // We now in-place modify grad to store update before compute its norm
-  // Generally this is not a issue since people modify grad in step() method all the time
-  // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
-  DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
-                          multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                                LAMBStage1Functor<scalar_t_0>(), beta1, beta2,
-                                                beta3,  // 1-beta1 or 1 depends on averaging mode
-                                                bias_correction1, bias_correction2, epsilon, (adamMode_t)mode,
-                                                weight_decay, global_grad_norm.data_ptr<float>(), max_grad_norm);)
+  bool requires_64bit_indexing = false;
+  for (auto it = tensor_lists.begin(); it != tensor_lists.end(); it++) {
+    for (auto it2 = it->begin(); it2 != it->end(); it2++) {
+      if (it2->numel() >= INT_MAX) {
+        requires_64bit_indexing = true;
+        break;
+      }
+    }
+    if (requires_64bit_indexing) break;
+  }
 
-  // Compute update norms
-  auto update_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, true);
+  if (requires_64bit_indexing) {
+    // We now in-place modify grad to store update before compute its norm
+    // Generally this is not a issue since people modify grad in step() method all the time
+    // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+                            multi_tensor_apply<4>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                                                  LAMBStage1Functor<scalar_t_0, int64_t>(), beta1, beta2,
+                                                  beta3,  // 1-beta1 or 1 depends on averaging mode
+                                                  bias_correction1, bias_correction2, epsilon, (adamMode_t)mode,
+                                                  weight_decay, global_grad_norm.data_ptr<float>(), max_grad_norm);)
 
-  std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin() + 2);
+    // Compute update norms
+    auto update_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, true);
 
-  DISPATCH_FLOAT_AND_HALF(
-      tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
-      multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, grad_param_list, LAMBStage2Functor<scalar_t_0>(),
-                            std::get<1>(param_norm_tuple).data_ptr<float>(),
-                            std::get<1>(update_norm_tuple).data_ptr<float>(), lr, weight_decay, use_nvlamb);)
+    std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin() + 2);
+
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+        multi_tensor_apply<2>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, grad_param_list,
+                              LAMBStage2Functor<scalar_t_0, int64_t>(), std::get<1>(param_norm_tuple).data_ptr<float>(),
+                              std::get<1>(update_norm_tuple).data_ptr<float>(), lr, weight_decay, use_nvlamb);)
+  } else {
+    // We now in-place modify grad to store update before compute its norm
+    // Generally this is not a issue since people modify grad in step() method all the time
+    // We can also grab list of empty tensor to avoid this, but I'd like to save space/cpu code
+    DISPATCH_FLOAT_AND_HALF(tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+                            multi_tensor_apply<4>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                                  LAMBStage1Functor<scalar_t_0, int32_t>(), beta1, beta2,
+                                                  beta3,  // 1-beta1 or 1 depends on averaging mode
+                                                  bias_correction1, bias_correction2, epsilon, (adamMode_t)mode,
+                                                  weight_decay, global_grad_norm.data_ptr<float>(), max_grad_norm);)
+
+    // Compute update norms
+    auto update_norm_tuple = multi_tensor_l2norm_cuda(chunk_size, noop_flag, grad_list, true);
+
+    std::vector<std::vector<at::Tensor>> grad_param_list(tensor_lists.begin(), tensor_lists.begin() + 2);
+
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+        multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, grad_param_list,
+                              LAMBStage2Functor<scalar_t_0, int32_t>(), std::get<1>(param_norm_tuple).data_ptr<float>(),
+                              std::get<1>(update_norm_tuple).data_ptr<float>(), lr, weight_decay, use_nvlamb);)
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
 }

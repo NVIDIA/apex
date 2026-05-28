@@ -3,6 +3,7 @@ import random
 import unittest
 
 import torch
+from torch.testing._internal.common_device_type import largeTensorTest
 
 import apex
 
@@ -291,6 +292,20 @@ class TestFusedAdagrad(TestFusedOptimizer):
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
 
+    @largeTensorTest("60GB", "cuda")
+    def test_large_tensor(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        t2.grad = grad
+        optimizer = apex.optimizers.FusedAdagrad([t], lr=5e-4, eps=1e-8, weight_decay=0)
+        optimizer.step()
+        optimizer2 = torch.optim.Adagrad([t2], lr=5e-4, eps=1e-8, weight_decay=0)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
+
 
 class TestFusedSGD(TestFusedOptimizer):
     def __init__(self, *args, **kwargs):
@@ -311,6 +326,20 @@ class TestFusedSGD(TestFusedOptimizer):
         for current_dev, tensor_dev in product(devices, devices):
             with torch.cuda.device(current_dev):
                 self.gen_single_type_test(param_type=torch.float, device=tensor_dev)
+
+    @largeTensorTest("60GB", "cuda")
+    def test_large_tensor(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        t2.grad = grad
+        optimizer = apex.optimizers.FusedSGD([t], lr=0.25, momentum=0.125)
+        optimizer.step()
+        optimizer2 = torch.optim.SGD([t2], lr=0.25, momentum=0.125)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
 
 
 if __name__ == "__main__":

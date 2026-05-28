@@ -5,6 +5,7 @@ import unittest
 
 from test_fused_optimizer import TestFusedOptimizer
 from itertools import product
+from torch.testing._internal.common_device_type import largeTensorTest
 
 
 class Novograd(Optimizer):
@@ -190,6 +191,41 @@ class TestFusedNovoGrad(TestFusedOptimizer):
             max_abs_diff, max_rel_diff = self.get_max_diff(ref_param, tst_param)
             self.assertLessEqual(max_abs_diff, self.max_abs_diff)
             self.assertLessEqual(max_rel_diff, self.max_rel_diff)
+
+    @largeTensorTest("60GB", "cuda")
+    def test_large_tensor(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        t2.grad = grad
+        tst_options = {
+            "lr": 1e-3,
+            "betas": (0.95, 0),
+            "eps": 1e-8,
+            "weight_decay": 0,
+            "grad_averaging": False,
+            "amsgrad": False,
+            "bias_correction": False,
+            "reg_inside_moment": True,
+            "norm_type": 2,
+            "init_zero": False,
+            "set_grad_none": True,
+        }
+        ref_options = {
+            "lr": 1e-3,
+            "betas": (0.95, 0),
+            "eps": 1e-8,
+            "weight_decay": 0,
+            "grad_averaging": False,
+            "amsgrad": False,
+        }
+        optimizer = apex.optimizers.FusedNovoGrad([t], **tst_options)
+        optimizer.step()
+        optimizer2 = Novograd([t2], **ref_options)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
 
 
 if __name__ == "__main__":

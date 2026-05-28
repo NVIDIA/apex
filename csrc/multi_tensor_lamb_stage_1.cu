@@ -14,9 +14,9 @@
 #define ILP 4
 
 // Step 1 computes the 'update' value of regular Adam optimizer.
-template <typename GRAD_T, typename T, typename UPD_T>
+template <typename GRAD_T, typename T, typename UPD_T, typename index_t>
 struct LAMBStage1Functor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<5>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<5>& tl,
                                              const float* per_tensor_decay, const float beta1, const float beta2,
                                              const float beta1_correction, const float beta2_correction,
                                              const float epsilon, const float clipped_global_grad_norm) {
@@ -24,10 +24,10 @@ struct LAMBStage1Functor {
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     float decay = per_tensor_decay[tensor_num];
 
@@ -49,14 +49,14 @@ struct LAMBStage1Functor {
     n -= chunk_idx * chunk_size;
 
     // see note in multi_tensor_scale_kernel.cu
-    for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+    for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
       GRAD_T r_g[ILP];
       T r_p[ILP];
       T r_m[ILP];
       T r_v[ILP];
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           r_g[ii] = g[i];
           r_p[ii] = p[i];
@@ -81,7 +81,7 @@ struct LAMBStage1Functor {
       }
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           update[i] = (UPD_T)r_p[ii];
           m[i] = r_m[ii];
@@ -103,16 +103,41 @@ void multi_tensor_lamb_stage1_cuda(int chunk_size, at::Tensor noop_flag,
   float next_step = float(step + 1);
   float beta1_correction = 1.0f - std::pow(beta1, next_step);
   float beta2_correction = 1.0f - std::pow(beta2, next_step);
-  DISPATCH_FLOAT_AND_HALF(
-      tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
-      DISPATCH_FLOAT_AND_HALF(
-          tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
-          DISPATCH_FLOAT_AND_HALF(
-              tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
-              multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                    LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2>(),
-                                    per_tensor_decay.data_ptr<float>(), beta1, beta2, beta1_correction,
-                                    beta2_correction, epsilon, clipped_global_grad_norm);)))
+
+  bool requires_64bit_indexing = false;
+  for (auto it = tensor_lists.begin(); it != tensor_lists.end(); it++) {
+    for (auto it2 = it->begin(); it2 != it->end(); it2++) {
+      if (it2->numel() >= INT_MAX) {
+        requires_64bit_indexing = true;
+        break;
+      }
+    }
+    if (requires_64bit_indexing) break;
+  }
+
+  if (requires_64bit_indexing) {
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+        DISPATCH_FLOAT_AND_HALF(
+            tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
+            DISPATCH_FLOAT_AND_HALF(
+                tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
+                multi_tensor_apply<5>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                                      LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2, int64_t>(),
+                                      per_tensor_decay.data_ptr<float>(), beta1, beta2, beta1_correction,
+                                      beta2_correction, epsilon, clipped_global_grad_norm);)))
+  } else {
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_1",
+        DISPATCH_FLOAT_AND_HALF(
+            tensor_lists[1][0].scalar_type(), 1, "lamb_stage_1",
+            DISPATCH_FLOAT_AND_HALF(
+                tensor_lists[4][0].scalar_type(), 2, "lamb_stage_1",
+                multi_tensor_apply<5>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                      LAMBStage1Functor<scalar_t_0, scalar_t_1, scalar_t_2, int32_t>(),
+                                      per_tensor_decay.data_ptr<float>(), beta1, beta2, beta1_correction,
+                                      beta2_correction, epsilon, clipped_global_grad_norm);)))
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
 
