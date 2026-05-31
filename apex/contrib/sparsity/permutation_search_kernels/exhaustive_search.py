@@ -73,8 +73,30 @@ from os import path
 unique_permutation_list = {}
 
 
+def _resolve_cache_dir():
+    # APEX_ASP_CACHE_DIR is externally controlled and is used as the write
+    # destination for the permutation cache. An attacker who can set the env var
+    # (e.g. via a CI/job wrapper) could otherwise redirect the np.save() below to
+    # an arbitrary writable location and poison or overwrite files there
+    # (CWE-22 / CWE-73). Constrain the cache dir to the default base directory and
+    # fall back to that safe default when the requested path escapes it.
+    allowed_base = path.realpath(ASP_CACHE_DIR_DEFAULT)
+    requested = os.getenv(ASP_CACHE_DIR_ENV_VAR)
+    if requested is None:
+        return allowed_base
+
+    resolved = path.realpath(requested)
+    if resolved != allowed_base and path.commonpath([allowed_base, resolved]) != allowed_base:
+        print(
+            f"[ASP][Warning] {ASP_CACHE_DIR_ENV_VAR}={requested!r} resolves outside the "
+            f"allowed cache base {allowed_base!r}; falling back to the default cache dir."
+        )
+        return allowed_base
+    return resolved
+
+
 def generate_all_unique_combinations(C, M, must_use_all_groups=False):
-    cache_dir_path = os.getenv(ASP_CACHE_DIR_ENV_VAR, ASP_CACHE_DIR_DEFAULT)
+    cache_dir_path = _resolve_cache_dir()
     cache_file_path = path.join(cache_dir_path, f"permutations_{C}_{M}.npy")
 
     global unique_permutation_list
