@@ -74,8 +74,12 @@ class TestAspCachePath(unittest.TestCase):
         # used as the write destination; the code falls back to the safe default.
         escape_dir = self._mkdtemp()  # an arbitrary writable dir outside ".cache"
         # ".." traversal that resolves to a fresh, unique location outside the base.
-        evil_target = os.path.realpath(os.path.join(escape_dir, "..", os.path.basename(escape_dir) + "_evil"))
-        os.environ[self.mod.ASP_CACHE_DIR_ENV_VAR] = os.path.join(escape_dir, "..", os.path.basename(escape_dir) + "_evil")
+        evil_target = os.path.realpath(
+            os.path.join(escape_dir, "..", os.path.basename(escape_dir) + "_evil")
+        )
+        os.environ[self.mod.ASP_CACHE_DIR_ENV_VAR] = os.path.join(
+            escape_dir, "..", os.path.basename(escape_dir) + "_evil"
+        )
 
         result = self.mod.generate_all_unique_combinations(4, 4)
 
