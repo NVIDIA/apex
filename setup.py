@@ -44,7 +44,6 @@ ENV_TO_FLAG = {
     "APEX_FAST_BOTTLENECK": "--fast_bottleneck",
     "APEX_FUSED_CONV_BIAS_RELU": "--fused_conv_bias_relu",
     "APEX_NCCL_ALLOCATOR": "--nccl_allocator",
-    "APEX_GPU_DIRECT_STORAGE": "--gpu_direct_storage",
 }
 for env_var, flag in ENV_TO_FLAG.items():
     if os.environ.get(env_var, "0") == "1" and flag not in sys.argv:
@@ -956,24 +955,6 @@ if has_flag("--nccl_allocator", "APEX_NCCL_ALLOCATOR"):
         warnings.warn(
             f"Skip `--nccl_allocator` as it requires NCCL 2.19 or later, but {_available_nccl_version[0]}.{_available_nccl_version[1]}"
         )
-
-
-if has_flag("--gpu_direct_storage", "APEX_GPU_DIRECT_STORAGE"):
-    if "--gpu_direct_storage" in sys.argv:
-        sys.argv.remove("--gpu_direct_storage")
-    raise_if_cuda_home_none("--gpu_direct_storage")
-    ext_modules.append(
-        CUDAExtension(
-            name="_apex_gpu_direct_storage",
-            sources=[
-                "apex/contrib/csrc/gpu_direct_storage/gds.cpp",
-                "apex/contrib/csrc/gpu_direct_storage/gds_pybind.cpp",
-            ],
-            include_dirs=[os.path.join(this_dir, "apex/contrib/csrc/gpu_direct_storage")],
-            libraries=["cufile"],
-            extra_compile_args={"cxx": ["-O3"] + generator_flag},
-        )
-    )
 
 
 # Patch because `setup.py bdist_wheel` and `setup.py develop` do not support the `parallel` option
