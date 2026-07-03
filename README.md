@@ -38,7 +38,7 @@ cd apex
 APEX_CPP_EXT=1 APEX_CUDA_EXT=1 pip install -v --no-build-isolation .
 
 # To build with additional extensions, specify them with environment variables
-APEX_CPP_EXT=1 APEX_CUDA_EXT=1 APEX_FAST_MULTIHEAD_ATTN=1 APEX_FUSED_CONV_BIAS_RELU=1 pip install -v --no-build-isolation .
+APEX_CPP_EXT=1 APEX_CUDA_EXT=1 APEX_FUSED_CONV_BIAS_RELU=1 pip install -v --no-build-isolation .
 
 # To build all contrib extensions at once
 APEX_CPP_EXT=1 APEX_CUDA_EXT=1 APEX_ALL_CONTRIB_EXT=1 pip install -v --no-build-isolation .
@@ -64,7 +64,7 @@ pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation -
 pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 # To build with additional extensions
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_multihead_attn" ./
+pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--group_norm" ./
 ```
 
 #### Python-Only Build
@@ -110,8 +110,6 @@ If a requirement of a module is not met, then it will not be built.
 |  `fused_adam_cuda`  |  `APEX_DEPRECATED_FUSED_ADAM=1`  |  `--deprecated_fused_adam`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
 |  `fused_lamb_cuda`  |  `APEX_DEPRECATED_FUSED_LAMB=1`  |  `--deprecated_fused_lamb`  |  [`apex.contrib.optimizers`](./apex/contrib/optimizers)  |
 |  `fast_layer_norm`  |  `APEX_FAST_LAYER_NORM=1`  |  `--fast_layer_norm`  |  [`apex.contrib.layer_norm`](./apex/contrib/layer_norm). different from `fused_layer_norm` |
-|  `fmhalib`    |  `APEX_FMHA=1`         |  `--fmha`        |  [`apex.contrib.fmha`](./apex/contrib/fmha)  |
-|  `fast_multihead_attn`  |  `APEX_FAST_MULTIHEAD_ATTN=1`  |  `--fast_multihead_attn`  |  [`apex.contrib.multihead_attn`](./apex/contrib/multihead_attn)  |
 |  `transducer_joint_cuda`  |  `APEX_TRANSDUCER=1`  |  `--transducer`  |  [`apex.contrib.transducer`](./apex/contrib/transducer)  |
 |  `transducer_loss_cuda`   |  `APEX_TRANSDUCER=1`  |  `--transducer`  |  [`apex.contrib.transducer`](./apex/contrib/transducer)  |
 |  `cudnn_gbn_lib`  |  `APEX_CUDNN_GBN=1`  |  `--cudnn_gbn`  | Requires cuDNN>=8.5, [`apex.contrib.cudnn_gbn`](./apex/contrib/cudnn_gbn) |
