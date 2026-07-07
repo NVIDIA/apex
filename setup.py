@@ -33,8 +33,6 @@ ENV_TO_FLAG = {
     "APEX_INDEX_MUL_2D": "--index_mul_2d",
     "APEX_DEPRECATED_FUSED_ADAM": "--deprecated_fused_adam",
     "APEX_DEPRECATED_FUSED_LAMB": "--deprecated_fused_lamb",
-    "APEX_FAST_MULTIHEAD_ATTN": "--fast_multihead_attn",
-    "APEX_FMHA": "--fmha",
     "APEX_PERMUTATION_SEARCH": "--permutation_search",
     "APEX_FOCAL_LOSS": "--focal_loss",
     "APEX_TRANSDUCER": "--transducer",
@@ -676,116 +674,6 @@ if has_flag("--fast_layer_norm", "APEX_FAST_LAYER_NORM"):
         )
     )
 
-if has_flag("--fmha", "APEX_FMHA"):
-    if "--fmha" in sys.argv:
-        sys.argv.remove("--fmha")
-    raise_if_cuda_home_none("--fmha")
-
-    if bare_metal_version < Version("11.0"):
-        raise RuntimeError("--fmha only supported on sm_80 and sm_90 GPUs")
-
-    cc_flag = []
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_80,code=sm_80")
-    if bare_metal_version >= Version("11.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_90,code=sm_90")
-    if bare_metal_version >= Version("12.8"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_100,code=sm_100")
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_120,code=sm_120")
-    if bare_metal_version >= Version("13.0"):
-        cc_flag.append("-gencode")
-        cc_flag.append("arch=compute_110,code=sm_110")
-
-    ext_modules.append(
-        CUDAExtension(
-            name="fmhalib",
-            sources=[
-                "apex/contrib/csrc/fmha/fmha_api.cpp",
-                "apex/contrib/csrc/fmha/src/fmha_fill.cu",
-                "apex/contrib/csrc/fmha/src/fmha_noloop_reduce.cu",
-                "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_128_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_256_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_384_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_fprop_fp16_512_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_128_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_256_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_384_64_kernel.sm80.cu",
-                "apex/contrib/csrc/fmha/src/fmha_dgrad_fp16_512_64_kernel.sm80.cu",
-            ],
-            extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
-                ]
-                + generator_flag
-                + cc_flag,
-            },
-            include_dirs=[
-                os.path.join(this_dir, "apex/contrib/csrc"),
-                os.path.join(this_dir, "apex/contrib/csrc/fmha/src"),
-            ],
-        )
-    )
-
-
-if has_flag("--fast_multihead_attn", "APEX_FAST_MULTIHEAD_ATTN"):
-    if "--fast_multihead_attn" in sys.argv:
-        sys.argv.remove("--fast_multihead_attn")
-    raise_if_cuda_home_none("--fast_multihead_attn")
-
-    subprocess.run(
-        [
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "apex/contrib/csrc/multihead_attn/cutlass",
-        ]
-    )
-    ext_modules.append(
-        CUDAExtension(
-            name="fast_multihead_attn",
-            sources=[
-                "apex/contrib/csrc/multihead_attn/multihead_attn_frontend.cpp",
-                "apex/contrib/csrc/multihead_attn/additive_masked_softmax_dropout_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/masked_softmax_dropout_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/encdec_multihead_attn_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/encdec_multihead_attn_norm_add_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/self_multihead_attn_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_additive_mask_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cuda.cu",
-                "apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu",
-            ],
-            extra_compile_args={
-                "cxx": ["-O3"] + generator_flag,
-                "nvcc": [
-                    "-O3",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "--expt-relaxed-constexpr",
-                    "--expt-extended-lambda",
-                    "--use_fast_math",
-                ]
-                + generator_flag,
-            },
-            include_dirs=[
-                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn/cutlass/include/"),
-                os.path.join(
-                    this_dir,
-                    "apex/contrib/csrc/multihead_attn/cutlass/tools/util/include",
-                ),
-            ],
-        )
-    )
-
 if has_flag("--transducer", "APEX_TRANSDUCER"):
     if "--transducer" in sys.argv:
         sys.argv.remove("--transducer")
@@ -803,7 +691,6 @@ if has_flag("--transducer", "APEX_TRANSDUCER"):
             },
             include_dirs=[
                 os.path.join(this_dir, "csrc"),
-                os.path.join(this_dir, "apex/contrib/csrc/multihead_attn"),
             ],
         )
     )
