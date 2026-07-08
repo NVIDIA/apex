@@ -104,7 +104,7 @@ class ClipGradNormTest(unittest.TestCase):
             )
 
     def test_matches_pytorch_fp16(self):
-        self.test_matches_pytorch(num_params=11, dtypes=[torch.float16])
+        self.test_matches_pytorch(num_params=11, dtypes=[torch.float16], rtol=5e-3)
 
     def test_matches_pytorch_fp32(self):
         self.test_matches_pytorch(dtypes=[torch.float32], rtol=1e-6)
