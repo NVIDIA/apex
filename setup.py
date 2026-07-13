@@ -168,7 +168,8 @@ if has_flag("--cpp_ext", "APEX_CPP_EXT"):
     ext_modules.append(CppExtension("apex_C", ["csrc/flatten_unflatten.cpp"]))
 
 
-_, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
+if CUDA_HOME is not None:
+    _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
 
 if has_flag("--distributed_adam", "APEX_DISTRIBUTED_ADAM"):
     if "--distributed_adam" in sys.argv:
