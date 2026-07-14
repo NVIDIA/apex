@@ -758,7 +758,7 @@ class FusedLayerNorm(torch.nn.Module):
         eps: a value added to the denominator for numerical stability. Default: 1e-5
         elementwise_affine: a boolean value that when set to ``True``, this module
             has learnable per-element affine parameters initialized to ones (for weights)
-            and zeros (for biases). Default: ``True``.
+            and zeros (for biases). Default: :obj:`True`.
 
     Shape:
         - Input: :math:`(N, *)`
@@ -874,8 +874,7 @@ class FusedRMSNorm(torch.nn.Module):
             normalize over the last dimension which is expected to be of that specific size.
         eps: a value added to the denominator for numerical stability. Default: 1e-5
         elementwise_affine: a boolean value that when set to ``True``, this module
-            has learnable per-element affine parameters initialized to ones (for weights)
-            and zeros (for biases). Default: ``True``.
+            has learnable per-element affine parameters initialized to ones for weights. Default: :obj:`True`.
 
     Shape:
         - Input: :math:`(N, *)`
