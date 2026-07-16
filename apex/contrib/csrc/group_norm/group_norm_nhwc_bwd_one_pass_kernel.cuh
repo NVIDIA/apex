@@ -173,6 +173,47 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_bwd_one_pa
       mean_2 += dx_norm_y;
     }
 
+    // A cooperative launch may use fewer blocks than activation tiles. Accumulate any
+    // additional tiles assigned to this block without increasing its register footprint.
+    for (int extra_hwi = hwi + gridDim.x * params.acts_per_block; extra_hwi < params.hw;
+         extra_hwi += gridDim.x * params.acts_per_block) {
+#pragma unroll
+      for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
+        int hwj = extra_hwi + ii * ACTS_PER_LOOP;
+        IOType2 x_extra = IOTraits::zero();
+        IOType2 dy_extra = IOTraits::zero();
+        if (is_active && hwj < params.hw) {
+          x_extra = *reinterpret_cast<const IOType2*>(&x_ptr[hwj * params.c]);
+          dy_extra = *reinterpret_cast<const IOType2*>(&dy_ptr[hwj * params.c]);
+        }
+
+        float2 x_f2 = IOTraits::unpack(x_extra);
+        float2 dy_f2 = IOTraits::unpack(dy_extra);
+
+        float x_norm_x = (x_f2.x - x_mean) * rcp_x_stddev;
+        float x_norm_y = (x_f2.y - x_mean) * rcp_x_stddev;
+
+        if (params.with_swish) {
+          float x_gn_x = x_norm_x * gamma_f2.x + beta_f2.x;
+          float x_gn_y = x_norm_y * gamma_f2.y + beta_f2.y;
+          float s_x = sigmoid(x_gn_x);
+          float s_y = sigmoid(x_gn_y);
+          dy_f2.x = dy_f2.x * s_x * (1.f + x_gn_x * (1.f - s_x));
+          dy_f2.y = dy_f2.y * s_y * (1.f + x_gn_y * (1.f - s_y));
+        }
+
+        dgamma_dbeta.x += dy_f2.x * x_norm_x;
+        dgamma_dbeta.y += dy_f2.y * x_norm_y;
+        dgamma_dbeta.z += dy_f2.x;
+        dgamma_dbeta.w += dy_f2.y;
+
+        float dx_norm_x = dy_f2.x * gamma_f2.x;
+        float dx_norm_y = dy_f2.y * gamma_f2.y;
+        mean_1 += dx_norm_x * x_norm_x + dx_norm_y * x_norm_y;
+        mean_2 += dx_norm_x + dx_norm_y;
+      }
+    }
+
     // Pack valid gradients.
     float2 sums = make_float2(0.f, 0.f);
     if (ACTIVE_THREADS == THREADS_PER_BLOCK || is_active) {
@@ -305,6 +346,44 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_bwd_one_pa
       // Store the scaled values.
       int hwj = hwi + ii * ACTS_PER_LOOP;
       if (is_active && hwj < params.hw) {
+        *reinterpret_cast<IOType2*>(&dx_ptr[hwj * params.c]) = IOTraits::pack(dx);
+      }
+    }
+
+    // Store gradients for any additional activation tiles assigned to this block.
+    for (int extra_hwi = hwi + gridDim.x * params.acts_per_block; extra_hwi < params.hw;
+         extra_hwi += gridDim.x * params.acts_per_block) {
+#pragma unroll
+      for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
+        int hwj = extra_hwi + ii * ACTS_PER_LOOP;
+        if (!is_active || hwj >= params.hw) {
+          continue;
+        }
+
+        float2 x_f2 = IOTraits::unpack(*reinterpret_cast<const IOType2*>(&x_ptr[hwj * params.c]));
+        float2 dy_f2 = IOTraits::unpack(*reinterpret_cast<const IOType2*>(&dy_ptr[hwj * params.c]));
+
+        float2 x_norm;
+        x_norm.x = (x_f2.x - x_mean) * rcp_x_stddev;
+        x_norm.y = (x_f2.y - x_mean) * rcp_x_stddev;
+
+        if (params.with_swish) {
+          float x_gn_x = x_norm.x * gamma_f2.x + beta_f2.x;
+          float x_gn_y = x_norm.y * gamma_f2.y + beta_f2.y;
+          float s_x = sigmoid(x_gn_x);
+          float s_y = sigmoid(x_gn_y);
+          dy_f2.x = dy_f2.x * s_x * (1.f + x_gn_x * (1.f - s_x));
+          dy_f2.y = dy_f2.y * s_y * (1.f + x_gn_y * (1.f - s_y));
+        }
+
+        float2 dx_norm;
+        dx_norm.x = dy_f2.x * gamma_f2.x;
+        dx_norm.y = dy_f2.y * gamma_f2.y;
+
+        float2 dx;
+        dx.x = (dx_norm.x - (x_norm.x * mean_1 + mean_2)) * rcp_x_stddev;
+        dx.y = (dx_norm.y - (x_norm.y * mean_1 + mean_2)) * rcp_x_stddev;
+
         *reinterpret_cast<IOType2*>(&dx_ptr[hwj * params.c]) = IOTraits::pack(dx);
       }
     }
