@@ -17,6 +17,7 @@ def get_func_args(func):
 
 def create_nccl_mem_pool(symmetric: bool | None = None) -> torch.cuda.MemPool:
     from apex import deprecated_warning
+
     deprecated_warning(
         "`apex.contrib.nccl_allocator` is deprecated and will be removed in February 2027. "
         "We encourage you to migrate to PyTorch native Symmetric Memory or plain MemPool API. "
