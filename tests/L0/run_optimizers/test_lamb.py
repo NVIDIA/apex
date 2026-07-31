@@ -3,6 +3,7 @@ import os
 
 import torch
 from torch.optim import Optimizer
+from torch.testing._internal.common_device_type import largeTensorTest
 import apex
 from apex.multi_tensor_apply import multi_tensor_applier
 from itertools import product
@@ -294,6 +295,22 @@ class TestFusedLAMB(TestLamb):
                 ref_optim.step()
                 tst_optim.step()
                 torch.testing.assert_close(tst_param, ref_param)
+
+    @largeTensorTest("60GB", "cuda")
+    def test_large_tensor(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        # FusedLAMB kernel overwrites gradient tensor in-place to store update
+        t2.grad = grad.clone()
+        lamb_option = {"lr": 5e-4, "betas": (0.9, 0.999), "eps": 1e-6, "weight_decay": 0.01}
+        optimizer = apex.optimizers.FusedLAMB([t], use_nvlamb=True, **lamb_option)
+        optimizer.step()
+        optimizer2 = RefLAMB([t2], **lamb_option)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
 
 
 class TestFusedMixedPrecisionLamb(TestLamb):

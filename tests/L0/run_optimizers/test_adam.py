@@ -268,10 +268,15 @@ class AdamTest(unittest.TestCase):
 
             self.model_.load_state_dict(copy.deepcopy(self.model.state_dict()))
 
+    # Use fp32 for large tensor tests: torch.optim.Adam with fp16 params computes
+    # entirely in fp16, where eps=1e-8 underflows to zero, causing division-by-zero
+    # NaN for rare near-zero gradients. FusedAdam is unaffected (fp32 math internally).
+
     @largeTensorTest("60GB", "cuda")
     def testLargeTensor(self):
-        t = torch.zeros(2359332864, dtype=torch.half, device="cuda")
-        t2 = torch.zeros(2359332864, dtype=torch.half, device="cuda")
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
         grad = torch.randn_like(t)
         t.grad = grad
         t2.grad = grad
@@ -280,8 +285,42 @@ class AdamTest(unittest.TestCase):
         optimizer = apex.optimizers.FusedAdam(params, lr=self.lr)
         optimizer.step()
         optimizer2 = torch.optim.Adam(params2, lr=self.lr)
+        optimizer2.step()
         torch.testing.assert_close(t, t2)
-        torch.cuda.synchronize()
+
+    @largeTensorTest("60GB", "cuda")
+    def testLargeTensorCapturable(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        t2.grad = grad
+        params = [t]
+        params2 = [t2]
+        optimizer = apex.optimizers.FusedAdam(params, lr=self.lr, capturable=True)
+        optimizer.step()
+        optimizer2 = torch.optim.Adam(params2, lr=self.lr)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
+
+    @largeTensorTest("60GB", "cuda")
+    def testLargeTensorCapturableMaster(self):
+        numel = 2359332864
+        t = torch.zeros(numel, dtype=torch.float, device="cuda")
+        t2 = torch.zeros(numel, dtype=torch.float, device="cuda")
+        grad = torch.randn_like(t)
+        t.grad = grad
+        t2.grad = grad
+        params = [t]
+        params2 = [t2]
+        optimizer = apex.optimizers.FusedAdam(
+            params, lr=self.lr, capturable=True, master_weights=True
+        )
+        optimizer.step()
+        optimizer2 = torch.optim.Adam(params2, lr=self.lr)
+        optimizer2.step()
+        torch.testing.assert_close(t, t2)
 
 
 if __name__ == "__main__":

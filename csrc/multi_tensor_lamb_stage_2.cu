@@ -17,19 +17,19 @@ using MATH_T = float;
 
 // Step 2 reads in 'update' value and per-tensor param_norm and update_norm.
 // It computes new parameter value.
-template <typename T, typename UPD_T>
+template <typename T, typename UPD_T, typename index_t>
 struct LAMBStage2Functor {
-  __device__ __forceinline__ void operator()(int chunk_size, volatile int* noop_gmem, TensorListMetadata<2>& tl,
+  __device__ __forceinline__ void operator()(index_t chunk_size, volatile int* noop_gmem, TensorListMetadata<2>& tl,
                                              const float* per_tensor_param_norm, const float* per_tensor_update_norm,
                                              const float learning_rate, const float decay, bool use_nvlamb) {
     // I'd like this kernel to propagate infs/nans.
     // if(*noop_gmem == 1)
     //   return;
 
-    int tensor_loc = tl.block_to_tensor[blockIdx.x];
+    index_t tensor_loc = tl.block_to_tensor[blockIdx.x];
     int tensor_num = tl.start_tensor_this_launch + tensor_loc;
-    int chunk_idx = tl.block_to_chunk[blockIdx.x];
-    int n = tl.sizes[tensor_loc];
+    index_t chunk_idx = tl.block_to_chunk[blockIdx.x];
+    index_t n = tl.sizes[tensor_loc];
 
     MATH_T ratio = learning_rate;
     // nvlamb: apply adaptive learning rate to all parameters
@@ -48,12 +48,12 @@ struct LAMBStage2Functor {
 
     n -= chunk_idx * chunk_size;
 
-    for (int i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
+    for (index_t i_start = 0; i_start < n && i_start < chunk_size; i_start += blockDim.x * ILP) {
       T r_p[ILP];
       UPD_T r_update[ILP];
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           r_p[ii] = p[i];
           r_update[ii] = update[i];
@@ -65,7 +65,7 @@ struct LAMBStage2Functor {
       }
 #pragma unroll
       for (int ii = 0; ii < ILP; ii++) {
-        int i = i_start + threadIdx.x + ii * blockDim.x;
+        index_t i = i_start + threadIdx.x + ii * blockDim.x;
         if (i < n && i < chunk_size) {
           p[i] = r_p[ii];
         }
@@ -82,13 +82,36 @@ void multi_tensor_lamb_stage2_cuda(int chunk_size, at::Tensor noop_flag,
 
   using namespace at;
 
-  DISPATCH_FLOAT_AND_HALF(
-      tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
-      DISPATCH_FLOAT_AND_HALF(
-          tensor_lists[1][0].scalar_type(), 1, "lamb_stage_2",
-          multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
-                                LAMBStage2Functor<scalar_t_0, scalar_t_1>(), per_tensor_param_norm.data_ptr<float>(),
-                                per_tensor_update_norm.data_ptr<float>(), lr, weight_decay, use_nvlamb);))
+  bool requires_64bit_indexing = false;
+  for (auto it = tensor_lists.begin(); it != tensor_lists.end(); it++) {
+    for (auto it2 = it->begin(); it2 != it->end(); it2++) {
+      if (it2->numel() >= INT_MAX) {
+        requires_64bit_indexing = true;
+        break;
+      }
+    }
+    if (requires_64bit_indexing) break;
+  }
+
+  if (requires_64bit_indexing) {
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+        DISPATCH_FLOAT_AND_HALF(
+            tensor_lists[1][0].scalar_type(), 1, "lamb_stage_2",
+            multi_tensor_apply<2>((int64_t)BLOCK_SIZE, (int64_t)chunk_size, noop_flag, tensor_lists,
+                                  LAMBStage2Functor<scalar_t_0, scalar_t_1, int64_t>(),
+                                  per_tensor_param_norm.data_ptr<float>(), per_tensor_update_norm.data_ptr<float>(), lr,
+                                  weight_decay, use_nvlamb);))
+  } else {
+    DISPATCH_FLOAT_AND_HALF(
+        tensor_lists[0][0].scalar_type(), 0, "lamb_stage_2",
+        DISPATCH_FLOAT_AND_HALF(
+            tensor_lists[1][0].scalar_type(), 1, "lamb_stage_2",
+            multi_tensor_apply<2>(BLOCK_SIZE, chunk_size, noop_flag, tensor_lists,
+                                  LAMBStage2Functor<scalar_t_0, scalar_t_1, int32_t>(),
+                                  per_tensor_param_norm.data_ptr<float>(), per_tensor_update_norm.data_ptr<float>(), lr,
+                                  weight_decay, use_nvlamb);))
+  }
 
   AT_CUDA_CHECK(cudaGetLastError());
 
