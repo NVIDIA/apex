@@ -1,17 +1,17 @@
 import os
+
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.distributed as dist
+from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-import apex.contrib.nccl_allocator as nccl_allocator
+from apex.contrib import nccl_allocator
 
 assert os.getenv("WORLD_SIZE") is not None, "Please use: torchrun --nproc-per-node=8 toy_ddp.py"
 
 class ToyModel(nn.Module):
     def __init__(self):
-        super(ToyModel, self).__init__()
+        super().__init__()
         self.net1 = nn.Linear(10, 10)
         self.relu = nn.ReLU()
         self.net2 = nn.Linear(10, 5)

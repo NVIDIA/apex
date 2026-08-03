@@ -1,19 +1,18 @@
-import sys
-import warnings
-import os
-import threading
 import glob
-from packaging.version import parse, Version
-
-from setuptools import setup, find_packages
+import os
 import subprocess
+import sys
+import threading
+import warnings
 
 import torch
+from packaging.version import Version, parse
+from setuptools import find_packages, setup
 from torch.utils.cpp_extension import (
+    CUDA_HOME,
     BuildExtension,
     CppExtension,
     CUDAExtension,
-    CUDA_HOME,
     load,
 )
 
@@ -82,7 +81,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
         raise RuntimeError(
             "Cuda extensions are being compiled with a version of Cuda that does "
             "not match the version used to compile Pytorch binaries.  "
-            "Pytorch binaries were compiled with Cuda {}.\n".format(torch.version.cuda)
+            f"Pytorch binaries were compiled with Cuda {torch.version.cuda}.\n"
             + "In some cases, a minor-version mismatch will not cause later errors:  "
             "https://github.com/NVIDIA/apex/pull/323#discussion_r287021798.  "
             "You can try commenting out this check (at your own risk)."
@@ -140,7 +139,7 @@ if not torch.cuda.is_available():
         else:
             os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
-print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
+print(f"\n\ntorch.__version__  = {torch.__version__}\n\n")
 TORCH_MAJOR = int(torch.__version__.split(".")[0])
 TORCH_MINOR = int(torch.__version__.split(".")[1])
 
@@ -157,9 +156,7 @@ extras = {}
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
         raise RuntimeError(
-            "--cpp_ext requires Pytorch 1.0 or later, found torch.__version__ = {}".format(
-                torch.__version__
-            )
+            f"--cpp_ext requires Pytorch 1.0 or later, found torch.__version__ = {torch.__version__}"
         )
 
 if has_flag("--cpp_ext", "APEX_CPP_EXT"):

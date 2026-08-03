@@ -14,19 +14,23 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING
 
-from torch._inductor.codegen.wrapper import EnterDeviceContextManagerLine
-from torch._inductor.codegen.wrapper import ExitDeviceContextManagerLine
-from torch._inductor.codegen.wrapper import IndentedBuffer
-from torch._inductor.codegen.wrapper import PythonWrapperCodegen
-from torch._inductor.codegen.wrapper import SubgraphPythonWrapperCodegen
-from torch._inductor.codegen.wrapper import WrapperLine
+from torch._inductor.codegen.wrapper import (
+    EnterDeviceContextManagerLine,
+    ExitDeviceContextManagerLine,
+    IndentedBuffer,
+    PythonWrapperCodegen,
+    SubgraphPythonWrapperCodegen,
+    WrapperLine,
+)
 from torch._inductor.virtualized import V
 
-import apex.contrib.torchsched.config as config
-from apex.contrib.torchsched.inductor._utils import DEFAULT_STREAM
-from apex.contrib.torchsched.inductor._utils import ENTRANCE_EVENT
-from apex.contrib.torchsched.inductor._utils import STREAM_NAME_TEMPLATE
-from apex.contrib.torchsched.inductor._utils import get_stream_name
+from apex.contrib.torchsched import config
+from apex.contrib.torchsched.inductor._utils import (
+    DEFAULT_STREAM,
+    ENTRANCE_EVENT,
+    STREAM_NAME_TEMPLATE,
+    get_stream_name,
+)
 
 if TYPE_CHECKING:
     from torch._inductor.graph import GraphLowering

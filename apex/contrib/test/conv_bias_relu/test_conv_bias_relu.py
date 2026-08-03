@@ -9,9 +9,9 @@ import torch.nn.functional as F
 HAS_CONV_BIAS_RELU = None
 try:
     from apex.contrib.conv_bias_relu import (
-        ConvBiasReLU,
         ConvBias,
         ConvBiasMaskReLU,
+        ConvBiasReLU,
         ConvFrozenScaleBiasReLU,
     )
 except ImportError:
@@ -100,20 +100,9 @@ class FusedDenseTest(unittest.TestCase):
         self.conv2_ = copy.deepcopy(self.conv2)
 
         print()
+        print(f"> input=[{self.batch_size}, {self.in_channels}, {self.in_height}, {self.in_width}]")
         print(
-            "> input=[{}, {}, {}, {}]".format(
-                self.batch_size, self.in_channels, self.in_height, self.in_width
-            )
-        )
-        print(
-            "> kernel=[{}, {}, {}, {}], stride={}, pad={}".format(
-                self.out_channels,
-                self.in_channels,
-                self.conv_kernel_size,
-                self.conv_kernel_size,
-                self.conv_stride,
-                self.conv_pad,
-            )
+            f"> kernel=[{self.out_channels}, {self.in_channels}, {self.conv_kernel_size}, {self.conv_kernel_size}], stride={self.conv_stride}, pad={self.conv_pad}"
         )
 
     def test_conv_bias_relu(self):

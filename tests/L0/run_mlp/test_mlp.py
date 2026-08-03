@@ -6,11 +6,10 @@ from time import time
 import torch
 from torch import nn
 from torch.testing._internal import common_utils
-from torch.testing._internal.common_device_type import instantiate_device_type_tests
 from torch.testing._internal.common_cuda import tf32_off
+from torch.testing._internal.common_device_type import instantiate_device_type_tests
 
 from apex.mlp import MLP
-
 
 batch_size = 1024
 mlp_sizes = [480, 1024, 1024, 512, 256, 1]

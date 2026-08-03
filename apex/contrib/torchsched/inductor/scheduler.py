@@ -5,28 +5,27 @@ from __future__ import annotations
 import collections
 import itertools
 import re
-from typing import TYPE_CHECKING
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import torch
 import torch._inductor.config as inductor_config
 from torch._inductor import ir
 from torch._inductor.dependencies import WeakDep
-from torch._inductor.scheduler import BaseSchedulerNode
-from torch._inductor.scheduler import ExternKernelSchedulerNode
-from torch._inductor.scheduler import ForeachKernelSchedulerNode
-from torch._inductor.scheduler import FusedSchedulerNode
-from torch._inductor.scheduler import NopKernelSchedulerNode
-from torch._inductor.scheduler import Scheduler
-from torch._inductor.scheduler import SchedulerNode
+from torch._inductor.scheduler import (
+    BaseSchedulerNode,
+    ExternKernelSchedulerNode,
+    ForeachKernelSchedulerNode,
+    FusedSchedulerNode,
+    NopKernelSchedulerNode,
+    Scheduler,
+    SchedulerNode,
+)
 from torch._inductor.utils import device_need_guard
 from torch._inductor.virtualized import V
 
 from apex.contrib.torchsched import config
-from apex.contrib.torchsched.inductor._utils import DEFAULT_STREAM_IDX
-from apex.contrib.torchsched.inductor._utils import get_stream_name
-from apex.contrib.torchsched.inductor.event import CudaEventFactory
-from apex.contrib.torchsched.inductor.event import CudaEventSym
+from apex.contrib.torchsched.inductor._utils import DEFAULT_STREAM_IDX, get_stream_name
+from apex.contrib.torchsched.inductor.event import CudaEventFactory, CudaEventSym
 from apex.contrib.torchsched.inductor.wrapper import EnterCudaStreamContextLine
 
 if TYPE_CHECKING:

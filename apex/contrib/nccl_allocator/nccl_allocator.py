@@ -1,11 +1,10 @@
 import os
-import torch
-import _apex_nccl_allocator
-
 from contextlib import nullcontext
 
+import _apex_nccl_allocator
+import torch
 
-__all__ = ["init", "nccl_mem", "create_nccl_mem_pool"]
+__all__ = ["create_nccl_mem_pool", "init", "nccl_mem"]
 
 
 def get_func_args(func):

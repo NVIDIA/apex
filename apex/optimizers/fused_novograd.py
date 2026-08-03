@@ -1,4 +1,5 @@
 import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
@@ -91,7 +92,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
             norm_type=norm_type,
             init_zero=init_zero,
         )
-        super(FusedNovoGrad, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         if multi_tensor_applier.available:
             import amp_C
             # Skip buffer
@@ -113,10 +114,10 @@ class FusedNovoGrad(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super(FusedNovoGrad, self).zero_grad()
+            super().zero_grad()
 
     def load_state_dict(self, state_dict):
-        super(FusedNovoGrad, self).load_state_dict(state_dict)
+        super().load_state_dict(state_dict)
         # in case exp_avg_sq is not on the same device as params, move it there
         for group in self.param_groups:
             if len(group["params"]) > 0:

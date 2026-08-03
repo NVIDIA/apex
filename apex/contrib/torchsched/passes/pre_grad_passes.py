@@ -10,8 +10,7 @@ from torch._dynamo.utils import counters
 from torch.fx import replace_pattern
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 from apex.contrib.torchsched import config
 

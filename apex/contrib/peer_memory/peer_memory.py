@@ -1,9 +1,9 @@
-import torch
 import numpy as np
 import peer_memory_cuda as pm
+import torch
 
 
-class PeerMemoryPool(object):
+class PeerMemoryPool:
     def __init__(self, static_size, dynamic_size, peer_ranks=None):
         rank = torch.distributed.get_rank()
         world_size = torch.distributed.get_world_size()

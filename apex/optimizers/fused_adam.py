@@ -1,4 +1,5 @@
 import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
@@ -94,7 +95,7 @@ class FusedAdam(torch.optim.Optimizer):
             eps=eps,
             weight_decay=weight_decay,
         )
-        super(FusedAdam, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         self.adam_w_mode = 1 if adam_w_mode else 0
         self.set_grad_none = set_grad_none
 
@@ -141,7 +142,7 @@ class FusedAdam(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super(FusedAdam, self).zero_grad()
+            super().zero_grad()
 
     def step(
         self,

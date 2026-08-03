@@ -1,5 +1,6 @@
 import torch
 import torch.onnx
+
 from apex.contrib.sparsity.permutation_lib import Permutation
 
 """
@@ -821,7 +822,7 @@ def test_model(model, tag, verbosity=0, save_onnx=False):
                 ),
             ):
                 allowed_names = ("weight",)
-                if type(module) in module_to_params.keys():
+                if type(module) in module_to_params:
                     allowed_names = module_to_params[type(module)]
 
                 if p_name not in allowed_names:

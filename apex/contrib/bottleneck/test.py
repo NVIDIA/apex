@@ -29,7 +29,7 @@ for stride, o_channel in [(1, 32), (1, 128), (2, 32)]:
         print("[DEBUG] ref dx :", d_grad.sum().item())
         # print wgrad. we don't need to reset since later cpp print before accumulation
         for i, w in enumerate(model.w_conv):
-            print("[DEBUG] ref wgrad{} :".format(i + 1), w.grad.sum().item())
+            print(f"[DEBUG] ref wgrad{i + 1} :", w.grad.sum().item())
 
     wgrads = []
     for w in model.w_conv:
@@ -56,7 +56,7 @@ for stride, o_channel in [(1, 32), (1, 128), (2, 32)]:
     )
     for i, (w, wgrad) in enumerate(zip(model.w_conv, wgrads)):
         print(
-            "max error wgrad{}:".format(i + 1),
+            f"max error wgrad{i + 1}:",
             (wgrad - w.grad.float()).abs().max().item(),
             "max elem:",
             wgrad.abs().max().item(),
@@ -104,7 +104,7 @@ for stride, o_channel in [(1, 32), (1, 128), (2, 32)]:
     )
     for i, (w, wgrad) in enumerate(zip(nhwc_model.w_conv, wgrads)):
         print(
-            "max error wgrad{}:".format(i + 1),
+            f"max error wgrad{i + 1}:",
             (wgrad - w.grad.float()).abs().max().item(),
             "max elem:",
             wgrad.abs().max().item(),

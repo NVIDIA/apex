@@ -1,5 +1,6 @@
 import torch
-import apex.contrib.nccl_allocator as nccl_allocator
+
+from apex.contrib import nccl_allocator
 
 nccl_allocator.init()
 nrep = 6

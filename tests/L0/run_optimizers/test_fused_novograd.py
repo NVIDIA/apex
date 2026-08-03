@@ -1,10 +1,11 @@
-import torch
-from torch.optim import Optimizer
-import apex
 import unittest
-
-from test_fused_optimizer import TestFusedOptimizer
 from itertools import product
+
+import torch
+from test_fused_optimizer import TestFusedOptimizer
+from torch.optim import Optimizer
+
+import apex
 
 
 class Novograd(Optimizer):
@@ -37,13 +38,13 @@ class Novograd(Optimizer):
         amsgrad=False,
     ):
         if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
+            raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
+            raise ValueError(f"Invalid epsilon value: {eps}")
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
+            raise ValueError(f"Invalid beta parameter at index 0: {betas[0]}")
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
+            raise ValueError(f"Invalid beta parameter at index 1: {betas[1]}")
         defaults = dict(
             lr=lr,
             betas=betas,
@@ -53,10 +54,10 @@ class Novograd(Optimizer):
             amsgrad=amsgrad,
         )
 
-        super(Novograd, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
     def __setstate__(self, state):
-        super(Novograd, self).__setstate__(state)
+        super().__setstate__(state)
         for group in self.param_groups:
             group.setdefault("amsgrad", False)
 
@@ -129,7 +130,7 @@ class Novograd(Optimizer):
 
 class TestFusedNovoGrad(TestFusedOptimizer):
     def __init__(self, *args, **kwargs):
-        super(TestFusedNovoGrad, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # The options for NovoGrad and FusedNovoGrad are very specific if they
         # are expected to behave the same.

@@ -1,6 +1,5 @@
-import torch
-
 import fused_index_mul_2d
+import torch
 
 
 class IndexMul2d_(torch.autograd.Function):

@@ -1,6 +1,7 @@
 import numpy as np
-from .permutation_utilities import *
+
 from .exhaustive_search import Exhaustive_Search
+from .permutation_utilities import *
 
 
 def accelerated_search_for_good_permutation(matrix_group, options=None, verbosity=0):
@@ -11,9 +12,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None, verbosit
     input_matrix = matrix_group.cpu().detach().numpy()
     if verbosity > 1:
         print(
-            "\n[accelerated_search_for_good_permutation] input matrix shape: '{:}'.".format(
-                input_matrix.shape
-            )
+            f"\n[accelerated_search_for_good_permutation] input matrix shape: '{input_matrix.shape}'."
         )
 
     result = np.copy(input_matrix)
@@ -78,9 +77,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None, verbosit
         duration = time.perf_counter() - start_time
         if verbosity > 1:
             print(
-                "\tFinally swap {} channel pairs until the search time limit expires.".format(
-                    real_swap_num
-                )
+                f"\tFinally swap {real_swap_num} channel pairs until the search time limit expires."
             )
     elif (
         options["strategy"] == "user defined"
@@ -97,9 +94,7 @@ def accelerated_search_for_good_permutation(matrix_group, options=None, verbosit
 
     if verbosity > 1:
         print(
-            "[accelerated_search_for_good_permutation] Take {:.4f} seconds to search the permutation sequence.".format(
-                duration
-            )
+            f"[accelerated_search_for_good_permutation] Take {duration:.4f} seconds to search the permutation sequence."
         )
 
     return permutation_sequence

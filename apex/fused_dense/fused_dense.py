@@ -1,6 +1,7 @@
+import fused_dense_cuda
 import torch
 from torch import nn
-import fused_dense_cuda
+
 from apex._autocast_utils import _cast_if_autocast_enabled
 
 
@@ -77,7 +78,7 @@ def _fused_dense_gelu_dense(input, weight1, bias1, weight2, bias2):
 
 class FusedDense(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
-        super(FusedDense, self).__init__()
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter(torch.empty(out_features, in_features))
@@ -96,7 +97,7 @@ class FusedDense(nn.Module):
 
 class FusedDenseGeluDense(nn.Module):
     def __init__(self, in_features, intermediate_features, out_features, bias=True):
-        super(FusedDenseGeluDense, self).__init__()
+        super().__init__()
         assert bias == True, "DenseGeluDense module without bias is currently not supported"
         self.in_features = in_features
         self.intermediate_features = intermediate_features

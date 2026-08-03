@@ -1,10 +1,9 @@
-import torch
-from torch.nn import Parameter
-from torch.nn import Module
-from apex.parallel import DistributedDataParallel as DDP
 import argparse
 import os
 
+import torch
+from apex.parallel import DistributedDataParallel as DDP
+from torch.nn import Module, Parameter
 
 parser = argparse.ArgumentParser(description="allreduce hook example")
 parser.add_argument("--local_rank", default=0, type=int)
@@ -26,7 +25,7 @@ torch.manual_seed(args.local_rank)
 
 class Model(Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
         self.a = Parameter(torch.cuda.FloatTensor(4096 * 4096).fill_(1.0))
         self.b = Parameter(torch.cuda.FloatTensor(4096 * 4096).fill_(2.0))
 
@@ -55,16 +54,14 @@ for i in range(10):
 
     # torch.cuda.nvtx.range_push("synchronize() + info")
     # torch.cuda.synchronize()
-    print("i = {}".format(i))
+    print(f"i = {i}")
 
     def info(name, param, val):
         expected = val * 4096 * 4096 * (2.0 * i + 1) / 2.0
         actual = param.grad.data.sum().item()
         print(
             name
-            + ": grad.data_ptr() = {}, expected sum {}, got {}".format(
-                param.grad.data_ptr(), expected, actual
-            )
+            + f": grad.data_ptr() = {param.grad.data_ptr()}, expected sum {expected}, got {actual}"
         )
         return expected == actual
 

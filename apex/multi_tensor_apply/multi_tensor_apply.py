@@ -1,4 +1,4 @@
-class MultiTensorApply(object):
+class MultiTensorApply:
     available = False
     warned = False
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 
 #
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
@@ -8,12 +7,12 @@
 
 import functools
 import os
-import torch
-import torch.nn.init as init
+
 import group_norm_cuda
 import group_norm_v2_cuda
-
+import torch
 from torch import Tensor
+from torch.nn import init
 from torch.nn.parameter import Parameter
 
 __all__ = ["GroupNorm"]

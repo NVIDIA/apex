@@ -1,6 +1,7 @@
 try:
-    import torch
     import focal_loss_cuda
+    import torch
+
     from .focal_loss import focal_loss
 
     del torch

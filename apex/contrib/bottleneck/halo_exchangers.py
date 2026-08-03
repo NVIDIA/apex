@@ -1,13 +1,13 @@
-import torch
 import nccl_p2p_cuda as inc
 import peer_memory_cuda as pm
+import torch
 
 
 # Communication free halo exchanger.
 # NB! This halo exchanger does not exchange halos with neighbors as it should, it merely swaps the inputs
 # NB! This is only useful for performance testing.
 # NB! Do not use for actual production runs
-class HaloExchanger(object):
+class HaloExchanger:
     def __init__(self, ranks, rank_in_group):
         self.stream1 = torch.cuda.Stream()
         self.stream2 = torch.cuda.Stream()
@@ -27,7 +27,7 @@ class HaloExchanger(object):
 
 class HaloExchangerNoComm(HaloExchanger):
     def __init__(self, ranks, rank_in_group):
-        super(HaloExchangerNoComm, self).__init__(ranks, rank_in_group)
+        super().__init__(ranks, rank_in_group)
 
     def left_right_halo_exchange(
         self,
@@ -45,7 +45,7 @@ class HaloExchangerNoComm(HaloExchanger):
 
 class HaloExchangerAllGather(HaloExchanger):
     def __init__(self, ranks, rank_in_group, comm):
-        super(HaloExchangerAllGather, self).__init__(ranks, rank_in_group)
+        super().__init__(ranks, rank_in_group)
         # self.comm must be NCCL process_group created with torch.distributed.new_group(ranks=ranks)
         self.comm = comm
 
@@ -94,7 +94,7 @@ class HaloExchangerAllGather(HaloExchanger):
 
 class HaloExchangerSendRecv(HaloExchanger):
     def __init__(self, ranks, rank_in_group):
-        super(HaloExchangerSendRecv, self).__init__(ranks, rank_in_group)
+        super().__init__(ranks, rank_in_group)
         nccl_id = inc.get_unique_nccl_id(1).cuda()
         torch.distributed.broadcast(nccl_id, 0)
         nccl_id = nccl_id.cpu()
@@ -145,7 +145,7 @@ class HaloExchangerSendRecv(HaloExchanger):
 
 class HaloExchangerPeer(HaloExchanger):
     def __init__(self, ranks, rank_in_group, peer_pool, explicit_nhwc, numSM=0):
-        super(HaloExchangerPeer, self).__init__(ranks, rank_in_group)
+        super().__init__(ranks, rank_in_group)
         self.diagnostics = False
         self.explicit_nhwc = explicit_nhwc
         self.numSM = numSM

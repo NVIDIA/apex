@@ -1,6 +1,8 @@
 import timeit
-import torch
+
 import apex.contrib.gpu_direct_storage as gds
+import torch
+
 
 def run_benchmark_torch_load():
     sizes = [2 ** i for i in range(16, 28)]

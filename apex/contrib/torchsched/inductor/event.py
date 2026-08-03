@@ -15,14 +15,15 @@ import dataclasses
 import functools
 import itertools
 
-from torch._inductor.codegen.wrapper import IndentedBuffer
-from torch._inductor.codegen.wrapper import WrapperLine
+from torch._inductor.codegen.wrapper import IndentedBuffer, WrapperLine
 
 import apex.contrib.torchsched.config as torchsched_config
-from apex.contrib.torchsched.inductor._utils import DEFAULT_STREAM_IDX
-from apex.contrib.torchsched.inductor._utils import ENTRANCE_EVENT
-from apex.contrib.torchsched.inductor._utils import EVENT_NAME_TEMPLATE
-from apex.contrib.torchsched.inductor._utils import get_stream_name
+from apex.contrib.torchsched.inductor._utils import (
+    DEFAULT_STREAM_IDX,
+    ENTRANCE_EVENT,
+    EVENT_NAME_TEMPLATE,
+    get_stream_name,
+)
 
 
 @functools.total_ordering

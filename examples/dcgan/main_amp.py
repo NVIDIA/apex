@@ -1,16 +1,15 @@
-from __future__ import print_function
 import argparse
 import os
 import random
+
 import torch
-import torch.nn as nn
 import torch.nn.parallel
-import torch.backends.cudnn as cudnn
-import torch.optim as optim
 import torch.utils.data
 import torchvision.datasets as dset
-import torchvision.transforms as transforms
 import torchvision.utils as vutils
+from torch import nn, optim
+from torch.backends import cudnn
+from torchvision import transforms
 
 try:    
     from apex import amp
@@ -122,7 +121,7 @@ def weights_init(m):
 
 class Generator(nn.Module):
     def __init__(self, ngpu):
-        super(Generator, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is Z, going into a convolution
@@ -164,7 +163,7 @@ print(netG)
 
 class Discriminator(nn.Module):
     def __init__(self, ngpu):
-        super(Discriminator, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64

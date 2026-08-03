@@ -1,4 +1,5 @@
 import torch
+
 import apex
 
 model = apex.parallel.SyncBatchNorm(4).cuda()

@@ -1,11 +1,12 @@
-import os
-import inspect
-import torch
 import importlib
-import amp_C
-from apex.multi_tensor_apply import multi_tensor_applier
+import inspect
+import os
 
+import amp_C
+import torch
 import torch.distributed.distributed_c10d as c10d
+
+from apex.multi_tensor_apply import multi_tensor_applier
 
 # Fallback to private fields if using older PyTorch version
 try:
@@ -83,7 +84,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
         https://openreview.net/forum?id=ryQu7f-RZ
     """
 
-    class AtomicCounter(object):
+    class AtomicCounter:
         def __init__(self):
             self.value = 0
             self.order = []
@@ -137,7 +138,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
             max_grad_norm=max_grad_norm,
         )
 
-        super(DistributedFusedLAMB, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
         global fused_adam_cuda, distributed_lamb_cuda
         fused_adam_cuda = importlib.import_module("fused_adam_cuda")
@@ -222,7 +223,7 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
 
             self._ar_pg = []
             # consider all the ranks
-            ranks = list(range(0, self._world_size))
+            ranks = list(range(self._world_size))
             for i in range(self._num_ar_pg):
                 if self._verbose:
                     print(f"creating new AR group {i}: {ranks}")
@@ -665,12 +666,8 @@ class DistributedFusedLAMB(torch.optim.Optimizer):
                     ):
                         flat_grad_start = grads_info["param_offset"]
                         flat_grad_end = flat_grad_start + grads_info["param_grads_size"]
-                        clipped_start = (lambda a, b: a if a > b else b)(
-                            flat_grad_start, flat_shard_start
-                        )
-                        clipped_end = (lambda a, b: a if a < b else b)(
-                            flat_grad_end, flat_shard_end
-                        )
+                        clipped_start = (lambda a, b: max(b, a))(flat_grad_start, flat_shard_start)
+                        clipped_end = (lambda a, b: min(b, a))(flat_grad_end, flat_shard_end)
                         if clipped_start < clipped_end:
                             grad_offset = clipped_start - flat_grad_start
                             grad_length = clipped_end - clipped_start

@@ -17,7 +17,7 @@ from apex.contrib.openfold_triton._mha_kernel import (
 _TRI_MHA_ENABLED = False
 
 
-def is_enabled() -> Optional[bool]:
+def is_enabled() -> bool | None:
     global _TRI_MHA_ENABLED
     return _TRI_MHA_ENABLED
 
@@ -90,38 +90,34 @@ def CanSchTriMHA(in_shape, has_bias=True, inf=1e9, training=True):
 def schedule_triton_mha(in_shape, fwd=True):
     # default
     ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 0]
-    if in_shape == [256, 4, 256, 16]:
-        ret = [64, 32, 2, 4] if fwd else [64, 64, 4, 0]
-    elif in_shape == [128, 4, 256, 16]:
-        ret = [64, 32, 2, 4] if fwd else [64, 64, 4, 0]
-    elif in_shape == [64, 4, 256, 16]:
-        ret = [64, 32, 2, 4] if fwd else [64, 64, 4, 0]
-    elif in_shape == [32, 4, 256, 16]:
+    if (
+        in_shape == [256, 4, 256, 16]
+        or in_shape == [128, 4, 256, 16]
+        or in_shape == [64, 4, 256, 16]
+        or in_shape == [32, 4, 256, 16]
+    ):
         ret = [64, 32, 2, 4] if fwd else [64, 64, 4, 0]
     # [*, 8, 256, 32]
-    elif in_shape == [128, 8, 256, 32]:  # DAP1
-        ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
-    elif in_shape == [64, 8, 256, 32]:  # DAP2
-        ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
-    elif in_shape == [32, 8, 256, 32]:  # DAP4
-        ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
-    elif in_shape == [16, 8, 256, 32]:  # DAP8
+    elif (
+        in_shape == [128, 8, 256, 32]
+        or in_shape == [64, 8, 256, 32]
+        or in_shape == [32, 8, 256, 32]
+        or in_shape == [16, 8, 256, 32]
+    ):  # DAP1
         ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
     # [*, 8, 128, 32]
     elif in_shape == [256, 8, 128, 32]:  # DAP1
         ret = [64, 64, 4, 3] if fwd else [128, 64, 4, 1]
-    elif in_shape == [128, 8, 128, 32]:  # DAP2
-        ret = [128, 64, 4, 2] if fwd else [64, 64, 2, 0]
-    elif in_shape == [64, 8, 128, 32]:  # DAP4
-        ret = [128, 64, 4, 2] if fwd else [64, 64, 2, 0]
-    elif in_shape == [32, 8, 128, 32]:  # DAP8
+    elif (
+        in_shape == [128, 8, 128, 32]
+        or in_shape == [64, 8, 128, 32]
+        or in_shape == [32, 8, 128, 32]
+    ):  # DAP2
         ret = [128, 64, 4, 2] if fwd else [64, 64, 2, 0]
     # [*, 4, 256, 32]
     elif in_shape == [256, 4, 256, 32]:  # DAP1
         ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 0]
-    elif in_shape == [128, 4, 256, 32]:  # DAP2
-        ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
-    elif in_shape == [64, 4, 256, 32]:  # DAP4
+    elif in_shape == [128, 4, 256, 32] or in_shape == [64, 4, 256, 32]:  # DAP2
         ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 1]
     elif in_shape == [32, 4, 256, 32]:  # DAP8
         ret = [64, 32, 2, 3] if fwd else [128, 64, 8, 0]
@@ -398,7 +394,7 @@ def _attention_bias(
     key: torch.Tensor,
     value: torch.Tensor,
     mask: torch.Tensor,
-    bias: Optional[torch.Tensor],
+    bias: torch.Tensor | None,
     inf: float,
 ) -> torch.Tensor:
     # query:  [*, num_heads, Q, c_hidden]

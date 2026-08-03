@@ -13,9 +13,8 @@ How to run this script?
 
 import argparse
 import os
-import unittest
 import sys
-
+import unittest
 
 TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
 TEST_DIRS = [
@@ -69,8 +68,9 @@ def main(args: argparse.Namespace) -> None:
 
             warnings.warn("The option of `--xml-report` is deprecated", FutureWarning)
 
+        from datetime import date
+
         import xmlrunner
-        from datetime import date  # NOQA
 
         Runner = xmlrunner.XMLTestRunner
         if args.xml_report:

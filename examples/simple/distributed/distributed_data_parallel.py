@@ -1,9 +1,12 @@
-import torch
 import argparse
 import os
-from apex import amp
+
+import torch
+
 # FOR DISTRIBUTED: (can also use torch.nn.parallel.DistributedDataParallel instead)
 from apex.parallel import DistributedDataParallel
+
+from apex import amp
 
 parser = argparse.ArgumentParser()
 # FOR DISTRIBUTED:  Parse for the local_rank argument, which will be supplied

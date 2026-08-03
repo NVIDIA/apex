@@ -1,7 +1,9 @@
 import os
+
 import torch
 import torch.distributed as dist
-import apex.contrib.nccl_allocator as nccl_allocator
+
+from apex.contrib import nccl_allocator
 
 assert os.getenv("WORLD_SIZE") is not None, "Please use: torchrun --nproc-per-node=8 allreduce.py"
 

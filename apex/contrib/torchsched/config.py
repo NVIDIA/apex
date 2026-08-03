@@ -71,7 +71,7 @@ def __get_dump_code_backends_and_dir(
     dump_code_dir,
 ) = __get_dump_code_backends_and_dir(os.getenv("TORCH_SCHED_DUMP_CODE"))
 
-from torch.utils._config_module import install_config_module  # noqa: E402
+from torch.utils._config_module import install_config_module
 
 # adds patch, save_config, etc
 install_config_module(sys.modules[__name__])

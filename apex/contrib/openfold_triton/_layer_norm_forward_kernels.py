@@ -1,9 +1,8 @@
 # © 2023 NVIDIA CORPORATION & AFFILIATES
 
-from packaging.version import Version
-
 import triton
 import triton.language as tl
+from packaging.version import Version
 from triton import Config
 
 if Version("2.0.0") < Version(triton.__version__):

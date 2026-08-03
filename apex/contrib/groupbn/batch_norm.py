@@ -1,8 +1,7 @@
-import torch
-import numpy as np
-from torch.nn.modules.batchnorm import _BatchNorm
-
 import bnp
+import numpy as np
+import torch
+from torch.nn.modules.batchnorm import _BatchNorm
 
 
 class bn_NHWC_impl(torch.autograd.Function):
@@ -298,7 +297,7 @@ class BatchNorm2d_NHWC(_BatchNorm):
         cta_launch_margin=12,
         multi_stream=False,
     ):
-        super(BatchNorm2d_NHWC, self).__init__(num_features)
+        super().__init__(num_features)
 
         self.fuse_relu = fuse_relu
         self.multi_stream = multi_stream

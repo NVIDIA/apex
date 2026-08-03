@@ -1,9 +1,9 @@
-import sys
-import torch
-import numpy as np
 import collections
+import sys
 from itertools import permutations
 
+import numpy as np
+import torch
 
 """ compute density (helper fn to compute % NNZs in a tensor) """
 

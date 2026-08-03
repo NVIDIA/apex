@@ -1,12 +1,11 @@
 import functools as func
 
+import fast_bottleneck
+import nccl_p2p_cuda as inc
 import torch
 from torch import nn
 
 from apex import check_cudnn_version_and_warn
-import fast_bottleneck
-import nccl_p2p_cuda as inc
-
 
 assert check_cudnn_version_and_warn(__name__, 8400)
 
@@ -35,7 +34,7 @@ class FrozenBatchNorm2d(torch.jit.ScriptModule):
     """
 
     def __init__(self, n):
-        super(FrozenBatchNorm2d, self).__init__()
+        super().__init__()
         self.register_buffer("weight", torch.ones(n))
         self.register_buffer("bias", torch.zeros(n))
         self.register_buffer("running_mean", torch.zeros(n))
@@ -171,7 +170,7 @@ class Bottleneck(torch.nn.Module):
         use_cudnn=False,
         explicit_nhwc=False,
     ):
-        super(Bottleneck, self).__init__()
+        super().__init__()
         if groups != 1:
             raise RuntimeError("Only support groups == 1")
         if dilation != 1:
@@ -223,8 +222,6 @@ class Bottleneck(torch.nn.Module):
             for p in self.parameters():
                 with torch.no_grad():
                     p.data = p.data.permute(0, 2, 3, 1).contiguous()
-
-        return
 
     # Returns single callable that recomputes scale and bias for all frozen batch-norms.
     # This method must be called before cuda graphing.
@@ -851,7 +848,7 @@ class SpatialBottleneck(torch.nn.Module):
         explicit_nhwc=False,
         spatial_parallel_args=None,
     ):
-        super(SpatialBottleneck, self).__init__()
+        super().__init__()
         if groups != 1:
             raise RuntimeError("Only support groups == 1")
         if dilation != 1:
@@ -911,7 +908,6 @@ class SpatialBottleneck(torch.nn.Module):
             self.spatial_parallel_args = (1, 0, None, None, 0, False)
         else:
             self.spatial_parallel_args = spatial_parallel_args
-        return
 
     # Returns single callable that recomputes scale and bias for all frozen batch-norms.
     # This method must be called before cuda graphing.

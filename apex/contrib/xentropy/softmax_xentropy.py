@@ -1,5 +1,4 @@
 import torch
-
 import xentropy_cuda
 
 

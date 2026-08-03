@@ -1,11 +1,11 @@
-from copy import copy
 import math
+from copy import copy
 
+import mlp_cuda
 import torch
 from torch import nn
 
 from apex._autocast_utils import _cast_if_autocast_enabled
-import mlp_cuda
 
 
 class MlpFunction(torch.autograd.Function):
@@ -59,12 +59,12 @@ class MLP(torch.nn.Module):
         for i in range(self.num_layers):
             w = torch.nn.Parameter(torch.empty(mlp_sizes[i + 1], mlp_sizes[i]))
             self.weights.append(w)
-            name = "weight_{}".format(i)
+            name = f"weight_{i}"
             setattr(self, name, w)
             if self.bias:
                 b = torch.nn.Parameter(torch.empty(mlp_sizes[i + 1]))
                 self.biases.append(b)
-                name = "bias_{}".format(i)
+                name = f"bias_{i}"
                 setattr(self, name, b)
 
         self.reset_parameters()

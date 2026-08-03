@@ -30,16 +30,16 @@ from apex.contrib.openfold_triton.mha import (
 )
 
 __all__ = (
-    "LayerNormSmallShapeOptImpl",
-    "sync_triton_auto_tune_cache_across_gpus",
-    "CanSchTriMHA",
-    "AttnTri",
     "AttnBiasJIT",
     "AttnNoBiasJIT",
+    "AttnTri",
+    "CanSchTriMHA",
+    "LayerNormSmallShapeOptImpl",
+    "sync_triton_auto_tune_cache_across_gpus",
 )
 
 
-def _get_tuneable_triton_func_name(f: Union[Autotuner, Heuristics, JITFunction]) -> str:
+def _get_tuneable_triton_func_name(f: Autotuner | Heuristics | JITFunction) -> str:
     if isinstance(f, JITFunction):
         return f.__name__
     else:

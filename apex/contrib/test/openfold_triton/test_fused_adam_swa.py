@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from itertools import chain
 import random
 import unittest
+from itertools import chain
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 SKIP_TEST = None
 try:
@@ -32,7 +32,7 @@ class AlphaFoldSWA(nn.Module):
     """AlphaFold SWA (Stochastic Weight Averaging) module wrapper."""
 
     def __init__(self, alphafold: nn.Module, enabled: bool, decay_rate: float) -> None:
-        super(AlphaFoldSWA, self).__init__()
+        super().__init__()
         if enabled:
             self.averaged_model = torch.optim.swa_utils.AveragedModel(
                 model=alphafold,

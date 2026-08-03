@@ -3,7 +3,7 @@ import typing
 import unittest
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.testing._internal import common_utils
 
 SKIP_TEST = None
@@ -103,7 +103,7 @@ class TestCudnnGBN(NcclDistributedTestBase):
     def _test_cudnn_gbn(
         self,
         num_layers: int,
-        shape: typing.List[int],
+        shape: list[int],
         *,
         memory_format: torch.memory_format = torch.channels_last,
     ) -> None:

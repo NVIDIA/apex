@@ -2,8 +2,8 @@ import inspect
 
 import torch
 from torch.cuda.amp import GradScaler
-from torch.testing._internal import common_utils
 from torch.distributed.distributed_c10d import _coalescing_manager
+from torch.testing._internal import common_utils
 
 from apex.contrib.optimizers.distributed_fused_lamb import DistributedFusedLAMB
 from apex.distributed_testing.distributed_test_base import NcclDistributedTestBase
@@ -28,7 +28,7 @@ def get_init_weights_func():
 
 class ModelFoo(torch.nn.Module):
     def __init__(self):
-        super(ModelFoo, self).__init__()
+        super().__init__()
         self.linear = torch.nn.Linear(128, 128, bias=False)
         self.loss = torch.nn.MSELoss()
 

@@ -1,6 +1,5 @@
 import pathlib
 
-
 hw_c_list = [
     (8 * 8, 1280),
     (8 * 8, 2560),

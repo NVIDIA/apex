@@ -1,6 +1,7 @@
 try:
-    import torch
     import bnp
+    import torch
+
     from .batch_norm import BatchNorm2d_NHWC
 
     del torch

@@ -1,11 +1,12 @@
-import unittest
 import os
+import unittest
+from itertools import product
 
 import torch
 from torch.optim import Optimizer
+
 import apex
 from apex.multi_tensor_apply import multi_tensor_applier
-from itertools import product
 
 
 class RefLAMB(Optimizer):
@@ -29,15 +30,15 @@ class RefLAMB(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01):
         if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
+            raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
+            raise ValueError(f"Invalid epsilon value: {eps}")
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
+            raise ValueError(f"Invalid beta parameter at index 0: {betas[0]}")
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
+            raise ValueError(f"Invalid beta parameter at index 1: {betas[1]}")
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
-        super(RefLAMB, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         if multi_tensor_applier.available:
             import amp_C
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # PyTorch documentation build configuration file, created by
 # sphinx-quickstart on Fri Dec 23 13:31:47 2016.
@@ -24,7 +23,6 @@ sys.path.insert(0, os.path.abspath("."))
 # sys.path.insert(0, os.path.abspath('../../apex/parallel/'))
 # import multiproc
 import sphinx_rtd_theme
-
 
 # -- General configuration ------------------------------------------------
 
@@ -198,8 +196,8 @@ intersphinx_mapping = {
 # See http://stackoverflow.com/a/41184353/3343043
 
 from docutils import nodes
-from sphinx.util.docfields import TypedField
 from sphinx import addnodes
+from sphinx.util.docfields import TypedField
 
 
 def patched_make_field(self, types, domain, items, **kw):

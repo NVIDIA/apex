@@ -1,6 +1,7 @@
-import numpy as np
-import subprocess
 import math
+import subprocess
+
+import numpy as np
 
 gpus_tested = False
 gpus_found = 0
@@ -526,7 +527,7 @@ def move_permutation_towards(B, A, debug=False):
         cur_entry = wrong_entries[we]
         # if debug:
         #    print(f"\tMPT: checking {cur_entry} for complement")
-        for we2 in range(0, len(wrong_entries)):
+        for we2 in range(len(wrong_entries)):
             pos_swap = wrong_entries[we2]
             # if debug:
             #    print(f"\t\tMPT: is {pos_swap}?")

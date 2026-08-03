@@ -1,8 +1,8 @@
+import fast_layer_norm
 import torch
 from torch.nn import init
 
 from apex._autocast_utils import _cast_if_autocast_enabled
-import fast_layer_norm
 
 
 class FastLayerNormFN(torch.autograd.Function):

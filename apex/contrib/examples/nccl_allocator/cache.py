@@ -1,6 +1,8 @@
 import torch
-import apex.contrib.nccl_allocator as nccl_allocator
 from pynvml.smi import nvidia_smi
+
+from apex.contrib import nccl_allocator
+
 
 def set_device(dev):
     import ctypes

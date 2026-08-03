@@ -4,23 +4,19 @@ from __future__ import annotations
 
 import functools
 from copy import copy
-from typing import TYPE_CHECKING
-from typing import ParamSpec
-from typing import TypeVar
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import NotImplementedType
 
 import torch
-from torch import Tensor
-from torch import _TorchCompileInductorWrapper
+from torch import Tensor, _TorchCompileInductorWrapper
 from torch._dynamo import lookup_backend
-from torch._inductor.compile_fx import compile_fx
-from torch._inductor.compile_fx import compile_fx_inner
+from torch._inductor.compile_fx import compile_fx, compile_fx_inner
 from torch._inductor.decomposition import select_decomp_table
 
-import apex.contrib.torchsched.config as config
+from apex.contrib.torchsched import config
 from apex.contrib.torchsched.inductor import patch_graph_lowering
 from apex.contrib.torchsched.passes import pre_grad_custom_pass
 

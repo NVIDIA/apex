@@ -11,11 +11,9 @@ import torch
 # so they expect those backends to be available, but for some reason they actually aren't
 # available (for example because they built improperly in a way that isn't revealed until
 # load time) the error message is timely and visible.
-from . import optimizers
-from . import normalization
+from . import normalization, optimizers
 
-
-__all__ = ["optimizers", "normalization"]
+__all__ = ["normalization", "optimizers"]
 
 
 def check_cudnn_version_and_warn(global_option: str, required_cudnn_version: int) -> bool:

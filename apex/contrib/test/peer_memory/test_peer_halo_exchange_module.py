@@ -7,7 +7,7 @@ SKIP_TEST = None
 from apex.distributed_testing.distributed_test_base import NcclDistributedTestBase
 
 try:
-    from apex.contrib.peer_memory import PeerMemoryPool, PeerHaloExchanger1d
+    from apex.contrib.peer_memory import PeerHaloExchanger1d, PeerMemoryPool
 except ImportError as e:
     SKIP_TEST = e
 

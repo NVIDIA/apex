@@ -1,10 +1,12 @@
-import torch
 import argparse
 import os
-from apex import amp
+
+import torch
 
 # FOR DISTRIBUTED: (can also use torch.nn.parallel.DistributedDataParallel instead)
 from apex.parallel import DistributedDataParallel
+
+from apex import amp
 
 parser = argparse.ArgumentParser()
 # FOR DISTRIBUTED:  Parse for the local_rank argument, which will be supplied
@@ -66,8 +68,8 @@ for t in range(500):
 if args.local_rank == 0:
     print("final loss = ", loss)
 
-torch.save(list(model.parameters()), "rank{}model.pth".format(torch.distributed.get_rank()))
+torch.save(list(model.parameters()), f"rank{torch.distributed.get_rank()}model.pth")
 torch.save(
     list(amp.master_params(optimizer)),
-    "rank{}master.pth".format(torch.distributed.get_rank()),
+    f"rank{torch.distributed.get_rank()}master.pth",
 )

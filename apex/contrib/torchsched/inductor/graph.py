@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
-from torch._inductor.codegen.common import get_scheduling_for_device
-from torch._inductor.codegen.common import get_wrapper_codegen_for_device
-from torch._inductor.codegen.common import register_backend_for_device
+from torch._inductor.codegen.common import (
+    get_scheduling_for_device,
+    get_wrapper_codegen_for_device,
+    register_backend_for_device,
+)
 from torch._inductor.codegen.wrapper import PythonWrapperCodegen
 from torch._inductor.graph import GraphLowering
 from torch._inductor.scheduler import Scheduler

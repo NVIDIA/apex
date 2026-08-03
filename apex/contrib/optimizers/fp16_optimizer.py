@@ -1,8 +1,9 @@
 import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
-class FP16_Optimizer(object):
+class FP16_Optimizer:
     """
     :class:`FP16_Optimizer` A cutdown version of apex.fp16_utils.FP16_Optimizer.
     Designed only to wrap apex.contrib.optimizers.FusedAdam, FusedSGD.
@@ -160,7 +161,6 @@ class FP16_Optimizer(object):
                 print("\nGrad overflow on iteration", self.cur_iter)
                 print("Using static loss scale of", self.cur_scale)
         self.cur_iter += 1
-        return
 
     # Promote state so it can be retrieved or set via "fp16_optimizer_instance.state"
     def _get_state(self):

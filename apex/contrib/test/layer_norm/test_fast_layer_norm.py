@@ -5,8 +5,9 @@ import torch
 
 SKIP_TEST = None
 try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     import fast_layer_norm as fln
+
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 except ImportError as e:
     SKIP_TEST = e
 
@@ -98,9 +99,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         ms_fwd = timer.millis() / runs
 
         print(
-            "[FWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec".format(
-                ms_fwd, total_bytes_fwd * 1e-6 / ms_fwd
-            )
+            f"[FWD] Time: {ms_fwd:.4f}ms Throughput: {total_bytes_fwd * 1e-6 / ms_fwd:.4f} GB/sec"
         )
 
         timer.start()
@@ -132,9 +131,7 @@ def benchmark_(S, B, hidden_size, itype, wtype, runs=100):
         ms_bwd = timer.millis() / runs
 
         print(
-            "[BWD] Time: {:.4f}ms Throughput: {:.4f} GB/sec".format(
-                ms_bwd, total_bytes_bwd * 1e-6 / ms_bwd
-            )
+            f"[BWD] Time: {ms_bwd:.4f}ms Throughput: {total_bytes_bwd * 1e-6 / ms_bwd:.4f} GB/sec"
         )
 
 

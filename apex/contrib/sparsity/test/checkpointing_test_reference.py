@@ -1,8 +1,9 @@
 from collections import OrderedDict
 
 import torch
-from apex.optimizers import FusedAdam
+
 from apex.contrib.sparsity import ASP
+from apex.optimizers import FusedAdam
 
 #
 # Reference run for checkpointing test (part1 + part2)

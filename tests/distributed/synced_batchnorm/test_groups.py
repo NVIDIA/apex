@@ -1,10 +1,12 @@
-import torch
-import numpy as np
-import apex
-import syncbn
-import os
 import argparse
-import torch.optim as optim
+import os
+
+import numpy as np
+import syncbn
+import torch
+from torch import optim
+
+import apex
 
 
 def compare(desc, inp1, inp2, error):

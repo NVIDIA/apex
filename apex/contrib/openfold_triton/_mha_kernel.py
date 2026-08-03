@@ -461,7 +461,7 @@ def _bwd_kernel(
         Mask += off_b * stride_mz + off_h * stride_mh
 
     num_block_n = tl.cdiv(N_CTX, BLOCK_N)
-    for start_n in range(0, num_block_n):
+    for start_n in range(num_block_n):
         # lo = start_n * BLOCK_M
         lo = 0
         # initialize row/col offsets

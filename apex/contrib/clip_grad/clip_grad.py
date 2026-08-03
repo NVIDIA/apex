@@ -1,10 +1,12 @@
-from typing import Union, Iterable
+from collections.abc import Iterable
+from typing import Union
 
 import torch
 
 _kernel_import_succeeded = False
 try:
     import amp_C
+
     from apex.multi_tensor_apply import multi_tensor_applier
 
     _kernel_import_succeeded = True

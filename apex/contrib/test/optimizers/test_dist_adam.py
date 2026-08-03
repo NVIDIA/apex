@@ -1,9 +1,9 @@
-from contextlib import contextmanager
 import io
-from typing import Callable, Optional
 import unittest
 import warnings
-from contextlib import nullcontext
+from collections.abc import Callable
+from contextlib import contextmanager, nullcontext
+from typing import Optional
 
 import torch
 from torch.testing._internal import common_utils
@@ -37,11 +37,11 @@ def make_models(
     lr: float = 0.1,
     adam_w_mode: bool = True,
     model_dtype: torch.dtype = torch.float32,
-    optim_dtype: Optional[torch.dtype] = None,
-    grad_sync_dtype: Optional[torch.dtype] = None,
-    param_sync_dtype: Optional[torch.dtype] = None,
+    optim_dtype: torch.dtype | None = None,
+    grad_sync_dtype: torch.dtype | None = None,
+    param_sync_dtype: torch.dtype | None = None,
     device: torch.device = "cuda",
-    process_group: Optional[torch.distributed.ProcessGroup] = None,
+    process_group: torch.distributed.ProcessGroup | None = None,
     average_grad_sync: bool = True,
     overlap_communication: bool = True,
     bucket_cap_mb: float = 71 / (4 * 1024 * 1024),
@@ -121,8 +121,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_matches_pytorch(
         self,
-        rtol: Optional[float] = None,
-        atol: Optional[float] = None,
+        rtol: float | None = None,
+        atol: float | None = None,
         num_layers: int = 11,
         layer_size: int = 7,
         batch_size: int = 3,
@@ -132,9 +132,9 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         overlap_communication: bool = True,
         use_nosync: bool = True,
         model_dtype: torch.dtype = torch.float32,
-        optim_dtype: Optional[torch.dtype] = None,
-        grad_sync_dtype: Optional[torch.dtype] = None,
-        param_sync_dtype: Optional[torch.dtype] = None,
+        optim_dtype: torch.dtype | None = None,
+        grad_sync_dtype: torch.dtype | None = None,
+        param_sync_dtype: torch.dtype | None = None,
         device: torch.device = "cuda",
         bucket_cap_mb: float = 71 / (4 * 1024 * 1024),
         contiguous_buffers: bool = False,
@@ -142,7 +142,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
         store_param_remainders: bool = False,
         with_scaled_states: bool = False,
         nccl_ub: bool = False,
-        init_optim_func: Optional[Callable[[DistributedFusedAdam], None]] = None,
+        init_optim_func: Callable[[DistributedFusedAdam], None] | None = None,
         with_cuda_graph: bool = False,
     ):
         torch.manual_seed(self.seed + self.rank)
@@ -491,15 +491,15 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
     def test_checkpoint(
         self,
-        rtol: Optional[float] = None,
-        atol: Optional[float] = None,
+        rtol: float | None = None,
+        atol: float | None = None,
         num_layers: int = 2,
         layer_size: int = 2,
         num_steps: int = 3,
-        save_group_size: Optional[int] = None,
-        load_group_size: Optional[int] = None,
-        save_model_kwargs: Optional[dict] = None,
-        load_model_kwargs: Optional[dict] = None,
+        save_group_size: int | None = None,
+        load_group_size: int | None = None,
+        save_model_kwargs: dict | None = None,
+        load_model_kwargs: dict | None = None,
     ):
         """Test state_dict and load_state_dict functions
 
@@ -595,8 +595,8 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         def to_local_batch(
             global_batch: torch.Tensor,
-            group: Optional[torch.distributed.ProcessGroup],
-        ) -> Optional[torch.Tensor]:
+            group: torch.distributed.ProcessGroup | None,
+        ) -> torch.Tensor | None:
             """Get local portion of tensor that is replicated across all ranks"""
             group_size = torch.distributed.get_world_size(group)
             if group_size < 0:
@@ -608,7 +608,7 @@ class TestDistributedFusedAdam(NcclDistributedTestBase):
 
         def to_global_batch(
             local_batch: torch.Tensor,
-            group: Optional[torch.distributed.ProcessGroup],
+            group: torch.distributed.ProcessGroup | None,
         ) -> torch.Tensor:
             """Gather distributed tensor and broadcast to all ranks"""
 

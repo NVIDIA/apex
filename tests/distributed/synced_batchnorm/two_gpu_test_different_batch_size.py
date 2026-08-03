@@ -1,11 +1,11 @@
-import torch
-import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-from apex.parallel import SyncBatchNorm as ApexSyncBatchNorm
-
 import argparse
 import os
+
 import numpy as np
+import torch
+from apex.parallel import SyncBatchNorm as ApexSyncBatchNorm
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 var_batch = 16
 
@@ -33,7 +33,7 @@ args = parser.parse_args()
 torch.manual_seed(2809)
 # Setup DDP
 torch.cuda.set_device(args.local_rank)
-device = torch.device("cuda:{}".format(args.local_rank))
+device = torch.device(f"cuda:{args.local_rank}")
 
 torch.distributed.init_process_group(
     "nccl",

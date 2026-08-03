@@ -1,4 +1,5 @@
 import argparse
+
 import torch
 
 parser = argparse.ArgumentParser(description="Compare")
@@ -39,13 +40,11 @@ if args.use_baseline:
 # ugly duplication here...
 if not args.use_baseline:
     for n, (i_e, i_p) in enumerate(zip(dict_e["Iteration"], dict_p["Iteration"])):
-        assert i_e == i_p, "i_e = {}, i_p = {}".format(i_e, i_p)
+        assert i_e == i_p, f"i_e = {i_e}, i_p = {i_p}"
 
         loss_e = dict_e["Loss"][n]
         loss_p = dict_p["Loss"][n]
-        assert loss_e == loss_p, "Iteration {}, loss_e = {}, loss_p = {}".format(
-            i_e, loss_e, loss_p
-        )
+        assert loss_e == loss_p, f"Iteration {i_e}, loss_e = {loss_e}, loss_p = {loss_p}"
         print(
             "{:4} {:15.10f} {:15.10f} {:15.10f} {:15.10f}".format(
                 i_e, loss_e, loss_p, dict_e["Speed"][n], dict_p["Speed"][n]
@@ -53,17 +52,13 @@ if not args.use_baseline:
         )
 else:
     for n, (i_e, i_p) in enumerate(zip(dict_e["Iteration"], dict_p["Iteration"])):
-        assert i_e == i_p, "i_e = {}, i_p = {}".format(i_e, i_p)
+        assert i_e == i_p, f"i_e = {i_e}, i_p = {i_p}"
 
         loss_e = dict_e["Loss"][n]
         loss_p = dict_p["Loss"][n]
         loss_b = dict_b["Loss"][n]
-        assert loss_e == loss_p, "Iteration {}, loss_e = {}, loss_p = {}".format(
-            i_e, loss_e, loss_p
-        )
-        assert loss_e == loss_b, "Iteration {}, loss_e = {}, loss_b = {}".format(
-            i_e, loss_e, loss_b
-        )
+        assert loss_e == loss_p, f"Iteration {i_e}, loss_e = {loss_e}, loss_p = {loss_p}"
+        assert loss_e == loss_b, f"Iteration {i_e}, loss_e = {loss_e}, loss_b = {loss_b}"
         print(
             "{:4} {:15.10f} {:15.10f} {:15.10f} {:15.10f} {:15.10f} {:15.10f}".format(
                 i_e,

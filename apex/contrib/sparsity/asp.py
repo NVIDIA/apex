@@ -1,7 +1,9 @@
 import types
+
 import torch
-from .sparse_masklib import create_mask
+
 from .permutation_lib import Permutation
+from .sparse_masklib import create_mask
 
 torchvision_imported = True
 try:
@@ -352,9 +354,7 @@ class ASP:
                         time.perf_counter() - start_time_permute
                     )
                     print(
-                        "[compute_sparse_masks] Take {:.4f} seconds to find and apply permutations.".format(
-                            duration_build_offline_permutation_graph
-                        )
+                        f"[compute_sparse_masks] Take {duration_build_offline_permutation_graph:.4f} seconds to find and apply permutations."
                     )
 
             for module_name, module, p_name, p, mask, pruned in cls.__sparse_parameters:
@@ -451,20 +451,14 @@ class ASP:
         print("\n[ASP][set_permutation_saving_param] Set permutation saving related parameters")
         print("\n[set_permutation_saving_param] Set permutation saving related parameters")
         cls.__allow_permutation = allow_permutation
-        print(
-            "[set_permutation_saving_param]\t Allow permutation: {}".format(cls.__allow_permutation)
-        )
+        print(f"[set_permutation_saving_param]\t Allow permutation: {cls.__allow_permutation}")
         cls.__save_permutation_graph = save_permutation_graph
         print(
-            "[set_permutation_saving_param]\t Save permutation graphs: {}".format(
-                cls.__save_permutation_graph
-            )
+            f"[set_permutation_saving_param]\t Save permutation graphs: {cls.__save_permutation_graph}"
         )
         cls.__permutation_output_dir = permutation_output_dir
         print(
-            "[set_permutation_saving_param]\t Permutation graphs saving dir: {}".format(
-                cls.__permutation_output_dir
-            )
+            f"[set_permutation_saving_param]\t Permutation graphs saving dir: {cls.__permutation_output_dir}"
         )
 
         Permutation.set_permutation_saving_params(

@@ -1,6 +1,8 @@
-import types
-import torch
 import importlib
+import types
+
+import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
@@ -72,7 +74,7 @@ class FusedAdam(torch.optim.Optimizer):
             weight_decay=weight_decay,
             max_grad_norm=max_grad_norm,
         )
-        super(FusedAdam, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         self.eps_mode = 0 if eps_inside_sqrt else 1
 
     def step(self, closure=None, grads=None, output_params=None, scale=1.0, grad_norms=None):
@@ -104,18 +106,16 @@ class FusedAdam(torch.optim.Optimizer):
             grads_group = [None] * len(self.param_groups)
         # backward compatibility
         # assuming a list/generator of parameter means single group
-        elif isinstance(grads, types.GeneratorType):
-            grads_group = [grads]
-        elif not isinstance(grads[0], list):
+        elif isinstance(grads, types.GeneratorType) or not isinstance(grads[0], list):
             grads_group = [grads]
         else:
             grads_group = grads
 
         if output_params is None:
             output_params_group = [None] * len(self.param_groups)
-        elif isinstance(output_params, types.GeneratorType):
-            output_params_group = [output_params]
-        elif not isinstance(output_params[0], list):
+        elif isinstance(output_params, types.GeneratorType) or not isinstance(
+            output_params[0], list
+        ):
             output_params_group = [output_params]
         else:
             output_params_group = output_params

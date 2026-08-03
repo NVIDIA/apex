@@ -1,10 +1,12 @@
-import torch
-import numpy as np
-import apex
-import syncbn
-import os
 import argparse
-import torch.optim as optim
+import os
+
+import numpy as np
+import syncbn
+import torch
+from torch import optim
+
+import apex
 
 
 def compare(desc, inp1, inp2, error):
@@ -119,7 +121,7 @@ out_sbn.backward(grad_sbn[start:finish])
 
 count = [
     space_size**2 * ((i + 1) * batch_size // args.world_size - i * batch_size // args.world_size)
-    for i in range(0, args.world_size)
+    for i in range(args.world_size)
 ]
 count = torch.cuda.IntTensor(count)
 

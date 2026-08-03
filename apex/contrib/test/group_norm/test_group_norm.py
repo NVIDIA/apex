@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 
 #
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
@@ -10,16 +9,19 @@ import functools
 import importlib
 import pathlib
 import sys
-import torch
 import unittest
+
+import torch
 
 SKIP_TEST = None
 try:
-    from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_one_pass
-    from apex.contrib.group_norm.group_norm import cuda_group_norm_nhwc_two_pass
-    from apex.contrib.group_norm.group_norm import cuda_group_norm_v2_nhwc
-    from apex.contrib.group_norm.group_norm import get_cc_and_sm_count
     from apex.contrib.group_norm import GroupNorm
+    from apex.contrib.group_norm.group_norm import (
+        cuda_group_norm_nhwc_one_pass,
+        cuda_group_norm_nhwc_two_pass,
+        cuda_group_norm_v2_nhwc,
+        get_cc_and_sm_count,
+    )
 except ImportError as e:
     SKIP_TEST = e
 

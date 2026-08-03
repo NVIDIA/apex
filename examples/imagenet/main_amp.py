@@ -3,21 +3,18 @@ import os
 import shutil
 import time
 
+import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.parallel
-import torch.backends.cudnn as cudnn
 import torch.distributed as dist
+import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
-import torchvision.models as models
-
-import numpy as np
-
+from torch import nn
+from torch.backends import cudnn
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torchvision import datasets, models, transforms
+
 
 def to_python_float(scalar_tensor: torch.Tensor):
     return scalar_tensor.float().item()
@@ -93,11 +90,11 @@ def main():
     global best_prec1, args
 
     args = parse()
-    print("opt_level = {}".format(args.opt_level))
-    print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
-    print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
+    print(f"opt_level = {args.opt_level}")
+    print(f"keep_batchnorm_fp32 = {args.keep_batchnorm_fp32}", type(args.keep_batchnorm_fp32))
+    print(f"loss_scale = {args.loss_scale}", type(args.loss_scale))
 
-    print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
+    print(f"\nCUDNN VERSION: {torch.backends.cudnn.version()}\n")
 
     cudnn.benchmark = True
     best_prec1 = 0
@@ -130,10 +127,10 @@ def main():
 
     # create model
     if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
+        print(f"=> using pre-trained model '{args.arch}'")
         model = models.__dict__[args.arch](pretrained=True)
     else:
-        print("=> creating model '{}'".format(args.arch))
+        print(f"=> creating model '{args.arch}'")
         model = models.__dict__[args.arch]()
 
     if args.sync_bn:
@@ -161,7 +158,7 @@ def main():
         # Use a local scope to avoid dangling references
         def resume():
             if os.path.isfile(args.resume):
-                print("=> loading checkpoint '{}'".format(args.resume))
+                print(f"=> loading checkpoint '{args.resume}'")
                 checkpoint = torch.load(args.resume, map_location = lambda storage, loc: storage.cuda(args.gpu))
                 args.start_epoch = checkpoint['epoch']
                 global best_prec1
@@ -171,7 +168,7 @@ def main():
                 print("=> loaded checkpoint '{}' (epoch {})"
                       .format(args.resume, checkpoint['epoch']))
             else:
-                print("=> no checkpoint found at '{}'".format(args.resume))
+                print(f"=> no checkpoint found at '{args.resume}'")
         resume()
 
     # Data loading code
@@ -244,7 +241,7 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
 
-class data_prefetcher():
+class data_prefetcher:
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
@@ -315,10 +312,10 @@ def train(train_loader, model, criterion, optimizer, scaler, epoch):
     while input is not None:
         i += 1
         if args.prof >= 0 and i == args.prof:
-            print("Profiling begun at iteration {}".format(i))
+            print(f"Profiling begun at iteration {i}")
             torch.cuda.cudart().cudaProfilerStart()
 
-        if args.prof >= 0: torch.cuda.nvtx.range_push("Body of iteration {}".format(i))
+        if args.prof >= 0: torch.cuda.nvtx.range_push(f"Body of iteration {i}")
 
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
@@ -370,17 +367,12 @@ def train(train_loader, model, criterion, optimizer, scaler, epoch):
             end = time.time()
 
             if args.local_rank == 0:
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Speed {3:.3f} ({4:.3f})\t'
-                      'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       epoch, i, len(train_loader),
-                       args.world_size*args.batch_size/batch_time.val,
-                       args.world_size*args.batch_size/batch_time.avg,
-                       batch_time=batch_time,
-                       loss=losses, top1=top1, top5=top5))
+                print(f'Epoch: [{epoch}][{i}/{len(train_loader)}]\t'
+                      f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      f'Speed {args.world_size*args.batch_size/batch_time.val:.3f} ({args.world_size*args.batch_size/batch_time.avg:.3f})\t'
+                      f'Loss {losses.val:.10f} ({losses.avg:.4f})\t'
+                      f'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                      f'Prec@5 {top5.val:.3f} ({top5.avg:.3f})')
         if args.prof >= 0: torch.cuda.nvtx.range_push("prefetcher.next()")
         input, target = prefetcher.next()
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
@@ -389,7 +381,7 @@ def train(train_loader, model, criterion, optimizer, scaler, epoch):
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         if args.prof >= 0 and i == args.prof + 10:
-            print("Profiling ended at iteration {}".format(i))
+            print(f"Profiling ended at iteration {i}")
             torch.cuda.cudart().cudaProfilerStop()
             quit()
 
@@ -436,22 +428,17 @@ def validate(val_loader, model, criterion):
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
-            print('Test: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Speed {2:.3f} ({3:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   i, len(val_loader),
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
-                   batch_time=batch_time, loss=losses,
-                   top1=top1, top5=top5))
+            print(f'Test: [{i}/{len(val_loader)}]\t'
+                  f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  f'Speed {args.world_size * args.batch_size / batch_time.val:.3f} ({args.world_size * args.batch_size / batch_time.avg:.3f})\t'
+                  f'Loss {losses.val:.4f} ({losses.avg:.4f})\t'
+                  f'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                  f'Prec@5 {top5.val:.3f} ({top5.avg:.3f})')
 
         input, target = prefetcher.next()
 
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-          .format(top1=top1, top5=top5))
+    print(f' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
+          )
 
     return top1.avg
 
@@ -462,7 +449,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-class AverageMeter(object):
+class AverageMeter:
     """Computes and stores the average and current value"""
     def __init__(self):
         self.reset()

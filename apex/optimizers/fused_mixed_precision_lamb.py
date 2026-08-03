@@ -1,7 +1,9 @@
-import torch
+from collections import abc as container_abcs
+from collections import defaultdict
 from copy import deepcopy
 from itertools import chain
-from collections import defaultdict, abc as container_abcs
+
+import torch
 
 from apex.multi_tensor_apply import multi_tensor_applier
 
@@ -39,7 +41,7 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
         )
 
         # init base module
-        super(FusedMixedPrecisionLamb, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
         # The learning rate (lr) and optimizer step (step) should be located on device
         # in order to faciliated device sync free execution
@@ -97,8 +99,8 @@ class FusedMixedPrecisionLamb(torch.optim.Optimizer):
         id_map = {
             old_id: p
             for old_id, p in zip(
-                chain.from_iterable((g["params"] for g in saved_groups)),
-                chain.from_iterable((g["params"] for g in groups)),
+                chain.from_iterable(g["params"] for g in saved_groups),
+                chain.from_iterable(g["params"] for g in groups),
             )
         }
 

@@ -2,17 +2,17 @@ import os
 
 import torch
 import torch.distributed as dist
-from torch.testing._internal.common_utils import run_tests
 from torch.testing._internal.common_distributed import (
     MultiProcessTestCase,
     requires_nccl,
     skip_if_lt_x_gpu,
 )
+from torch.testing._internal.common_utils import run_tests
 
 from apex.contrib.openfold_triton import (
     LayerNormSmallShapeOptImpl,
-    sync_triton_auto_tune_cache_across_gpus,
     _tuneable_triton_kernels,
+    sync_triton_auto_tune_cache_across_gpus,
 )
 
 

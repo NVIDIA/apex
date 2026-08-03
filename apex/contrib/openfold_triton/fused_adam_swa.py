@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from enum import Enum, unique
 from itertools import chain
-from typing import Callable, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
-import torch.nn as nn
 import triton
 import triton.language as tl
+from torch import nn
 from torch.optim import Adam, Optimizer
 
 # The most common parameter size in open-fold.
@@ -209,13 +210,13 @@ def _multi_tensor_adam_swa(
 class FusedAdamSWA(Optimizer):
     def __init__(
         self,
-        params: List[nn.Parameter],
-        compute_params: List[nn.Parameter],
-        swa_params: List[nn.Parameter],
+        params: list[nn.Parameter],
+        compute_params: list[nn.Parameter],
+        swa_params: list[nn.Parameter],
         swa_decay_rate: float,
         lr: float = 1e-3,
         bias_correction: bool = True,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-8,
         adam_math_mode: AdamMathType = AdamMathType.PyTorchAdam,
         weight_decay: float = 0.0,
@@ -371,8 +372,8 @@ class FusedAdamSWA(Optimizer):
 
     def step(
         self,
-        closure: Optional[Callable[[], torch.Tensor]] = None,
-        grad_clip_scale: Optional[Union[torch.Tensor, float]] = None,
+        closure: Callable[[], torch.Tensor] | None = None,
+        grad_clip_scale: torch.Tensor | float | None = None,
     ):
         if not self._pointer_buffers_initialized:
             self._build_pointer_buffers()
@@ -460,9 +461,9 @@ class FusedAdamSWA(Optimizer):
     def from_optim(
         cls,
         adam_optimizer: Adam,
-        fp32_params: List[nn.Parameter],
-        bf16_params: List[nn.Parameter],
-        swa_params: List[nn.Parameter],
+        fp32_params: list[nn.Parameter],
+        bf16_params: list[nn.Parameter],
+        swa_params: list[nn.Parameter],
         swa_decay_rate: float,
     ) -> FusedAdamSWA:
         assert len(adam_optimizer.param_groups) == 1

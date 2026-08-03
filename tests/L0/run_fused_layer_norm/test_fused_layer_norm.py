@@ -1,15 +1,11 @@
 import importlib.util
+from itertools import product
 
 import torch
-from apex.normalization import FusedLayerNorm
-from apex.normalization import FusedRMSNorm
-from apex.normalization import MixedFusedLayerNorm
-from apex.normalization import MixedFusedRMSNorm
-
 from torch.testing._internal import common_utils
 from torch.testing._internal.common_device_type import instantiate_device_type_tests
 
-from itertools import product
+from apex.normalization import FusedLayerNorm, FusedRMSNorm, MixedFusedLayerNorm, MixedFusedRMSNorm
 
 
 def _prep_inputs(batch_size, normalized_shape, dtype):

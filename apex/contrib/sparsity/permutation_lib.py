@@ -1,11 +1,12 @@
-import os
-import torch
-import json
-import string
-import time
-import numpy as np
 import builtins as __builtin__
 import io
+import json
+import os
+import string
+import time
+
+import numpy as np
+import torch
 
 try:
     from .permutation_search_kernels import (
@@ -160,9 +161,7 @@ class Permutation:
 
         if cls.__verbosity > 0:
             print(
-                "[set_identical_seed] Set the identical seed: {:} for all GPUs to make sure the same results generated in permutation search".format(
-                    identical_seed
-                )
+                f"[set_identical_seed] Set the identical seed: {identical_seed} for all GPUs to make sure the same results generated in permutation search"
             )
 
         cls.__manual_seed = identical_seed
@@ -302,9 +301,7 @@ class Permutation:
             )
             if cls.__verbosity > 0:
                 print(
-                    "\n[permute_model] Take {:.4f} seconds to finish search_for_good_permutation function.".format(
-                        duration_search_for_good_permutation
-                    )
+                    f"\n[permute_model] Take {duration_search_for_good_permutation:.4f} seconds to finish search_for_good_permutation function."
                 )
 
             fx_graph_after_sync_permutations = cls.sync_permutations(
@@ -342,11 +339,7 @@ class Permutation:
         """This function is used to permutation for a node in C dim. (Only need to handle the weight of the node)"""
 
         if cls.__verbosity > 1 and dryrun:
-            print(
-                "[apply_permutation_in_C_dim] Permutation for node: '{:}' in C dim".format(
-                    node_name
-                )
-            )
+            print(f"[apply_permutation_in_C_dim] Permutation for node: '{node_name}' in C dim")
 
         if len(permutation_sequence) == 0:
             if cls.__verbosity >= 0:
@@ -361,9 +354,7 @@ class Permutation:
             if node_name_matches(node_name, module_name):
                 if cls.__verbosity > 2 and dryrun:
                     print(
-                        "[apply_permutation_in_C_dim] find the node: '{:}' '{:}' in cls.__sparse_parameters, succeed to apply permutation in C dim.".format(
-                            node_name, p_name
-                        )
+                        f"[apply_permutation_in_C_dim] find the node: '{node_name}' '{p_name}' in cls.__sparse_parameters, succeed to apply permutation in C dim."
                     )
                 is_node_in_sparse_parameters = True
                 permutation_to_apply = permutation_sequence
@@ -397,9 +388,7 @@ class Permutation:
                     ):
                         if cls.__verbosity > 3 and dryrun:
                             print(
-                                "[apply_permutation_in_C_dim] cannot find the node: '{:}' '{:}' in cls.__sparse_parameters, but can find in cls.__all_parameters.".format(
-                                    node_name, p_name_from_all_parameters
-                                )
+                                f"[apply_permutation_in_C_dim] cannot find the node: '{node_name}' '{p_name_from_all_parameters}' in cls.__sparse_parameters, but can find in cls.__all_parameters."
                             )
                         permutation_to_apply = permutation_sequence
                         if p_from_all_parameters.shape[1] != len(
@@ -424,17 +413,13 @@ class Permutation:
                         success_permutation = True
                         if cls.__verbosity > 2 and dryrun:
                             print(
-                                "[apply_permutation_in_C_dim] cannot find the node: '{:}' in cls.__sparse_parameters, after trying with cls.__all_parameters, succeed to apply permutation in C dim.".format(
-                                    node_name
-                                )
+                                f"[apply_permutation_in_C_dim] cannot find the node: '{node_name}' in cls.__sparse_parameters, after trying with cls.__all_parameters, succeed to apply permutation in C dim."
                             )
             except:
                 success_permutation = False
                 if cls.__verbosity >= 0:
                     print(
-                        "ERROR: [apply_permutation_in_C_dim] cannot find the node: '{:}' in cls.__sparse_parameters, after trying with cls.__all_parameters, still fail to apply permutation in C dim.".format(
-                            node_name
-                        )
+                        f"ERROR: [apply_permutation_in_C_dim] cannot find the node: '{node_name}' in cls.__sparse_parameters, after trying with cls.__all_parameters, still fail to apply permutation in C dim."
                     )
         return success_permutation
 
@@ -483,11 +468,7 @@ class Permutation:
         """This function is used to permutation for a node in K dim. (Need to handle the weight/bias/running_mean/running_var of the node)"""
 
         if cls.__verbosity > 1:
-            print(
-                "[apply_permutation_in_K_dim] Permutation for node: '{:}' in K dim".format(
-                    node_name
-                )
-            )
+            print(f"[apply_permutation_in_K_dim] Permutation for node: '{node_name}' in K dim")
 
         if len(permutation_sequence) == 0:
             if cls.__verbosity >= 0:
@@ -508,9 +489,7 @@ class Permutation:
             if node_name_matches(node_name, module_name):
                 if cls.__verbosity > 1 and dryrun:
                     print(
-                        "[apply_permutation_in_K_dim] find the node: '{:}' with '{:}' in cls.__all_parameters, may succeed to apply permutation in K dim.".format(
-                            node_name, p_name
-                        )
+                        f"[apply_permutation_in_K_dim] find the node: '{node_name}' with '{p_name}' in cls.__all_parameters, may succeed to apply permutation in K dim."
                     )
                 is_node_in_all_parameters = True
                 permutation_to_apply = permutation_sequence
@@ -530,19 +509,12 @@ class Permutation:
 
                     if cls.__verbosity > 1 and dryrun:
                         print(
-                            "[apply_permutation_in_K_dim] the node: '{:}' with shape: '{:}' required replicating the permutation sequence with len '{:}' {:} times to succeed in applying the permutation in the K dimension.".format(
-                                node_name,
-                                p.shape,
-                                len(permutation_sequence),
-                                p.shape[0] // len(permutation_sequence),
-                            )
+                            f"[apply_permutation_in_K_dim] the node: '{node_name}' with shape: '{p.shape}' required replicating the permutation sequence with len '{len(permutation_sequence)}' {p.shape[0] // len(permutation_sequence)} times to succeed in applying the permutation in the K dimension."
                         )
                 else:
                     if cls.__verbosity > 1 and dryrun:
                         print(
-                            "[apply_permutation_in_K_dim] the node: '{:}' with shape: '{:}', can match the size of permutation sequence with len: '{:}', succeed to apply permutation in K dim.".format(
-                                node_name, p.shape, len(permutation_sequence)
-                            )
+                            f"[apply_permutation_in_K_dim] the node: '{node_name}' with shape: '{p.shape}', can match the size of permutation sequence with len: '{len(permutation_sequence)}', succeed to apply permutation in K dim."
                         )
 
                 if not dryrun:
@@ -554,9 +526,7 @@ class Permutation:
         if not is_node_in_all_parameters:
             if cls.__verbosity >= 0:
                 print(
-                    "ERROR: [apply_permutation_in _K_dim] cannot find the node: '{:}' in cls.__all_parameters, fail to apply permutation in K dim.".format(
-                        node_name
-                    )
+                    f"ERROR: [apply_permutation_in _K_dim] cannot find the node: '{node_name}' in cls.__all_parameters, fail to apply permutation in K dim."
                 )
             success_permutation = False
 
@@ -678,9 +648,7 @@ class Permutation:
 
         if cls.__verbosity > 1:
             print(
-                "\n[search_for_good_permutation] Original element abs sum: {:}, Pruned element abs sum: {:}, Diff ratio: {:}".format(
-                    original_magnitude, pruned_magnitude, diff_ratio
-                )
+                f"\n[search_for_good_permutation] Original element abs sum: {original_magnitude}, Pruned element abs sum: {pruned_magnitude}, Diff ratio: {diff_ratio}"
             )
 
         start_time_accelerated_search_for_good_permutation = time.perf_counter()
@@ -733,9 +701,7 @@ class Permutation:
                 matrix_group.cpu().detach().numpy()[:, group_permutation]
             )
             print(
-                "[search_for_good_permutation] Take {:.4f} seconds to finish accelerated_search_for_good_permutation function and with final magnitude {:}.".format(
-                    duration_accelerated_search_for_good_permutation, permuted_magnitude
-                )
+                f"[search_for_good_permutation] Take {duration_accelerated_search_for_good_permutation:.4f} seconds to finish accelerated_search_for_good_permutation function and with final magnitude {permuted_magnitude}."
             )
 
         return group_permutation, permutation_found
@@ -785,16 +751,12 @@ class Permutation:
                     except:
                         if cls.__verbosity >= 0:
                             print(
-                                "ERROR: [search_for_good_permutation][warning] cannot merge the weight for node: '{:}', with its weight shape: '{:}', the matrix_group shape: '{:}'.".format(
-                                    sibling, node_weight.size(), matrix_group.size()
-                                )
+                                f"ERROR: [search_for_good_permutation][warning] cannot merge the weight for node: '{sibling}', with its weight shape: '{node_weight.size()}', the matrix_group shape: '{matrix_group.size()}'."
                             )
                         continue
                 if cls.__verbosity > 2:
                     print(
-                        "[search_for_good_permutation] have merged the weight for node: '{:}', with its weight shape: '{:}', the matrix_group shape: '{:}'.".format(
-                            sibling, node_weight.size(), matrix_group.size()
-                        )
+                        f"[search_for_good_permutation] have merged the weight for node: '{sibling}', with its weight shape: '{node_weight.size()}', the matrix_group shape: '{matrix_group.size()}'."
                     )
             else:
                 if cls.__verbosity > 2:
@@ -1695,11 +1657,7 @@ class Permutation:
             node_children = fx_graph.get(node_name).get("children")
 
             if cls.__verbosity > 2:
-                print(
-                    "[find_real_children] node_name: '{:}', children: {:}".format(
-                        node_name, node_children
-                    )
-                )
+                print(f"[find_real_children] node_name: '{node_name}', children: {node_children}")
 
             real_children = cls.find_node_real_children(fx_graph, node_name, set())
 
@@ -1789,12 +1747,7 @@ class Permutation:
             torch_version_minimum = torch_version.split(".")[2]
         if cls.__verbosity > 2:
             print(
-                "[build_fx_graph] The torch version is: {}, version major is: {}, version minor is: {}, version minimum is: {}".format(
-                    torch_version,
-                    torch_version_major,
-                    torch_version_minor,
-                    torch_version_minimum,
-                )
+                f"[build_fx_graph] The torch version is: {torch_version}, version major is: {torch_version_major}, version minor is: {torch_version_minor}, version minimum is: {torch_version_minimum}"
             )
 
         if torch_version_major >= 2 or (torch_version_major >= 1 and torch_version_minor >= 8):
@@ -1828,7 +1781,7 @@ class Permutation:
         module_name_K_dict = {}
         for name, mod in model.named_modules():
             if cls.__verbosity > 1:
-                print("[build_fx_graph] module_name: {}, module type: {}".format(name, type(mod)))
+                print(f"[build_fx_graph] module_name: {name}, module type: {type(mod)}")
             module_name_type_dict[name] = str(type(mod)).split("'")[1]
             try:
                 module_name_C_dict[name] = str(mod.in_channels)
@@ -1856,9 +1809,7 @@ class Permutation:
                 module_name_group_conv_dict[name] = str(mod.groups)
                 if cls.__verbosity > 1:
                     print(
-                        "[build_fx_graph] this module has 'group' param with value: {}".format(
-                            mod.groups
-                        )
+                        f"[build_fx_graph] this module has 'group' param with value: {mod.groups}"
                     )
             except:
                 module_name_group_conv_dict[name] = "None"
@@ -1871,11 +1822,11 @@ class Permutation:
         for node in graph_module.graph.nodes:
             if node.op == "placeholder":
                 if cls.__verbosity > 2:
-                    print("[build_fx_graph] This is the 'input' node: {:}".format(node.target))
+                    print(f"[build_fx_graph] This is the 'input' node: {node.target}")
                 continue
             elif node.op == "get_attr":
                 if cls.__verbosity > 2:
-                    print("[build_fx_graph] This is the 'get_attr' node: {:}".format(node.target))
+                    print(f"[build_fx_graph] This is the 'get_attr' node: {node.target}")
                 node_parent, node_children = get_node_parent_children(node)
                 converted_node_name = convert_fx_node_name(node.target)
 
@@ -1909,9 +1860,7 @@ class Permutation:
                 converted_node_name = convert_fx_node_name(node.name)
                 if cls.__verbosity > 2:
                     print(
-                        "[build_fx_graph] This is the 'call_function' node: {:}, its parent list: {:}, its children list: {:}".format(
-                            converted_node_name, node_parent, node_children
-                        )
+                        f"[build_fx_graph] This is the 'call_function' node: {converted_node_name}, its parent list: {node_parent}, its children list: {node_children}"
                     )
                 network_fx_graph[converted_node_name] = {}
                 network_fx_graph[converted_node_name]["parents"] = node_parent
@@ -1938,9 +1887,7 @@ class Permutation:
                 converted_node_name = convert_fx_node_name(node.name)
                 if cls.__verbosity > 2:
                     print(
-                        "[build_fx_graph] This is the 'call_method' node: {:}, its parent list: {:}, its children list: {:}".format(
-                            converted_node_name, node_parent, node_children
-                        )
+                        f"[build_fx_graph] This is the 'call_method' node: {converted_node_name}, its parent list: {node_parent}, its children list: {node_children}"
                     )
                 network_fx_graph[converted_node_name] = {}
                 network_fx_graph[converted_node_name]["parents"] = node_parent
@@ -1955,18 +1902,14 @@ class Permutation:
                 if converted_node_name != node.target:
                     if cls.__verbosity > 2:
                         print(
-                            "[build_fx_graph][warning] The target name from Torch.FX is '{:}', the manually converted node name is '{:}', not the same one, choose the converted node name".format(
-                                node.target, converted_node_name
-                            )
+                            f"[build_fx_graph][warning] The target name from Torch.FX is '{node.target}', the manually converted node name is '{converted_node_name}', not the same one, choose the converted node name"
                         )
 
                 # assume the modules share the same target name have the same type, because converted_node_name may not be obtained by model.named_modules(), like some ReLU (defined in forward function)
                 node_type = module_name_type_dict[node.target]
                 if cls.__verbosity > 2:
                     print(
-                        "[build_fx_graph] This is the 'call_module' node: {:}, its parent list: {:}, its children list: {:}, its type: {:}".format(
-                            converted_node_name, node_parent, node_children, node_type
-                        )
+                        f"[build_fx_graph] This is the 'call_module' node: {converted_node_name}, its parent list: {node_parent}, its children list: {node_children}, its type: {node_type}"
                     )
                 network_fx_graph[converted_node_name] = {}
                 network_fx_graph[converted_node_name]["parents"] = node_parent
@@ -1981,7 +1924,7 @@ class Permutation:
 
             elif node.op == "output":
                 if cls.__verbosity > 2:
-                    print("[build_fx_graph] This is the 'output' node: {:}".format(node.target))
+                    print(f"[build_fx_graph] This is the 'output' node: {node.target}")
                 continue
 
         if dump_fx_graph:
@@ -1999,8 +1942,9 @@ class Permutation:
     def trace_and_print_raw_fx_graph(cls, model, print_tabular=False, generate_python_code=False):
         """This function is used to find and print the intermediate representation (IR) - Graph representation with Torch.FX features."""
 
-        from torch.fx import symbolic_trace
         import traceback
+
+        from torch.fx import symbolic_trace
 
         # Symbolic tracing frontend - captures the semantics of the module
         try:

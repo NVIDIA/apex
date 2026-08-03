@@ -1,10 +1,10 @@
-import torch
-from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn import functional as F
-from torch import Tensor
-import peer_memory_cuda as pm
 import cudnn_gbn_lib
-from torch.cuda.amp import custom_fwd, custom_bwd
+import peer_memory_cuda as pm
+import torch
+from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
+from torch.nn import functional as F
+from torch.nn.modules.batchnorm import _BatchNorm
 
 
 class _GroupBatchNorm2d(torch.autograd.Function):
@@ -128,7 +128,7 @@ class GroupBatchNorm2d(_BatchNorm):
         affine=True,
         track_running_stats=True,
     ):
-        super(GroupBatchNorm2d, self).__init__(
+        super().__init__(
             num_features,
             eps=eps,
             momentum=momentum,
@@ -165,7 +165,7 @@ class GroupBatchNorm2d(_BatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError("expected 4D input (got {}D input)".format(input.dim()))
+            raise ValueError(f"expected 4D input (got {input.dim()}D input)")
 
     def _check_input_channels(self, input):
         if input.size(1) % 8 != 0:

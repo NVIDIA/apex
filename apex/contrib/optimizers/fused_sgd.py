@@ -1,4 +1,5 @@
 import types
+
 import torch
 from torch.optim.optimizer import Optimizer, required
 
@@ -76,11 +77,11 @@ class FusedSGD(Optimizer):
         materialize_master_grads=True,
     ):
         if lr is not required and lr < 0.0:
-            raise ValueError("Invalid learning rate: {}".format(lr))
+            raise ValueError(f"Invalid learning rate: {lr}")
         if momentum < 0.0:
-            raise ValueError("Invalid momentum value: {}".format(momentum))
+            raise ValueError(f"Invalid momentum value: {momentum}")
         if weight_decay < 0.0:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+            raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(
             lr=lr,
@@ -91,7 +92,7 @@ class FusedSGD(Optimizer):
         )
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(FusedSGD, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
         self.wd_after_momentum = wd_after_momentum
 
@@ -105,7 +106,7 @@ class FusedSGD(Optimizer):
             raise RuntimeError("apex.contrib.optimizers.FusedSGD requires cuda extensions")
 
     def __setstate__(self, state):
-        super(FusedSGD, self).__setstate__(state)
+        super().__setstate__(state)
         for group in self.param_groups:
             group.setdefault("nesterov", False)
 
@@ -155,9 +156,7 @@ class FusedSGD(Optimizer):
             )
         # backward compatibility
         # assuming a list/generator of parameter means single group
-        elif isinstance(grads, types.GeneratorType):
-            grads_group = [grads]
-        elif not isinstance(grads[0], list):
+        elif isinstance(grads, types.GeneratorType) or not isinstance(grads[0], list):
             grads_group = [grads]
         else:
             grads_group = grads
@@ -168,9 +167,9 @@ class FusedSGD(Optimizer):
                                with apex.contrib.optimizers.FP16_Optimizer \
                                which provides output_params."
             )
-        elif isinstance(output_params, types.GeneratorType):
-            output_params_group = [output_params]
-        elif not isinstance(output_params[0], list):
+        elif isinstance(output_params, types.GeneratorType) or not isinstance(
+            output_params[0], list
+        ):
             output_params_group = [output_params]
         else:
             output_params_group = output_params

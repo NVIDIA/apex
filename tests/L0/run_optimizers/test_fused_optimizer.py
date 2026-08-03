@@ -1,6 +1,6 @@
-from itertools import product
 import random
 import unittest
+from itertools import product
 
 import torch
 
@@ -53,10 +53,8 @@ class TestFusedOptimizer(unittest.TestCase):
             max_abs_diff_p = (p_ref - p_tst).abs().max().item()
             max_rel_diff_p = ((p_ref - p_tst) / p_ref).abs().max().item()
 
-            if max_abs_diff_p > max_abs_diff:
-                max_abs_diff = max_abs_diff_p
-            if max_rel_diff_p > max_rel_diff:
-                max_rel_diff = max_rel_diff_p
+            max_abs_diff = max(max_abs_diff, max_abs_diff_p)
+            max_rel_diff = max(max_rel_diff, max_rel_diff_p)
 
         return max_abs_diff, max_rel_diff
 
@@ -226,7 +224,7 @@ class TestFusedAdam(TestFusedOptimizer):
 
 class TestFusedAdagrad(TestFusedOptimizer):
     def __init__(self, *args, **kwargs):
-        super(TestFusedAdagrad, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.options = {"lr": 5e-4, "eps": 1e-08, "weight_decay": 1.0e-5}
         self.ref_optim = torch.optim.Adagrad
         self.fused_optim = apex.optimizers.FusedAdagrad
@@ -294,7 +292,7 @@ class TestFusedAdagrad(TestFusedOptimizer):
 
 class TestFusedSGD(TestFusedOptimizer):
     def __init__(self, *args, **kwargs):
-        super(TestFusedSGD, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.options = {"lr": 0.25, "momentum": 0.125}
         self.ref_optim = torch.optim.SGD
         self.fused_optim = apex.optimizers.FusedSGD

@@ -1,8 +1,9 @@
 import math
 import random
-from typing import Optional
-import torch
 import unittest
+from typing import Optional
+
+import torch
 
 SKIP_TEST = None
 try:
@@ -16,7 +17,7 @@ def openfold_attention_eager(
     key: torch.Tensor,
     value: torch.Tensor,
     mask: torch.Tensor,
-    bias: Optional[torch.Tensor],
+    bias: torch.Tensor | None,
     inf: float,
 ) -> torch.Tensor:
     # query:  [*, num_heads, Q, c_hidden]

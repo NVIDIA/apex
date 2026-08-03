@@ -87,11 +87,11 @@ class FusedSGD(Optimizer):
         set_grad_none=False,
     ):
         if lr is not required and lr < 0.0:
-            raise ValueError("Invalid learning rate: {}".format(lr))
+            raise ValueError(f"Invalid learning rate: {lr}")
         if momentum < 0.0:
-            raise ValueError("Invalid momentum value: {}".format(momentum))
+            raise ValueError(f"Invalid momentum value: {momentum}")
         if weight_decay < 0.0:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+            raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(
             lr=lr,
@@ -102,7 +102,7 @@ class FusedSGD(Optimizer):
         )
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(FusedSGD, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
         self.wd_after_momentum = wd_after_momentum
         self.materialize_master_grads = materialize_master_grads
@@ -122,7 +122,7 @@ class FusedSGD(Optimizer):
             raise RuntimeError("apex.optimizers.FusedSGD requires cuda extensions")
 
     def __setstate__(self, state):
-        super(FusedSGD, self).__setstate__(state)
+        super().__setstate__(state)
         for group in self.param_groups:
             group.setdefault("nesterov", False)
 
@@ -132,7 +132,7 @@ class FusedSGD(Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super(FusedSGD, self).zero_grad()
+            super().zero_grad()
 
     def get_momentums(self, params):
         momentums = []

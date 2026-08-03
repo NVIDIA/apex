@@ -1,6 +1,6 @@
 import torch
-import transducer_loss_cuda
 import transducer_joint_cuda
+import transducer_loss_cuda
 
 
 class TransducerJoint(torch.nn.Module):
@@ -35,7 +35,7 @@ class TransducerJoint(torch.nn.Module):
         dropout_prob=0,
         probe_mask=False,
     ):
-        super(TransducerJoint, self).__init__()
+        super().__init__()
         self.pack_output = pack_output
         self.relu = relu
         self.dropout = dropout
@@ -100,7 +100,7 @@ class TransducerLoss(torch.nn.Module):
     """
 
     def __init__(self, fuse_softmax_backward=True, opt=1, packed_input=False):
-        super(TransducerLoss, self).__init__()
+        super().__init__()
         self.fuse_softmax_backward = fuse_softmax_backward
         self.opt = opt
         self.packed_input = packed_input

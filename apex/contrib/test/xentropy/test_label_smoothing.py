@@ -1,9 +1,8 @@
-import unittest
 import random
 import time
+import unittest
 
 import numpy as np
-
 import torch
 
 SKIP_TEST = None
@@ -59,11 +58,7 @@ class LabelSmoothingTest(unittest.TestCase):
         ref, tst = ref.flatten(), tst.flatten()
         diff = (ref - tst).abs().max()
         idx = (ref - tst).abs().argmax()
-        print(
-            "Max atol idx: {}, diff: {:.6f}, ref: {:.6f}, tst: {:.6f}".format(
-                idx, diff, ref[idx], tst[idx]
-            )
-        )
+        print(f"Max atol idx: {idx}, diff: {diff:.6f}, ref: {ref[idx]:.6f}, tst: {tst[idx]:.6f}")
 
     def _test_label_smoothing_function(self, dtype):
         # Set label smoothing configuration
@@ -124,9 +119,7 @@ class LabelSmoothingTest(unittest.TestCase):
             loss.backward()
         torch.cuda.synchronize()
         print(
-            "Raw time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
-                time.time() - ts, iters, logits.grad.norm()
-            )
+            f"Raw time {time.time() - ts:.2f} s elapsed for {iters} iterations, norm {logits.grad.norm():.4f}"
         )
 
         # Run optimized softmax cross entropy with label smoothing
@@ -139,9 +132,7 @@ class LabelSmoothingTest(unittest.TestCase):
             loss.backward()
         torch.cuda.synchronize()
         print(
-            "Opt time {:.2f} s elapsed for {} iterations, norm {:.4f}".format(
-                time.time() - ts, iters, logits.grad.norm()
-            )
+            f"Opt time {time.time() - ts:.2f} s elapsed for {iters} iterations, norm {logits.grad.norm():.4f}"
         )
 
 

@@ -1,5 +1,5 @@
-import torch
 import peer_memory_cuda as pm
+import torch
 
 
 class PeerHaloExchanger1d:

@@ -102,7 +102,7 @@ import math
 def predict_unique_combinations(C, M):
     assert C % M == 0
     G = int(C / M)
-    return int(int(math.factorial(C)) / (int(math.pow(math.factorial(M), G)) * math.factorial(G)))
+    return int(math.factorial(C) / (int(math.pow(math.factorial(M), G)) * math.factorial(G)))
 
 
 #################################################################
@@ -350,7 +350,7 @@ def use_stripe_map(matrix, group_width, stripe_map, stripe_ids, perm_map, permut
                     break
             # if it's not, then it changed
             if changed:
-                used_stripes.append(stripe_group[s])
+                used_stripes.append(stripe)
 
             matrix[..., stripe * group_width : stripe * group_width + group_width] = sub_result[
                 ..., s * group_width : s * group_width + group_width

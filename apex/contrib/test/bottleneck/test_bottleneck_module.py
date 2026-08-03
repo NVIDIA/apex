@@ -7,8 +7,7 @@ from apex.distributed_testing.distributed_test_base import NcclDistributedTestBa
 
 SKIP_TEST = None
 try:
-    from apex.contrib.bottleneck import Bottleneck, SpatialBottleneck
-    from apex.contrib.bottleneck import HaloExchangerPeer
+    from apex.contrib.bottleneck import Bottleneck, HaloExchangerPeer, SpatialBottleneck
     from apex.contrib.peer_memory import PeerMemoryPool
 except ImportError as e:
     SKIP_TEST = e

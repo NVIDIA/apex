@@ -1,7 +1,7 @@
-from typing import Optional, Sequence
+from collections.abc import Sequence
+from typing import Optional
 
 import torch
-
 
 __all__ = ["_cast_if_autocast_enabled"]
 
@@ -12,7 +12,7 @@ def _get_autocast_dtypes() -> Sequence[torch.dtype]:
     return [torch.half]
 
 
-def _get_current_dtype(dtype: Optional[torch.dtype] = None) -> torch.dtype:
+def _get_current_dtype(dtype: torch.dtype | None = None) -> torch.dtype:
     if not torch.is_autocast_enabled():
         return torch.float or dtype
     else:

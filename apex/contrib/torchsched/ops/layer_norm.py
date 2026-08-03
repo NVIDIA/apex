@@ -277,7 +277,7 @@ def layer_norm(
     #   * Shape (N, S, H), normalized_shape (H,);
     #   * Shape (N, C, H, W), normalized_shape (C, H, W);
     # cuDNN LayerNorm expects shape (M, N, 1, 1) and normalized_shape (1, N, 1, 1)
-    if tuple(x.shape[-len(normalized_shape) :]) != tuple(normalized_shape):  # noqa: E203
+    if tuple(x.shape[-len(normalized_shape) :]) != tuple(normalized_shape):
         raise ValueError(
             f"CuDNN LayerNorm expects `x.shape[{-len(normalized_shape)}:]` equals to "
             f"`normalized_shape`, but got:\n    {x.shape=}, {normalized_shape=}",

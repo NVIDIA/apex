@@ -1,13 +1,12 @@
 import os
 import sys
 import unittest
-from packaging.version import Version, parse
 
 import torch
+from packaging.version import Version, parse
 from torch import distributed as dist
+from torch.testing._internal import common_distributed, common_utils
 from torch.utils import collect_env
-from torch.testing._internal import common_utils
-from torch.testing._internal import common_distributed
 
 from apex.distributed_testing._ucc_util import HAS_UCC
 

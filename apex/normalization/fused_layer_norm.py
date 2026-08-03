@@ -1,11 +1,11 @@
 import importlib
 import numbers
+from typing import List, Tuple
 
 import torch
-from torch.nn.parameter import Parameter
-from torch.nn import init
 from torch.nn import functional as F
-from typing import List, Tuple
+from torch.nn import init
+from torch.nn.parameter import Parameter
 
 from apex._autocast_utils import _cast_if_autocast_enabled
 
@@ -81,10 +81,10 @@ if supports_custom_op():
         input: torch.Tensor,
         weight: torch.Tensor,
         bias: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
             fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
@@ -102,10 +102,10 @@ if supports_custom_op():
         input: torch.Tensor,
         weight: torch.Tensor,
         bias: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         input = input.contiguous()
         weight = weight.contiguous()
         bias = bias.contiguous()
@@ -127,12 +127,12 @@ if supports_custom_op():
         mean: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         weight: torch.Tensor,
         bias: torch.Tensor,
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         grad_input, grad_weight, grad_bias = fused_layer_norm_cuda.backward_affine(
             grad_output.contiguous(),
             mean,
@@ -152,12 +152,12 @@ if supports_custom_op():
         mean: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         weight: torch.Tensor,
         bias: torch.Tensor,
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         grad_input = torch.empty_like(input_or_output)
         grad_weight = torch.empty_like(weight)
         grad_bias = torch.empty_like(bias)
@@ -241,10 +241,10 @@ if supports_custom_op():
     def fused_rms_norm_affine_fwd(
         input: torch.Tensor,
         weight: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
             fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
@@ -260,10 +260,10 @@ if supports_custom_op():
     def fused_rms_norm_affine_fwd_fake(
         input: torch.Tensor,
         weight: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         input = input.contiguous()
         weight = weight.contiguous()
         idiff = input.ndim - len(normalized_shape)
@@ -290,11 +290,11 @@ if supports_custom_op():
         grad_output: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         weight: torch.Tensor,
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         grad_input, grad_weight = fused_layer_norm_cuda.rms_backward_affine(
             grad_output.contiguous(),
             invvar,
@@ -311,11 +311,11 @@ if supports_custom_op():
         grad_output: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         weight: torch.Tensor,
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         grad_input = torch.empty_like(input_or_output)
         grad_weight = torch.empty_like(weight)
         return grad_input, grad_weight
@@ -433,10 +433,10 @@ if supports_custom_op():
     @torch.library.custom_op("apex::fused_layer_norm_fwd", mutates_args=())
     def fused_layer_norm_fwd(
         input: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
             fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
@@ -448,10 +448,10 @@ if supports_custom_op():
     @fused_layer_norm_fwd.register_fake
     def fused_layer_norm_fwd_fake(
         input: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         input = input.contiguous()
         idiff = input.ndim - len(normalized_shape)
         n = 1
@@ -471,7 +471,7 @@ if supports_custom_op():
         mean: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
     ) -> torch.Tensor:
@@ -492,7 +492,7 @@ if supports_custom_op():
         mean: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
     ) -> torch.Tensor:
@@ -567,10 +567,10 @@ if supports_custom_op():
     @torch.library.custom_op("apex::fused_rms_norm_fwd", mutates_args=())
     def fused_rms_norm_fwd(
         input: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         global fused_layer_norm_cuda
         if fused_layer_norm_cuda is None:
             fused_layer_norm_cuda = importlib.import_module("fused_layer_norm_cuda")
@@ -582,10 +582,10 @@ if supports_custom_op():
     @fused_rms_norm_fwd.register_fake
     def fused_rms_norm_fwd_fake(
         input: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         input = input.contiguous()
         idiff = input.ndim - len(normalized_shape)
         n = 1
@@ -611,7 +611,7 @@ if supports_custom_op():
         grad_output: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
     ) -> torch.Tensor:
@@ -630,7 +630,7 @@ if supports_custom_op():
         grad_output: torch.Tensor,
         invvar: torch.Tensor,
         input_or_output: torch.Tensor,
-        normalized_shape: List[int],
+        normalized_shape: list[int],
         eps: float,
         memory_efficient: bool = False,
     ) -> torch.Tensor:

@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch._inductor
-from torch._dynamo import list_backends
-from torch._dynamo import register_backend
+from torch._dynamo import list_backends, register_backend
 from torch._inductor.compile_fx import compile_fx_inner
 
 from .backend import get_backend

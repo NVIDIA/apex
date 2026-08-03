@@ -1,4 +1,5 @@
 import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
@@ -86,7 +87,7 @@ class FusedLAMB(torch.optim.Optimizer):
             grad_averaging=grad_averaging,
             max_grad_norm=max_grad_norm,
         )
-        super(FusedLAMB, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         if multi_tensor_applier.available:
             import amp_C
 
@@ -109,7 +110,7 @@ class FusedLAMB(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super(FusedLAMB, self).zero_grad()
+            super().zero_grad()
 
     def step(self, closure=None):
         """Performs a single optimization step.

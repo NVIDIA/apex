@@ -1,4 +1,5 @@
 import torch
+
 from apex.multi_tensor_apply import multi_tensor_applier
 
 
@@ -51,7 +52,7 @@ class FusedAdagrad(torch.optim.Optimizer):
         adagrad_w_mode=False,
     ):
         defaults = dict(lr=lr, eps=eps, weight_decay=weight_decay)
-        super(FusedAdagrad, self).__init__(params, defaults)
+        super().__init__(params, defaults)
         self.adagrad_w_mode = 1 if adagrad_w_mode else 0
         self.set_grad_none = set_grad_none
 
@@ -70,7 +71,7 @@ class FusedAdagrad(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super(FusedAdagrad, self).zero_grad()
+            super().zero_grad()
 
     def step(self, closure=None):
         """Performs a single optimization step.
