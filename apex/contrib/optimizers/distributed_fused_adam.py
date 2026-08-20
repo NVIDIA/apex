@@ -21,6 +21,11 @@ from typing import (
 import torch
 from torch.distributed.distributed_c10d import _get_default_group
 
+# torch.cuda.amp is deprecated since torch 2.3/2.4 and scheduled for removal;
+# torch.amp provides the same names since torch 2.3 (see requirements.txt).
+GradScaler = torch.amp.GradScaler
+GradScalerOptState = torch.amp.grad_scaler.OptState
+
 try:
     from apex.contrib import nccl_allocator
 except ImportError:
@@ -2307,7 +2312,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self,
         *args: torch.Tensor | None | Any,
         inv_scale: torch.Tensor | None = None,
-        grad_scaler: torch.cuda.amp.GradScaler | None = None,
+        grad_scaler: GradScaler | None = None,
     ) -> None:
         """Custom unscale function for use by AMP gradient scaler
 
@@ -2319,7 +2324,7 @@ class DistributedFusedAdam(torch.optim.Optimizer):
             inv_scale (torch.Tensor, optional): factor to multiply
                 gradients. May be provided either as a kwarg or as the
                 first positional arg.
-            grad_scaler (torch.cuda.amp.GradScaler): gradient scaler
+            grad_scaler (GradScaler): gradient scaler
                 (default: None)
 
         """
@@ -2340,7 +2345,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Get inv_scale from GradScaler if provided
         if grad_scaler is not None and grad_scaler._enabled:
             grad_scaler_state = grad_scaler._per_optimizer_states[id(self)]
-            GradScalerOptState = torch.cuda.amp.grad_scaler.OptState
             if grad_scaler_state["stage"] is GradScalerOptState.UNSCALED:
                 raise RuntimeError(
                     "unscale_grads has already been called since the last GradScaler update"
@@ -2368,14 +2372,14 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         self,
         closure: Callable | None = None,
         *,
-        grad_scaler: torch.cuda.amp.GradScaler | None = None,
+        grad_scaler: GradScaler | None = None,
     ):
         """Apply Adam optimizer step
 
         Arguments:
             closure (callable, optional): closure to recompute loss
                 (default: None)
-            grad_scaler (torch.cuda.amp.GradScaler, optional):
+            grad_scaler (GradScaler, optional):
                 gradient scaler (default: None)
 
         """
@@ -2395,7 +2399,6 @@ class DistributedFusedAdam(torch.optim.Optimizer):
         # Apply gradient scaler if provided
         if grad_scaler is not None and grad_scaler._enabled:
             grad_scaler_state = grad_scaler._per_optimizer_states[id(self)]
-            GradScalerOptState = torch.cuda.amp.grad_scaler.OptState
             if grad_scaler_state["stage"] is GradScalerOptState.READY:
                 self.unscale_grads(grad_scaler=grad_scaler)
             found_inf = grad_scaler_state["found_inf_per_device"][self.device]

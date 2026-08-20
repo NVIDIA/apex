@@ -2,14 +2,14 @@ import cudnn_gbn_lib
 import peer_memory_cuda as pm
 import torch
 from torch import Tensor
-from torch.cuda.amp import custom_bwd, custom_fwd
+from torch.amp import custom_bwd, custom_fwd
 from torch.nn import functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
 
 
 class _GroupBatchNorm2d(torch.autograd.Function):
     @staticmethod
-    @custom_fwd
+    @custom_fwd(device_type="cuda")
     def forward(
         ctx,
         input,
@@ -47,7 +47,7 @@ class _GroupBatchNorm2d(torch.autograd.Function):
         )
 
     @staticmethod
-    @custom_bwd
+    @custom_bwd(device_type="cuda")
     def backward(ctx, grad_output):
         x, scale, minibatch_mean, minibatch_inv_var = ctx.saved_variables
         eps = ctx.eps

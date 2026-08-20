@@ -23,4 +23,7 @@ def _cast_if_autocast_enabled(*args):
     if not torch.is_autocast_enabled():
         return args
     else:
-        return torch.cuda.amp.autocast_mode._cast(args, torch.get_autocast_gpu_dtype())
+        # torch.cuda.amp.autocast_mode._cast is deprecated since torch 2.4 and
+        # scheduled for removal; torch.amp.autocast_mode._cast takes an
+        # explicit device_type since torch 2.5.
+        return torch.amp.autocast_mode._cast(args, "cuda", torch.get_autocast_gpu_dtype())
