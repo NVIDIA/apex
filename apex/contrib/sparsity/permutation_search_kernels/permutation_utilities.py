@@ -88,7 +88,7 @@ def sum_after_2_to_4(matrix):
 def unstructured_prune(matrix, sparsity):
     shp = matrix.shape
     matrix = matrix.flatten()
-    ix = np.argsort(matrix)
+    ix = np.argsort(np.abs(matrix))
     ix = ix[: int(len(ix) * sparsity)]
     matrix[ix] = 0.0
     matrix = np.reshape(matrix, shp)
