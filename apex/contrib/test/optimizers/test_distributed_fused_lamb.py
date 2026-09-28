@@ -1,7 +1,7 @@
 import inspect
 
 import torch
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.distributed.distributed_c10d import _coalescing_manager
 from torch.testing._internal import common_utils
 

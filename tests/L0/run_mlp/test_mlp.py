@@ -76,7 +76,7 @@ class TestMLP(common_utils.TestCase):
         )
         ref_input = test_input.clone().detach().requires_grad_()
 
-        with torch.cuda.amp.autocast_mode.autocast(enabled=enable_autocast):
+        with torch.amp.autocast("cuda", enabled=enable_autocast):
             mlp_out = mlp(test_input)
             mlp_loss = mlp_out.mean().mul(10.0)
             # Use mean value as scalar loss. Multiply 10 to make it big enough not zero out
