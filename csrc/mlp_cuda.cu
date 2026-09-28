@@ -10,6 +10,8 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+typedef unsigned int uint;
+
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11000
 // includes cublaslt
 #include <cublasLt.h>
