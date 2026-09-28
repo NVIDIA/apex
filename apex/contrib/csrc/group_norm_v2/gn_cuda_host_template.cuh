@@ -4,8 +4,11 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
+#include <string>
+#include <tuple>
 
 #include "gn_cuda_kernel.cuh"
 #include "gn_utils.hpp"
