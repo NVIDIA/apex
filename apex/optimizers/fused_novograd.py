@@ -114,7 +114,7 @@ class FusedNovoGrad(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super().zero_grad()
+            super().zero_grad(set_to_none=False)
 
     def load_state_dict(self, state_dict):
         super().load_state_dict(state_dict)
