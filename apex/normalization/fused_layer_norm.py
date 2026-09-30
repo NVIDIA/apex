@@ -20,9 +20,10 @@ def supports_custom_op() -> bool:
 
 # Reference implementation from Huggingface
 def manual_rms_norm(input, normalized_shape, weight, eps):
-    # layer norm should always be calculated in float32
+    # Accumulate low-precision inputs in float32 without narrowing float64.
     dims = tuple(i for i in range(-1, -len(normalized_shape) - 1, -1))
-    variance = input.to(torch.float32).pow(2).mean(dims, keepdim=True)
+    accumulation_dtype = torch.float64 if input.dtype == torch.float64 else torch.float32
+    variance = input.to(accumulation_dtype).pow(2).mean(dims, keepdim=True)
     input = input * torch.rsqrt(variance + eps)
 
     if weight is None:
