@@ -49,6 +49,14 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
   // The sums.
   float sum = 0.f, sum_sq = 0.f;
 
+  // The shift subtracted before summing (the same in all the CTAs working on that group).
+  float shift = 0.f;
+  if (ci < params.c) {
+    int gi = ci / params.channels_per_group;
+    shift = group_norm_nhwc_shift<IOTraits>(params.x, (int64_t)ni * params.hwc + gi * params.channels_per_group,
+                                            params.channels_per_group);
+  }
+
   // Iterate over the activations to compute the sums.
   for (int hwi = hw_begin; hwi < hw_end; ++hwi) {
     // The offset.
@@ -62,6 +70,8 @@ __global__ void group_norm_nhwc_fwd_sum_kernel(Group_norm_nhwc_fwd_params params
 
     // Extract the two values.
     float2 f2 = IOTraits::unpack(v2);
+    f2.x -= shift;
+    f2.y -= shift;
 
     // Update the sum.
     sum += f2.x + f2.y;
@@ -244,11 +254,13 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
   // The group that thread works on and the channel in the group (modulus).
   int gi = ci / params.channels_per_group;
 
-  // Load the sum and sum of squares for the group.
-  float sum = 0.f, sum_sq = 0.f;
+  // Load the sum and sum of squares (of the shifted values) for the group, and the shift.
+  float sum = 0.f, sum_sq = 0.f, shift = 0.f;
   if (gi < params.groups) {
     sum = params.zeroed_red_buffer[(2 * ni + 0) * params.groups + gi];
     sum_sq = params.zeroed_red_buffer[(2 * ni + 1) * params.groups + gi];
+    shift = group_norm_nhwc_shift<IOTraits>(params.x, (int64_t)ni * params.hwc + gi * params.channels_per_group,
+                                            params.channels_per_group);
   }
 
   // Load gamma/beta.
@@ -258,10 +270,12 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
     beta_f2 = WTraits::unpack(*reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.beta)[ci]));
   }
 
+  // Compute the mean of the shifted values.
+  float shifted_mean = sum * params.inv_hwc_per_group;
   // Compute the mean.
-  float mean = sum * params.inv_hwc_per_group;
+  float mean = shift + shifted_mean;
   // Compute the variance.
-  float var = sum_sq * params.inv_hwc_per_group - (mean * mean);
+  float var = sum_sq * params.inv_hwc_per_group - (shifted_mean * shifted_mean);
   // Compute the inverse of the stddev.
   float inv_stddev = var <= 0.f ? 1.f : rsqrtf(var + params.epsilon);
 
@@ -304,12 +318,9 @@ __global__ void group_norm_nhwc_fwd_scale_kernel(Group_norm_nhwc_fwd_params para
     }
   }
 
-  // Write the sums if needed.
+  // Write the mean and the variance if needed.
   if (params.sums != nullptr && gi < params.groups) {
-    float2 sums;
-    sums.x = sum * params.inv_hwc_per_group;
-    sums.y = sum_sq * params.inv_hwc_per_group;
-    params.sums[ni * params.groups + gi] = sums;
+    params.sums[ni * params.groups + gi] = make_float2(mean, var);
   }
 }
 
