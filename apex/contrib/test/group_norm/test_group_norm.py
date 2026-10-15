@@ -130,13 +130,15 @@ class GroupNormTest(unittest.TestCase):
         memory_format=torch.channels_last,
         device="cuda",
         act="",
+        x_mean=-2.3,
+        x_std=0.5,
     ):
         # create data
         x_shape = (N, C, H, W)
         w_shape = (C,)
         weight = torch.rand(w_shape, dtype=wdtype, device="cuda", requires_grad=True)
         bias = torch.rand(w_shape, dtype=wdtype, device="cuda", requires_grad=True)
-        x = -2.3 + 0.5 * torch.randn(x_shape, dtype=xdtype, device="cuda")
+        x = x_mean + x_std * torch.randn(x_shape, dtype=xdtype, device="cuda")
         x = x.to(memory_format=memory_format)
         dy = 0.1 * torch.randn_like(x)
         x.requires_grad_(True)
@@ -213,6 +215,27 @@ class GroupNormTest(unittest.TestCase):
 
     def test_fp32_two_pass_algo_with_swish(self):
         self.verify_group_norm(cuda_group_norm_nhwc_two_pass, xdtype=torch.float32, act="swish")
+
+    def test_fp32_large_mean(self):
+        # Inputs whose per-group mean is large relative to their std, so that
+        # E[x^2] - mean^2 cancels in fp32. H*W = 1024 / 4096 for the one-/two-pass kernels.
+        for tst_func, N, H in (
+            (cuda_group_norm_nhwc_one_pass, 2, 32),
+            (cuda_group_norm_nhwc_two_pass, 1, 64),
+        ):
+            for x_mean, x_std in ((100.0, 1.0), (10.0, 0.02)):
+                with self.subTest(algo=tst_func.__name__, x_mean=x_mean, x_std=x_std):
+                    self.verify_group_norm(
+                        tst_func,
+                        N=N,
+                        C=320,
+                        H=H,
+                        W=H,
+                        G=32,
+                        xdtype=torch.float32,
+                        x_mean=x_mean,
+                        x_std=x_std,
+                    )
 
     def test_group_norm_module(self):
         self.verify_group_norm(GroupNorm, G=16, act="swish")
