@@ -1,3 +1,8 @@
 -r requirements.txt
 flake8>=3.7.9
 Sphinx>=3.0.3
+# Tests
+expecttest  # imported by torch.testing._internal.common_utils, which the tests use
+onnx  # FusedLayerNorm/FusedRMSNorm ONNX export tests
+onnxscript  # torch.onnx.export
+torchvision  # reference implementation for the focal loss test
