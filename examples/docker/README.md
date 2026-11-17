@@ -5,7 +5,7 @@
 docker build -t new_image_with_apex .
 ```
 By default, **Dockerfile** uses NVIDIA's Pytorch container as the base image,
-which requires an NVIDIA GPU Cloud (NGC) account.  If you don't have an NGC account, you can sign up for free by following the instructions [here](https://docs.nvidia.com/ngc/ngc-getting-started-guide/index.html#generating-api-key).
+which requires an NVIDIA GPU Cloud (NGC) account.  If you don't have an NGC account, you can sign up for free by following the instructions [here](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-api-key).
 
 Alternatively, you can supply your own base image via the `BASE_IMAGE` build-arg.
 `BASE_IMAGE` must have Pytorch and Cuda installed.  For example, any
