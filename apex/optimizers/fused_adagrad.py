@@ -71,7 +71,7 @@ class FusedAdagrad(torch.optim.Optimizer):
                 for p in group["params"]:
                     p.grad = None
         else:
-            super().zero_grad()
+            super().zero_grad(set_to_none=False)
 
     def step(self, closure=None):
         """Performs a single optimization step.
