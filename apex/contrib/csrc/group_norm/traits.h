@@ -149,3 +149,21 @@ struct Bf16IOFp32W {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// The mean of the channels of a group at its first activation (x[offset + 0 .. channels_per_group-1]).
+// The kernels subtract it from the inputs before computing the sums, which avoids the catastrophic
+// cancellation in E[x^2] - E[x]^2 when the mean is large compared with the standard deviation.
+template <typename IOTraits>
+inline __device__ float group_norm_nhwc_shift(const void* x, int64_t offset, int channels_per_group) {
+  using IOType = typename IOTraits::Type;
+  using IOType2 = typename IOTraits::Type2;
+  const IOType2* x_ptr = reinterpret_cast<const IOType2*>(&reinterpret_cast<const IOType*>(x)[offset]);
+  float sum = 0.f;
+  for (int ii = 0; ii < channels_per_group / 2; ++ii) {
+    float2 f2 = IOTraits::unpack(x_ptr[ii]);
+    sum += f2.x + f2.y;
+  }
+  return sum / (float)channels_per_group;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -54,10 +54,8 @@ __global__ void group_norm_nhwc_bwd_sum_kernel(Group_norm_nhwc_bwd_params params
   float2 fwd = params.sums[ni * params.groups + gi];
   // The mean of X (computed during the fwd pass -- one value per batch*group).
   float x_mean = fwd.x;
-  // The mean of squares of X (computed during the fwd pass -- one value per batch*group).
-  float x_sq_mean = fwd.y;
-  // The variance.
-  float x_var = x_sq_mean - x_mean * x_mean;
+  // The variance of X (computed during the fwd pass -- one value per batch*group).
+  float x_var = fwd.y;
   // The reciprocal of the standard deviation (i.e. 1.f / sqrt(var + epsilon)).
   float rcp_x_stddev = x_var <= 0.f ? 1.f : 1.f / sqrtf(x_var + params.epsilon);
 
@@ -333,10 +331,8 @@ __global__ void group_norm_nhwc_bwd_scale_kernel(Group_norm_nhwc_bwd_params para
   float2 fwd = params.sums[ni * params.groups + gi];
   // The mean of X (computed during the fwd pass -- one value per batch*group).
   float x_mean = fwd.x;
-  // The mean of squares of X (computed during the fwd pass -- one value per batch*group).
-  float x_sq_mean = fwd.y;
-  // The variance.
-  float x_var = x_sq_mean - x_mean * x_mean;
+  // The variance of X (computed during the fwd pass -- one value per batch*group).
+  float x_var = fwd.y;
   // The reciprocal of the standard deviation (i.e. 1.f / sqrt(var + epsilon)).
   float rcp_x_stddev = x_var <= 0.f ? 1.f : 1.f / sqrtf(x_var + params.epsilon);
 

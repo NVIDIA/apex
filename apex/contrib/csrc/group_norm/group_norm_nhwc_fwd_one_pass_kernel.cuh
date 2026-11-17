@@ -91,13 +91,22 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pa
       }
     }
 
-    // Compute the sum and the sum of squares for each thread.
+    // The shift subtracted before summing (the same in all the CTAs working on that group).
+    const float shift = group_norm_nhwc_shift<IOTraits>(params.x, (int64_t)ni * params.hwc + gi * CHANNELS_PER_GROUP,
+                                                        CHANNELS_PER_GROUP);
+
+    // Compute the sum and the sum of squares (of the shifted values) for each thread.
     float2 sums = make_float2(0.f, 0.f);
 #pragma unroll
     for (int ii = 0; ii < ACTS_PER_THREAD; ++ii) {
-      float2 f2 = IOTraits::unpack(x[ii]);
-      sums.x += f2.x + f2.y;
-      sums.y += f2.x * f2.x + f2.y * f2.y;
+      int hwj = hwi + ii * ACTS_PER_LOOP;
+      if (is_active && hwj < params.hw) {
+        float2 f2 = IOTraits::unpack(x[ii]);
+        f2.x -= shift;
+        f2.y -= shift;
+        sums.x += f2.x + f2.y;
+        sums.y += f2.x * f2.x + f2.y * f2.y;
+      }
     }
 
     // Clear invalid threads.
@@ -147,13 +156,6 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pa
       smem_sums = sums;
     }
 
-    // Store the results to global memory as well (for training).
-    if (params.sums != nullptr && blockIdx.x == 0 && threadIdx.x == 0) {
-      sums.x *= params.inv_hwc_per_group;
-      sums.y *= params.inv_hwc_per_group;
-      params.sums[ngi] = sums;
-    }
-
     // Make sure the sums are in shared memory.
     __syncthreads();
 
@@ -163,12 +165,19 @@ __global__ __launch_bounds__(THREADS_PER_BLOCK_) void group_norm_nhwc_fwd_one_pa
     float2 beta_f2 = WTraits::unpack(
         *reinterpret_cast<const WType2*>(&reinterpret_cast<const WType*>(params.beta)[gi * CHANNELS_PER_GROUP + ci]));
 
+    // Compute the mean of the shifted values.
+    float shifted_mean = smem_sums.x * params.inv_hwc_per_group;
     // Compute the mean.
-    float mean = smem_sums.x * params.inv_hwc_per_group;
+    float mean = shift + shifted_mean;
     // Compute the variance.
-    float var = smem_sums.y * params.inv_hwc_per_group - (mean * mean);
+    float var = smem_sums.y * params.inv_hwc_per_group - (shifted_mean * shifted_mean);
     // Compute the inverse of the stddev.
     float inv_stddev = var <= 0.f ? 1.f : rsqrtf(var + params.epsilon);
+
+    // Store the mean and the variance to global memory as well (for training).
+    if (params.sums != nullptr && blockIdx.x == 0 && threadIdx.x == 0) {
+      params.sums[ngi] = make_float2(mean, var);
+    }
 
     // The pointer to the first activation stored by that thread.
     IOType* y_ptr = &reinterpret_cast<IOType*>(params.y)[offset];
