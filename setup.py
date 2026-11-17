@@ -143,9 +143,10 @@ print(f"\n\ntorch.__version__  = {torch.__version__}\n\n")
 TORCH_MAJOR = int(torch.__version__.split(".")[0])
 TORCH_MINOR = int(torch.__version__.split(".")[1])
 
-if TORCH_MAJOR == 0 and TORCH_MINOR < 4:
+if parse(torch.__version__) < parse("2.6.0"):
     raise RuntimeError(
-        "Apex requires Pytorch 0.4 or newer.\nThe latest stable release can be obtained from https://pytorch.org/"
+        "Apex requires Pytorch 2.6.0 or newer, matching requirements.txt.\n"
+        "The latest stable release can be obtained from https://pytorch.org/"
     )
 
 cmdclass = {}
@@ -913,7 +914,7 @@ setup(
             "apex.egg-info",
         )
     ),
-    install_requires=["packaging>20.6"],
+    install_requires=["packaging>20.6", "torch>=2.6.0"],
     description="PyTorch Extensions written by NVIDIA",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtensionSeparateDir} if ext_modules else {},
