@@ -38,7 +38,7 @@ class FP16_Optimizer:
         # 1. maintain same user API from apex.fp16_utils
         # 2. keep common stuff here in case we need to add new fused optimizer later
 
-        if not torch.cuda.is_available:
+        if not torch.cuda.is_available():
             raise SystemError("Cannot use fp16 without CUDA.")
         self.optimizer = init_optimizer
 
