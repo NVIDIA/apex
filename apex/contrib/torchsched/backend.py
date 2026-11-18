@@ -36,9 +36,10 @@ def enable_multi_stream_scheduling(compile_fn: Callable[P, R]) -> Callable[P, R]
     @functools.wraps(compile_fn)
     def _compile_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         patch_graph_lowering(patch=True)
-        compile_results = compile_fn(*args, **kwargs)
-        patch_graph_lowering(patch=False)
-        return compile_results
+        try:
+            return compile_fn(*args, **kwargs)
+        finally:
+            patch_graph_lowering(patch=False)
 
     return _compile_wrapper
 
