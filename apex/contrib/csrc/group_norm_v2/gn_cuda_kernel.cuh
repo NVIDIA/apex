@@ -2,6 +2,8 @@
 
 #include <cooperative_groups.h>
 
+#include <tuple>
+
 #include "gn_utils.hpp"
 
 namespace group_norm_v2 {
